@@ -142,7 +142,7 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
         n_last_days = serializer.validated_data.get('n_last_days')
 
         workspace, membership, error = check_workspace_access(
-            request.user, workspace_id, required_roles=['admin', 'manager', 'researcher']
+            request.user, workspace_id, required_roles=['admin', 'manager']
         )
         if error:
             return Response({"error": error}, status=status.HTTP_403_FORBIDDEN)
@@ -250,6 +250,11 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def abort(self, request, pk=None):
         instance = self.get_object()
+        workspace, membership, error = check_workspace_access(
+            request.user, str(instance.workspace_id), required_roles=['admin', 'manager']
+        )
+        if error:
+            return Response({"error": error}, status=status.HTTP_403_FORBIDDEN)
         res_json = abort_job_logic(user=request.user, pipeline_run_id=str(instance.id))
         try:
             res_data = json.loads(res_json)
@@ -272,6 +277,11 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def pause(self, request, pk=None):
         instance = self.get_object()
+        workspace, membership, error = check_workspace_access(
+            request.user, str(instance.workspace_id), required_roles=['admin', 'manager']
+        )
+        if error:
+            return Response({"error": error}, status=status.HTTP_403_FORBIDDEN)
         reason = request.data.get('reason', 'Paused via API')
         ok = instance.pause(reason=reason)
         if not ok:
@@ -297,6 +307,11 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def resume(self, request, pk=None):
         instance = self.get_object()
+        workspace, membership, error = check_workspace_access(
+            request.user, str(instance.workspace_id), required_roles=['admin', 'manager']
+        )
+        if error:
+            return Response({"error": error}, status=status.HTTP_403_FORBIDDEN)
         ok = instance.resume()
         if not ok:
             return Response(
@@ -320,6 +335,11 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def tick(self, request, pk=None):
         instance = self.get_object()
+        workspace, membership, error = check_workspace_access(
+            request.user, str(instance.workspace_id), required_roles=['admin', 'manager']
+        )
+        if error:
+            return Response({"error": error}, status=status.HTTP_403_FORBIDDEN)
         res = instance.tick()
         http_status = status.HTTP_200_OK if res.get("success", False) else status.HTTP_400_BAD_REQUEST
         return Response(res, status=http_status)
@@ -332,18 +352,26 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
         responses={
             200: OpenApiResponse(description="Pipeline rerun successfully initiated"),
             400: OpenApiResponse(description="Invalid step or cannot rerun"),
-            403: OpenApiResponse(description="Forbidden - requires Admin or Manager role"),
+            403: OpenApiResponse(description="Forbidden - requires Admin role"),
             404: OpenApiResponse(description="Pipeline run not found"),
         }
     )
     @action(detail=True, methods=['post'], url_path='rerun-from-step')
     def rerun_from_step(self, request, pk=None):
         instance = self.get_object()
+        workspace, membership, error = check_workspace_access(
+            request.user, str(instance.workspace_id), required_roles=['admin']
+        )
+        if error:
+            return Response({"error": error}, status=status.HTTP_403_FORBIDDEN)
         step_name = request.data.get('step_name') or request.query_params.get('step_name')
         from mcp_server.tools.pipeline_runs import rerun_pipeline_from_step_logic
         res_json = rerun_pipeline_from_step_logic(user=request.user, pipeline_run_id=str(instance.id), step_name=step_name)
         res_data = json.loads(res_json)
         if res_data.get("status") == "error":
+            err_msg = str(res_data.get("error", ""))
+            if "denied" in err_msg.lower() or "permissions" in err_msg.lower():
+                return Response(res_data, status=status.HTTP_403_FORBIDDEN)
             return Response(res_data, status=status.HTTP_400_BAD_REQUEST)
         return Response(res_data, status=status.HTTP_200_OK)
 
@@ -359,6 +387,11 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='trigger-step')
     def trigger_step(self, request, pk=None):
         pipeline_run = self.get_object()
+        workspace, membership, error = check_workspace_access(
+            request.user, str(pipeline_run.workspace_id), required_roles=['admin', 'manager']
+        )
+        if error:
+            return Response({"error": error}, status=status.HTTP_403_FORBIDDEN)
         serializer = TriggerStepSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

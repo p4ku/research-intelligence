@@ -45,7 +45,7 @@ def trigger_search_job_logic(
     - Mode 1 (Relative Lookback Days): Pass `n_last_days` (default: 7). Queries `now() - N days` to `now()`.
     - Mode 2 (Explicit Date Range): Pass `start_date` and/or `end_date` (ISO strings). Overrides relative days.
     """
-    workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
@@ -187,7 +187,7 @@ def trigger_pdf_download_job_logic(
         except (ValueError, Workspace.DoesNotExist):
             return f"Error: Workspace '{workspace_id}' not found."
 
-    workspace, membership, error = check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager'])
     if error:
         return error
 
@@ -270,7 +270,7 @@ def trigger_ocr_job_logic(
         except (ValueError, Workspace.DoesNotExist):
             return f"Error: Workspace '{workspace_id}' not found."
 
-    workspace, membership, error = check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager'])
     if error:
         return error
 
@@ -356,7 +356,7 @@ def trigger_screening_job_logic(
         except (ValueError, Workspace.DoesNotExist):
             return f"Error: Workspace '{workspace_id}' not found."
 
-    workspace, membership, error = check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager'])
     if error:
         return error
 
@@ -448,7 +448,7 @@ def trigger_extraction_job_logic(
         except (ValueError, Workspace.DoesNotExist):
             return f"Error: Workspace '{workspace_id}' not found."
 
-    workspace, membership, error = check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager'])
     if error:
         return error
 
@@ -524,7 +524,7 @@ def trigger_signal_score_job_logic(
     except (ValueError, PipelineRun.DoesNotExist):
         return f"Error: PipelineRun '{pipeline_run_id}' not found."
 
-    workspace, membership, error = check_workspace_access(user, str(pipeline_run.workspace.id), required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, str(pipeline_run.workspace.id), required_roles=['admin', 'manager'])
     if error:
         return error
 
@@ -591,7 +591,7 @@ def trigger_reporting_job_logic(
     except (ValueError, PipelineRun.DoesNotExist):
         return json.dumps({"status": "error", "error": f"PipelineRun '{pipeline_run_id}' not found."}, indent=2)
 
-    workspace, membership, error = check_workspace_access(user, str(pipeline_run.workspace.id), required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, str(pipeline_run.workspace.id), required_roles=['admin', 'manager'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
@@ -673,7 +673,7 @@ def start_pipeline_run_logic(
     - Mode 1 (Relative Lookback Days): Pass `n_last_days` (default: 7). Queries `now() - N days` to `now()`.
     - Mode 2 (Explicit Date Range): Pass `start_date` and/or `end_date` (ISO strings). Overrides relative days.
     """
-    workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 

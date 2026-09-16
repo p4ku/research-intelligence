@@ -9,6 +9,7 @@ import { getLang, getT } from '@/lib/i18n-server'
 import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { Suspense, ViewTransition } from 'react'
+import { runnableWorkspaces } from '../runs/stoppable'
 import { LedgerSection } from './sections'
 import { LedgerSkeletonRegion } from './skeletons'
 
@@ -61,6 +62,8 @@ export default async function DashboardPage() {
     )
   }
 
+  const runnable = runnableWorkspaces(state)
+  const canRun = runnable.size > 0
   const domains = state.all.map((w) => ({ id: w.id, name: w.name }))
   // The form's "To" defaults to today; the server's day, so the first
   // client render agrees with the HTML it hydrates.
@@ -76,7 +79,7 @@ export default async function DashboardPage() {
       <Suspense
         fallback={
           <ViewTransition exit="bone-exit" default="none">
-            <LedgerSkeletonRegion t={t} features={features} />
+            <LedgerSkeletonRegion t={t} features={features} showCard={canRun} />
           </ViewTransition>
         }
       >

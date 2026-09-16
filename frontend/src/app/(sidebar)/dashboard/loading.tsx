@@ -1,6 +1,8 @@
 import { getSessionUser } from '@/lib/auth/session'
 import { getFeatures } from '@/lib/features-server'
 import { getT } from '@/lib/i18n-server'
+import { getWorkspacesState } from '@/lib/workspace-server'
+import { runnableWorkspaces } from '../runs/stoppable'
 import { DashboardSkeleton } from './skeletons'
 
 /**
@@ -9,7 +11,13 @@ import { DashboardSkeleton } from './skeletons'
  * page's own Suspense fallback pixel for pixel.
  */
 export default async function Loading() {
-  const [user, t, features] = await Promise.all([getSessionUser(), getT(), getFeatures()])
+  const [user, state, t, features] = await Promise.all([
+    getSessionUser(),
+    getWorkspacesState(),
+    getT(),
+    getFeatures(),
+  ])
   const name = user?.name.split(' ')[0] || t('there')
-  return <DashboardSkeleton t={t} name={name} features={features} />
+  const showCard = state.kind === 'ok' ? runnableWorkspaces(state).size > 0 : true
+  return <DashboardSkeleton t={t} name={name} features={features} showCard={showCard} />
 }

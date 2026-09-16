@@ -58,6 +58,8 @@ export const editionSummary = z
           name: z.string(),
           order: z.number().optional(),
           is_trl: z.boolean().optional(),
+          max: z.number().optional(),
+          is_numeric: z.boolean().optional(),
         }),
       )
       .optional(),
@@ -76,19 +78,22 @@ export const editionsQuery = listQuery.extend({
 })
 export type EditionsQuery = z.infer<typeof editionsQuery>
 
-export const editionQuery = z.object({
-  /** Absent = the day's newest edition across every domain the user belongs to. */
-  workspace_id: z.uuid().optional(),
-  /** Absent = the day's newest edition; set = that run's, when it ran that day. */
-  run_id: z.uuid().optional(),
-  scope: z.enum(['all', 'included', 'excluded']).optional(),
-  page: z.coerce.number().int().min(1).optional(),
-  page_size: z.coerce.number().int().min(1).optional(),
-  min_score: z.coerce.number().optional(),
-  score: z.coerce.number().optional(),
-  sort: z.string().optional(),
-  ordering: z.string().optional(),
-})
+export const editionQuery = z
+  .object({
+    /** Absent = the day's newest edition across every domain the user belongs to. */
+    workspace_id: z.uuid().optional(),
+    /** Absent = the day's newest edition; set = that run's, when it ran that day. */
+    run_id: z.uuid().optional(),
+    scope: z.enum(['all', 'included', 'excluded']).optional(),
+    page: z.coerce.number().int().min(1).optional(),
+    page_size: z.coerce.number().int().min(1).optional(),
+    min_score: z.coerce.number().optional(),
+    score: z.coerce.number().optional(),
+    sort: z.string().optional(),
+    ordering: z.string().optional(),
+  })
+  .passthrough()
+
 export type EditionQuery = z.infer<typeof editionQuery>
 
 export const editionPage = pageSchema(editionSummary).meta({ id: 'BriefingEditionPage' })

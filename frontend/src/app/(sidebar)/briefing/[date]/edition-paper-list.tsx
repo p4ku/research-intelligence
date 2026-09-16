@@ -15,7 +15,8 @@ import { useStars } from '@/lib/stars-client'
 import clsx from 'clsx'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { dimensionShortName } from '@/lib/papers/dimension-label'
 import {
   applyView,
   DEFAULT_VIEW,
@@ -56,6 +57,7 @@ export function EditionPaperList({
   page: serverPage,
   pageSize = PAGE_SIZE,
   definitions,
+  initialView,
 }: {
   papers: ScoredPaper[]
   /** The edition's run — the reading its cards show. */
@@ -66,6 +68,7 @@ export function EditionPaperList({
   page?: number
   pageSize?: number
   definitions?: readonly DefinitionMeta[]
+  initialView?: EditionView
 }) {
   const t = useT()
   const { isStarred } = useStars()
@@ -75,7 +78,7 @@ export function EditionPaperList({
   const params = useSearchParams()
   const router = useSafeRouter()
   const [local, setLocal] = useState<EditionView>(
-    serverPage ? { ...DEFAULT_VIEW, page: serverPage } : DEFAULT_VIEW,
+    initialView ?? (serverPage ? { ...DEFAULT_VIEW, page: serverPage } : DEFAULT_VIEW),
   )
   const [isPending, startTransition] = useTransition()
   const [targetPage, setTargetPage] = useState<number | null>(null)
@@ -88,7 +91,9 @@ export function EditionPaperList({
           ...parsedParams,
           ...(params?.get('page') ? {} : serverPage ? { page: serverPage } : {}),
         }
-      : { ...local, ...(serverPage ? { page: serverPage } : {}) }
+      : initialView
+        ? { ...initialView, ...(serverPage ? { page: serverPage } : {}) }
+        : { ...local, ...(serverPage ? { page: serverPage } : {}) }
   const update = useCallback(
     (patch: Partial<EditionView>) => {
       // A narrower or reordered list starts again from its first page: page
@@ -182,7 +187,81 @@ export function EditionPaperList({
     : paged.to
   const cardsToRender = isServerPaged ? shown : paged.rows
 
-  const narrowed = view.minScore > 0
+  interface NumericDimensionItem {
+    key: string
+    name: string
+    label: string
+    max: number
+    step: number
+    order: number
+  }
+
+  const numericDimensions = useMemo(() => {
+    const result: NumericDimensionItem[] = []
+    const seenKeys = new Set<string>()
+
+    // 1. From definitions metadata if supplied
+    if (definitions && definitions.length > 0) {
+      for (const def of definitions) {
+        if (def.is_numeric === false) continue
+        if (def.key.includes('risk_and_affiliation')) continue
+        const isNum =
+          def.is_numeric === true ||
+          (def.max !== undefined && def.max > 0) ||
+          Boolean(def.is_trl) ||
+          def.name.toLowerCase().includes('trl')
+        if (!isNum) continue
+
+        const max = def.max ?? (def.is_trl ? 9 : 100)
+        const label = dimensionShortName(
+          {
+            name: def.name,
+            is_trl: Boolean(
+              def.is_trl ?? (def.name.toLowerCase().includes('trl') || def.key.includes('trl')),
+            ),
+          },
+          t,
+        )
+        seenKeys.add(def.key)
+        result.push({
+          key: def.key,
+          name: def.name,
+          label,
+          max,
+          step: 1,
+          order: def.order ?? result.length,
+        })
+      }
+    }
+
+    // 2. Discover from papers' actual dimensions
+    for (const p of papers) {
+      for (const d of p.dimensions ?? []) {
+        if (!d.key || seenKeys.has(d.key)) continue
+        if (d.is_risk_and_affiliation || d.key.includes('risk_and_affiliation')) continue
+        if (typeof d.value !== 'number' || !Number.isFinite(d.value)) continue
+
+        const max = d.max ?? (d.is_trl ? 9 : 100)
+        const label = dimensionShortName(d, t)
+        seenKeys.add(d.key)
+        result.push({
+          key: d.key,
+          name: d.name,
+          label,
+          max,
+          step: 1,
+          order: d.order ?? result.length,
+        })
+      }
+    }
+
+    return result.sort((a, b) => a.order - b.order)
+  }, [definitions, papers, t])
+
+  const hasActiveDimFilter = Boolean(
+    view.dimensionFilters && Object.values(view.dimensionFilters).some((v) => v > 0),
+  )
+  const narrowed = view.minScore > 0 || hasActiveDimFilter
   const sortLabel = sorts.find((s) => s.id === view.sort)?.label ?? sorts[0]!.label
 
   return (
@@ -292,7 +371,7 @@ export function EditionPaperList({
             </div>
           </FilterGroup>
 
-          <FilterGroup label={t('Total Score')} value={narrowed ? `≥ ${view.minScore}` : undefined}>
+          <FilterGroup label={t('Total Score')} value={view.minScore > 0 ? `≥ ${view.minScore}` : undefined}>
             <MinScoreSlider
               value={view.minScore}
               ceiling={SCORE_CEILING}
@@ -305,6 +384,37 @@ export function EditionPaperList({
               }}
             />
           </FilterGroup>
+
+          {numericDimensions.map((dim) => {
+            const currentVal = view.dimensionFilters?.[dim.key] ?? 0
+            return (
+              <FilterGroup
+                key={dim.key}
+                label={dim.label}
+                value={currentVal > 0 ? `≥ ${currentVal}` : undefined}
+              >
+                <MinScoreSlider
+                  value={currentVal}
+                  ceiling={dim.max}
+                  step={dim.step}
+                  onChange={(val) => {
+                    const nextDims = { ...(view.dimensionFilters ?? {}) }
+                    if (val > 0) {
+                      nextDims[dim.key] = val
+                    } else {
+                      delete nextDims[dim.key]
+                    }
+                    update({ dimensionFilters: nextDims })
+                  }}
+                  labels={{
+                    minimum: t('Minimum score'),
+                    low: '0',
+                    high: String(dim.max),
+                  }}
+                />
+              </FilterGroup>
+            )
+          })}
         </aside>
       </div>
     </section>

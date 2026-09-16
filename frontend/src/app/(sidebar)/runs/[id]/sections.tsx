@@ -9,8 +9,9 @@ import { notFound } from 'next/navigation'
 import { LiveRefresh } from '../../dashboard/live-refresh'
 import { inFlightIds } from '../../dashboard/recent'
 import { formatUsd, offersStop, RunStatus, shortId } from '../run-presentation'
+import { RerunRunButton } from '../rerun-run-button'
 import { StopRunButton } from '../stop-run-button'
-import { stoppableWorkspaces } from '../stoppable'
+import { rerunWorkspaces, stoppableWorkspaces } from '../stoppable'
 import { RunFacts } from './run-facts'
 import { StepTimeline } from './step-timeline'
 
@@ -47,12 +48,11 @@ export async function RunHead({ id, t, lang }: { id: string; t: T; lang: Lang })
   // poller compares in-flight sets drawn from the same window on both sides
   // (dashboard/recent.ts), so it watches the list, never `[run.id]`.
   const live = offersStop(run.status)
-  const [watched, stoppable] = live
-    ? await Promise.all([
-        forPage(runsService.listEverywhere()).then(inFlightIds),
-        getWorkspacesState().then(stoppableWorkspaces),
-      ])
-    : [null, null]
+  const [watched, stoppable, adminWorkspaces] = await Promise.all([
+    live ? forPage(runsService.listEverywhere()).then(inFlightIds) : null,
+    live ? getWorkspacesState().then(stoppableWorkspaces) : null,
+    !live ? getWorkspacesState().then(rerunWorkspaces) : null,
+  ])
 
   return (
     <div className="space-y-8">
@@ -64,6 +64,7 @@ export async function RunHead({ id, t, lang }: { id: string; t: T; lang: Lang })
           <>
             <RunStatus run={run} t={t} />
             {stoppable?.has(run.workspace_id) && <StopRunButton run={run} />}
+            {adminWorkspaces?.has(run.workspace_id) && <RerunRunButton run={run} />}
           </>
         }
       />

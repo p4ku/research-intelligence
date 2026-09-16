@@ -1267,6 +1267,246 @@ class ApiEndpointOptimizationsTestCase(TestCase):
         self.assertEqual(data_comb["total"], 2)
         self.assertEqual([p["title"] for p in data_comb["papers"]], ["Paper p2", "Paper p1"])
 
+        # 4. Test dynamic dimension filtering: ?min_trl=6 -> only p2 (TRL 7) and p3 (TRL 9)
+        resp_dim = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&min_trl=6&page=1&page_size=20"
+        )
+        self.assertEqual(resp_dim.status_code, 200)
+        data_dim = resp_dim.json()
+        self.assertEqual(data_dim["total"], 2, "Must filter in SQL to 2 papers matching TRL >= 6")
+        self.assertEqual(data_dim["total_papers"], 2)
+        self.assertEqual(set(p["title"] for p in data_dim["papers"]), {"Paper p2", "Paper p3"})
+
+        # 5. Combined dynamic dimension filter + score floor: ?min_trl=6&score=63
+        # p2: score 75, TRL 7 (matches both)
+        # p3: score 60, TRL 9 (fails score >= 63)
+        resp_dim_score = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&min_trl=6&score=63&page=1&page_size=20"
+        )
+        self.assertEqual(resp_dim_score.status_code, 200)
+        data_dim_score = resp_dim_score.json()
+        self.assertEqual(data_dim_score["total"], 1)
+        self.assertEqual(data_dim_score["papers"][0]["title"], "Paper p2")
+
+        # 6. Verify definitions metadata has max and is_numeric
+        trl_def_meta = next(d for d in data_dim["definitions"] if d["name"] == "TRL")
+        self.assertEqual(trl_def_meta["max"], 9)
+        self.assertTrue(trl_def_meta["is_numeric"])
+
+    def test_dynamic_multiple_custom_extraction_filters_in_sql(self):
+        """
+        Comprehensive test for dynamic extraction sliders & SQL filtering:
+        1. Fully dynamic extraction definitions:
+           - "Novelty Score" (schema with properties.score.maximum = 10, is_numeric = True)
+           - "Strategic Fit" (1-10 scale, is_numeric = True)
+           - "Executive Summary" (text schema, is_numeric = False)
+           - "Risk & Affiliation" (risk dimension, is_numeric = False)
+        2. Verify definitions metadata dynamically calculates max and is_numeric without hardcoding.
+        3. Dynamic query param parsing for single and multiple dimensions:
+           - ?min_novelty_score=7 -> filters in SQL to matching papers
+           - ?min_novelty_score=7&min_strategic_fit=8 -> AND condition in SQL
+           - ?dim:novelty_score=7&dim_min:strategic_fit=8 -> alternative syntax
+        4. Combined with score floor:
+           - ?min_novelty_score=7&min_strategic_fit=8&score=85
+        5. Edge case: threshold with 0 matches returns total=0, papers=[]
+        """
+        target_date = datetime(2026, 9, 11, 12, 0, 0, tzinfo=dt_timezone.utc)
+        target_date_str = "2026-09-11"
+
+        run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Dynamic Multi-Dimension Run",
+            status="completed",
+            completed_at=target_date,
+            total_papers_fetched=10,
+            total_papers_passed_screening=4,
+        )
+
+        def_nov = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Novelty Score",
+            order=1,
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "score": {"type": "number", "maximum": 10, "description": "Novelty score out of 10"}
+                },
+                "required": ["score"],
+            },
+            primary_frontend_metric="score",
+        )
+        def_fit = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Strategic Fit (1-10)",
+            order=2,
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "fit_rating": {"type": "integer", "maximum": 10}
+                },
+                "required": ["fit_rating"],
+            },
+            primary_frontend_metric="fit_rating",
+        )
+        def_sum = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Executive Summary",
+            order=3,
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "summary_text": {"type": "string"}
+                },
+                "required": ["summary_text"],
+            },
+            primary_frontend_metric="summary_text",
+        )
+        def_risk = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Risk & Affiliation",
+            order=4,
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "flags": {"type": "array", "items": {"type": "string"}}
+                }
+            }
+        )
+
+        # 4 Papers:
+        # Paper Alpha: signal_score=90, Novelty=9, Fit=9
+        p_alpha = Paper.objects.create(workspace=self.workspace, title="Paper Alpha", arxiv_id="2609.1001", hash_id="hash_dyn_1")
+        PaperMetric.objects.create(paper=p_alpha, pipeline_run=run, workspace=self.workspace, signal_score=90.0, screening_status="accepted")
+        Extraction.objects.create(workspace=self.workspace, paper=p_alpha, extraction_definition=def_nov, category="Novelty Score", fields_data={"score": 9.0}, validation_status="pass")
+        Extraction.objects.create(workspace=self.workspace, paper=p_alpha, extraction_definition=def_fit, category="Strategic Fit (1-10)", fields_data={"fit_rating": 9}, validation_status="pass")
+        Extraction.objects.create(workspace=self.workspace, paper=p_alpha, extraction_definition=def_sum, category="Executive Summary", fields_data={"summary_text": "Groundbreaking paper."}, validation_status="pass")
+
+        # Paper Beta: signal_score=80, Novelty=8, Fit=6
+        p_beta = Paper.objects.create(workspace=self.workspace, title="Paper Beta", arxiv_id="2609.1002", hash_id="hash_dyn_2")
+        PaperMetric.objects.create(paper=p_beta, pipeline_run=run, workspace=self.workspace, signal_score=80.0, screening_status="accepted")
+        Extraction.objects.create(workspace=self.workspace, paper=p_beta, extraction_definition=def_nov, category="Novelty Score", fields_data={"score": 8.0}, validation_status="pass")
+        Extraction.objects.create(workspace=self.workspace, paper=p_beta, extraction_definition=def_fit, category="Strategic Fit (1-10)", fields_data={"fit_rating": 6}, validation_status="pass")
+
+        # Paper Gamma: signal_score=70, Novelty=4, Fit=8
+        p_gamma = Paper.objects.create(workspace=self.workspace, title="Paper Gamma", arxiv_id="2609.1003", hash_id="hash_dyn_3")
+        PaperMetric.objects.create(paper=p_gamma, pipeline_run=run, workspace=self.workspace, signal_score=70.0, screening_status="accepted")
+        Extraction.objects.create(workspace=self.workspace, paper=p_gamma, extraction_definition=def_nov, category="Novelty Score", fields_data={"score": 4.0}, validation_status="pass")
+        Extraction.objects.create(workspace=self.workspace, paper=p_gamma, extraction_definition=def_fit, category="Strategic Fit (1-10)", fields_data={"fit_rating": 8}, validation_status="pass")
+
+        # Paper Delta: signal_score=60, Novelty=3, Fit=3
+        p_delta = Paper.objects.create(workspace=self.workspace, title="Paper Delta", arxiv_id="2609.1004", hash_id="hash_dyn_4")
+        PaperMetric.objects.create(paper=p_delta, pipeline_run=run, workspace=self.workspace, signal_score=60.0, screening_status="accepted")
+        Extraction.objects.create(workspace=self.workspace, paper=p_delta, extraction_definition=def_nov, category="Novelty Score", fields_data={"score": 3.0}, validation_status="pass")
+        Extraction.objects.create(workspace=self.workspace, paper=p_delta, extraction_definition=def_fit, category="Strategic Fit (1-10)", fields_data={"fit_rating": 3}, validation_status="pass")
+
+        # 1. Verify definitions metadata
+        resp_base = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included"
+        )
+        self.assertEqual(resp_base.status_code, 200)
+        data_base = resp_base.json()
+        defs_by_name = {d["name"]: d for d in data_base["definitions"]}
+
+        self.assertTrue(defs_by_name["Novelty Score"]["is_numeric"])
+        self.assertEqual(defs_by_name["Novelty Score"]["max"], 10)
+
+        self.assertTrue(defs_by_name["Strategic Fit (1-10)"]["is_numeric"])
+        self.assertEqual(defs_by_name["Strategic Fit (1-10)"]["max"], 10)
+
+        self.assertFalse(defs_by_name["Executive Summary"]["is_numeric"])
+        self.assertFalse(defs_by_name["Risk & Affiliation"]["is_numeric"])
+
+        # 2. Filter single dynamic dimension: ?min_novelty_score=7 -> Alpha (9), Beta (8)
+        resp_nov = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&min_novelty_score=7"
+        )
+        self.assertEqual(resp_nov.status_code, 200)
+        data_nov = resp_nov.json()
+        self.assertEqual(data_nov["total"], 2)
+        self.assertEqual([p["title"] for p in data_nov["papers"]], ["Paper Alpha", "Paper Beta"])
+
+        # 3. Filter single dynamic dimension by slug: ?min_strategic_fit_(1_10)=7
+        # Beta (6) fails, Alpha (9) & Gamma (8) pass
+        resp_fit = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&min_strategic_fit_(1_10)=7"
+        )
+        self.assertEqual(resp_fit.status_code, 200)
+        data_fit = resp_fit.json()
+        self.assertEqual(data_fit["total"], 2)
+        self.assertEqual([p["title"] for p in data_fit["papers"]], ["Paper Alpha", "Paper Gamma"])
+
+        # 4. Filter MULTIPLE dynamic dimensions simultaneously:
+        # Novelty >= 7 (Alpha, Beta) AND Strategic Fit >= 8 (Alpha, Gamma) -> ONLY Alpha!
+        resp_multi = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&min_novelty_score=7&min_strategic_fit_(1_10)=8"
+        )
+        self.assertEqual(resp_multi.status_code, 200)
+        data_multi = resp_multi.json()
+        self.assertEqual(data_multi["total"], 1)
+        self.assertEqual(data_multi["papers"][0]["title"], "Paper Alpha")
+
+        # 5. Alternative syntax: dim:novelty_score=7 & dim_min:strategic_fit_(1_10)=8
+        resp_alt = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&dim:novelty_score=7&dim_min:strategic_fit_(1_10)=8"
+        )
+        self.assertEqual(resp_alt.status_code, 200)
+        data_alt = resp_alt.json()
+        self.assertEqual(data_alt["total"], 1)
+        self.assertEqual(data_alt["papers"][0]["title"], "Paper Alpha")
+
+        # 6. Combined multiple dimensions + score floor:
+        # Alpha: score=90, Novelty=9, Fit=9
+        # If score floor is 95, even Alpha fails:
+        resp_floor_fail = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&min_novelty_score=7&score=95"
+        )
+        self.assertEqual(resp_floor_fail.status_code, 200)
+        self.assertEqual(resp_floor_fail.json()["total"], 0)
+        self.assertEqual(len(resp_floor_fail.json()["papers"]), 0)
+
+        # 7. Unmatched dimension threshold:
+        resp_high = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&min_novelty_score=10"
+        )
+        self.assertEqual(resp_high.status_code, 200)
+        self.assertEqual(resp_high.json()["total"], 0)
+        self.assertEqual(resp_high.json()["papers"], [])
+
+        # 8. Dynamic filters with server-side pagination:
+        # Novelty >= 7 has 2 matching papers: Alpha, Beta.
+        # Request page 1 with page_size 1:
+        resp_p1 = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&min_novelty_score=7&page=1&page_size=1"
+        )
+        self.assertEqual(resp_p1.status_code, 200)
+        data_p1 = resp_p1.json()
+        self.assertEqual(data_p1["total"], 2)
+        self.assertEqual(data_p1["page"], 1)
+        self.assertEqual(data_p1["page_size"], 1)
+        self.assertEqual(data_p1["total_pages"], 2)
+        self.assertEqual(len(data_p1["papers"]), 1)
+        self.assertEqual(data_p1["papers"][0]["title"], "Paper Alpha")
+
+        # Request page 2 with page_size 1:
+        resp_p2 = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&min_novelty_score=7&page=2&page_size=1"
+        )
+        self.assertEqual(resp_p2.status_code, 200)
+        data_p2 = resp_p2.json()
+        self.assertEqual(data_p2["total"], 2)
+        self.assertEqual(data_p2["page"], 2)
+        self.assertEqual(len(data_p2["papers"]), 1)
+        self.assertEqual(data_p2["papers"][0]["title"], "Paper Beta")
+
+        # 9. Non-numeric or invalid param values safely ignored:
+        resp_invalid = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&min_novelty_score=invalid_number&min_nonexistent=0"
+        )
+        self.assertEqual(resp_invalid.status_code, 200)
+        # Ignored gracefully, all 4 papers returned
+        self.assertEqual(resp_invalid.json()["total"], 4)
+
+
 
     def test_workspace_scorecard_pagination_preserves_global_ordering(self):
         """

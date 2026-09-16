@@ -15,7 +15,15 @@ import { RunCardSkeleton } from './run-card'
  * one status announcement, one scan sweep.
  */
 
-export function LedgerSkeletonRegion({ t, features }: { t: T; features: Features }) {
+export function LedgerSkeletonRegion({
+  t,
+  features,
+  showCard = true,
+}: {
+  t: T
+  features: Features
+  showCard?: boolean
+}) {
   return (
     <Skeleton.Region status={t('Loading recent briefings')}>
       <HomeGrid
@@ -30,7 +38,7 @@ export function LedgerSkeletonRegion({ t, features }: { t: T; features: Features
             </div>
           </>
         }
-        card={<RunCardSkeleton />}
+        card={showCard ? <RunCardSkeleton /> : null}
       />
     </Skeleton.Region>
   )
@@ -47,16 +55,18 @@ export function DashboardSkeleton({
   t,
   name,
   features,
+  showCard = true,
 }: {
   t: T
   name: string
   features: Features
+  showCard?: boolean
 }) {
   return (
     <div className="space-y-8">
       <PageHeader eyebrow={t('Home')} title={fmt(t('Good morning, {name}'), { name })} />
       {features.all_papers && <CorpusSearch domains={[]} />}
-      <LedgerSkeletonRegion t={t} features={features} />
+      <LedgerSkeletonRegion t={t} features={features} showCard={showCard} />
     </div>
   )
 }

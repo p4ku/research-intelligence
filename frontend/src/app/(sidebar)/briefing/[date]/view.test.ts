@@ -71,6 +71,20 @@ describe('viewFrom', () => {
     )
     expect(viewFrom({ sort: 'dim:a b' })).toEqual(DEFAULT_VIEW)
   })
+
+  test('reads dynamic dimension filters and marks view as non-default', () => {
+    const view = viewFrom({ min_trl: '6', 'dim:schwarz_fit': '8', min_score: '50' })
+    expect(view).toEqual({
+      sort: 'score',
+      minScore: 0,
+      page: 1,
+      dimensionFilters: {
+        trl: 6,
+        schwarz_fit: 8,
+      },
+    })
+    expect(isDefaultView(view)).toBe(false)
+  })
 })
 
 describe('searchWith', () => {
@@ -84,6 +98,26 @@ describe('searchWith', () => {
     expect(searchWith('run=r1', { sort: 'dim:rigour', minScore: 55, page: 1 })).toBe(
       '?run=r1&sort=dim%3Arigour&score=55',
     )
+  })
+
+  test('writes dynamic dimension filters and strips zero values', () => {
+    expect(
+      searchWith('run=r1', {
+        sort: 'score',
+        minScore: 0,
+        page: 1,
+        dimensionFilters: { trl: 6, schwarz_fit: 8 },
+      }),
+    ).toBe('?run=r1&min_trl=6&min_schwarz_fit=8')
+
+    expect(
+      searchWith('run=r1&min_trl=6', {
+        sort: 'score',
+        minScore: 0,
+        page: 1,
+        dimensionFilters: { trl: 0 },
+      }),
+    ).toBe('?run=r1')
   })
 })
 
@@ -168,6 +202,34 @@ describe('applyView', () => {
       'over',
       'just',
     ])
+  })
+
+  test('filters by dynamic dimension floors in applyView', () => {
+    // a has rigour: 40, trl: 3
+    // b has rigour: 80, no trl
+    // c has rigour: null
+    // d has no rigour
+    expect(
+      ids(
+        applyView([a, b, c, d], {
+          sort: 'score',
+          minScore: 0,
+          page: 1,
+          dimensionFilters: { rigour: 50 },
+        }),
+      ),
+    ).toEqual(['b'])
+
+    expect(
+      ids(
+        applyView([a, b, c, d], {
+          sort: 'score',
+          minScore: 0,
+          page: 1,
+          dimensionFilters: { rigour: 30, trl: 2 },
+        }),
+      ),
+    ).toEqual(['a'])
   })
 
   test('does not reorder the input', () => {

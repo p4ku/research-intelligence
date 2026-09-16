@@ -40,14 +40,14 @@ export function HomeGrid({
   children,
 }: {
   ledger: ReactNode
-  card: ReactNode
+  card?: ReactNode
   /** Anything that renders nothing but belongs to the section (the live refresh). */
   children?: ReactNode
 }) {
   return (
     <div className="flex flex-wrap items-start gap-8">
-      <div className={LEDGER}>{ledger}</div>
-      <aside className={CARD}>{card}</aside>
+      <div className={clsx(LEDGER, !card && 'basis-full')}>{ledger}</div>
+      {card ? <aside className={CARD}>{card}</aside> : null}
       {children}
     </div>
   )

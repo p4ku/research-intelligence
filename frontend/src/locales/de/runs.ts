@@ -47,6 +47,17 @@ export const dict: Record<string, string> = {
   "Couldn't stop this run. Try again.":
     'Der Lauf konnte nicht gestoppt werden. Versuchen Sie es erneut.',
 
+  // Rerun a run
+  Rerun: 'Erneut ausführen',
+  'Rerun this pipeline?': 'Diese Pipeline erneut ausführen?',
+  'The {domain} pipeline run will re-execute from the failed step or beginning.':
+    'Der Pipeline-Lauf für {domain} wird ab dem fehlgeschlagenen Schritt oder von Beginn an erneut ausgeführt.',
+  'Rerunning…': 'Wird erneut ausgeführt…',
+  'Only an admin of this domain can rerun its runs.':
+    'Nur ein Admin dieses Themenfelds kann seine Läufe erneut ausführen.',
+  "Couldn't rerun this run. Try again.":
+    'Der Lauf konnte nicht erneut ausgeführt werden. Versuchen Sie es erneut.',
+
   // Empty states
   'No pipeline runs yet.': 'Noch keine Pipeline-Läufe.',
   'No runs match this filter. {n} run in total.':

@@ -588,6 +588,53 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         from django.db import models as db_models
         base_pm_qs = PaperMetric.objects.filter(pipeline_run=run)
         definitions = list(workspace.extraction_definitions.filter(is_active=True).order_by('order', 'created_at'))
+
+        from research_intelligence.services.scorecard_service import resolve_dimension_scale
+        from research_intelligence.services.scorecard_extractors import is_risk_dimension
+
+        def _is_definition_numeric(d) -> bool:
+            d_name = (d.name or '').strip().lower()
+            d_slug = d_name.replace(' ', '_').replace('-', '_')
+            if is_risk_dimension(d.name, d_slug):
+                return False
+            if 'trl' in d_name or 'technology readiness' in d_name:
+                return True
+            if any(non_num in d_name for non_num in ('tldr', 'summary', 'summarisation', 'overview', 'abstract', 'takeaway')):
+                return False
+            if d.response_schema and isinstance(d.response_schema, dict):
+                props = d.response_schema.get('properties', {})
+                if isinstance(props, dict) and props:
+                    prim = d.primary_frontend_metric or (d.get_primary_exit_metric() if hasattr(d, 'get_primary_exit_metric') else None)
+                    if prim and prim in props:
+                        p_type = props[prim].get('type')
+                        if p_type in ('integer', 'number', 'float'):
+                            return True
+                        if p_type in ('string', 'array', 'object', 'boolean'):
+                            return False
+                    numeric_props = [k for k, p in props.items() if isinstance(p, dict) and p.get('type') in ('integer', 'number', 'float')]
+                    string_props = [k for k, p in props.items() if isinstance(p, dict) and p.get('type') in ('string', 'array', 'object')]
+                    if numeric_props and not any(k in ('confidence_score',) for k in numeric_props):
+                        return True
+                    if string_props and not numeric_props:
+                        return False
+            exit_list = d.get_exit_metrics_list() if hasattr(d, 'get_exit_metrics_list') else []
+            if exit_list:
+                for em in exit_list:
+                    em_low = em.lower()
+                    if any(num_sfx in em_low for num_sfx in ('score', 'level', 'fit', 'rating', 'metric', 'index', 'count', 'trl')):
+                        return True
+        def _resolve_def_scale(d):
+            max_scale, _ = resolve_dimension_scale(d.name)
+            if d.response_schema and isinstance(d.response_schema, dict):
+                props = d.response_schema.get('properties', {})
+                if isinstance(props, dict) and props:
+                    prim = d.primary_frontend_metric or (d.get_primary_exit_metric() if hasattr(d, 'get_primary_exit_metric') else None)
+                    candidates = [props[prim]] if (prim and prim in props and isinstance(props[prim], dict)) else [p for p in props.values() if isinstance(p, dict)]
+                    for p in candidates:
+                        if 'maximum' in p and isinstance(p['maximum'], (int, float)) and p['maximum'] > 0:
+                            return int(p['maximum'])
+            return max_scale
+
         definitions_metadata = [
             {
                 "id": str(d.id),
@@ -595,9 +642,81 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                 "name": d.name,
                 "order": getattr(d, 'order', 0),
                 "is_trl": 'trl' in d.name.lower() or 'technology readiness' in d.name.lower(),
+                "max": _resolve_def_scale(d),
+                "is_numeric": _is_definition_numeric(d),
             }
             for d in definitions
         ]
+
+        # Dynamic dimension filters from query params (e.g. min_trl=4, dim:schwarz_fit=60, min_dim:trl=4)
+        dim_filters = {}
+        for param_k, param_v in request.query_params.items():
+            if not param_v or str(param_v).strip() == '':
+                continue
+            dim_key = None
+            if param_k.startswith('dim:'):
+                dim_key = param_k[4:].strip().lower()
+            elif param_k.startswith('dim_min:'):
+                dim_key = param_k[8:].strip().lower()
+            elif param_k.startswith('min_dim:'):
+                dim_key = param_k[8:].strip().lower()
+            elif param_k.startswith('min_') and param_k not in ('min_score', 'min_date', 'min_created_at'):
+                dim_key = param_k[4:].strip().lower()
+
+            if dim_key:
+                try:
+                    val = float(param_v)
+                    if val > 0:
+                        dim_filters[dim_key] = val
+                except (ValueError, TypeError):
+                    pass
+
+        from research_intelligence.models import Extraction
+        from research_intelligence.services.scorecard_extractors import extract_metrics_for_extraction
+
+        dim_matching_paper_sets = []
+        for d_key, min_val in dim_filters.items():
+            target_def = None
+            for d in definitions:
+                d_slug = d.name.lower().replace(' ', '_').replace('-', '_')
+                if (
+                    d_slug == d_key
+                    or str(d.id) == d_key
+                    or d.name.lower() == d_key
+                    or (d_key == 'trl' and ('trl' in d_slug or 'technology_readiness' in d_slug))
+                ):
+                    target_def = d
+                    break
+            if not target_def:
+                # Fallback: check if any Extraction exists with category matching d_key
+                ext_qs = Extraction.objects.filter(
+                    paper__metrics__pipeline_run=run,
+                ).filter(
+                    db_models.Q(category__iexact=d_key) | db_models.Q(category__iexact=d_key.replace('_', ' '))
+                ).select_related('paper')
+                if ext_qs.exists():
+                    matching_ids = set()
+                    for ext in ext_qs:
+                        prim_m, _, _ = extract_metrics_for_extraction(ext, None)
+                        num_v = prim_m.get('numeric_value') if prim_m else None
+                        if num_v is not None and isinstance(num_v, (int, float)) and num_v >= min_val:
+                            matching_ids.add(ext.paper_id)
+                    dim_matching_paper_sets.append(matching_ids)
+                continue
+
+            ext_qs = Extraction.objects.filter(
+                paper__metrics__pipeline_run=run,
+            ).filter(
+                db_models.Q(extraction_definition=target_def) | db_models.Q(category__iexact=target_def.name)
+            ).select_related('paper')
+
+            matching_ids = set()
+            for ext in ext_qs:
+                prim_m, _, _ = extract_metrics_for_extraction(ext, target_def)
+                num_v = prim_m.get('numeric_value') if prim_m else None
+                if num_v is not None and isinstance(num_v, (int, float)) and num_v >= min_val:
+                    matching_ids.add(ext.paper_id)
+            dim_matching_paper_sets.append(matching_ids)
 
         import math
         paged_surfaced_scored = None
@@ -614,6 +733,9 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                 )
                 if min_score is not None and min_score > 0:
                     surfaced_qs = surfaced_qs.filter(signal_score__gte=min_score)
+
+                for p_ids in dim_matching_paper_sets:
+                    surfaced_qs = surfaced_qs.filter(paper_id__in=p_ids)
 
                 if sort_param.startswith('dim:'):
                     target_dim_key = sort_param[4:].strip().lower()
@@ -723,6 +845,11 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                 unpaginated_qs = unpaginated_qs.filter(
                     db_models.Q(screening_status__in=excluded_statuses) |
                     (db_models.Q(screening_status__in=passed_statuses) & db_models.Q(signal_score__gte=min_score))
+                )
+            for p_ids in dim_matching_paper_sets:
+                unpaginated_qs = unpaginated_qs.filter(
+                    db_models.Q(screening_status__in=excluded_statuses) |
+                    (db_models.Q(screening_status__in=passed_statuses) & db_models.Q(paper_id__in=p_ids))
                 )
 
             if sort_param in ('published', 'date', '-published', '-date'):

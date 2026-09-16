@@ -105,7 +105,7 @@ def tick_pipeline_run_logic(user, pipeline_run_id: str) -> str:
     except (ValueError, PipelineRun.DoesNotExist):
         return json.dumps({"status": "error", "error": f"PipelineRun '{pipeline_run_id}' not found."}, indent=2)
 
-    workspace, membership, error = check_workspace_access(user, str(pipeline_run.workspace.id), required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, str(pipeline_run.workspace.id), required_roles=['admin', 'manager'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
@@ -157,7 +157,7 @@ def rerun_pipeline_from_step_logic(user, pipeline_run_id: str, step_name: str | 
     except (ValueError, PipelineRun.DoesNotExist):
         return json.dumps({"status": "error", "error": f"PipelineRun '{pipeline_run_id}' not found."}, indent=2)
 
-    workspace, membership, error = check_workspace_access(user, str(pipeline_run.workspace.id), required_roles=['admin', 'manager'])
+    workspace, membership, error = check_workspace_access(user, str(pipeline_run.workspace.id), required_roles=['admin'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 

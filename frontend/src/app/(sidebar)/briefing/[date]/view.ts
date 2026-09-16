@@ -25,9 +25,15 @@ export interface EditionView {
   minScore: number
   /** 1-based; the first page stays out of the URL. */
   page: number
+  /** Dynamic numeric dimension filters: key -> minimum value */
+  dimensionFilters?: Record<string, number>
 }
 
-export const DEFAULT_VIEW: EditionView = { sort: 'score', minScore: 0, page: 1 }
+export const DEFAULT_VIEW: EditionView = {
+  sort: 'score',
+  minScore: 0,
+  page: 1,
+}
 
 /**
  * Cards per page. A briefing on prod ran to 566 papers (Hybrid Computing,
@@ -65,6 +71,28 @@ export function viewFrom(params: Record<string, string | string[] | undefined>):
   const score = one('score') ?? ''
   const page = one('page') ?? ''
   const min = /^\d+$/.test(score) ? Number(score) : 0
+
+  const dimensionFilters: Record<string, number> = {}
+  for (const [k, v] of Object.entries(params)) {
+    if (!v) continue
+    const valStr = Array.isArray(v) ? v[0] : v
+    if (!valStr || !/^\d+(\.\d+)?$/.test(valStr)) continue
+    const num = Number(valStr)
+    if (num <= 0) continue
+
+    let dimKey: string | null = null
+    if (k.startsWith('dim_min:')) dimKey = k.slice(8)
+    else if (k.startsWith('min_dim:')) dimKey = k.slice(8)
+    else if (k.startsWith('dim:')) dimKey = k.slice(4)
+    else if (k.startsWith('min_') && k !== 'min_score' && k !== 'min_date' && k !== 'min_created_at') {
+      dimKey = k.slice(4)
+    }
+
+    if (dimKey) {
+      dimensionFilters[dimKey.trim().toLowerCase()] = num
+    }
+  }
+
   return {
     sort: SORT_RE.test(sort) ? sort : DEFAULT_VIEW.sort,
     // Only a floor the thumb can land on: within the ceiling and on the step,
@@ -73,6 +101,7 @@ export function viewFrom(params: Record<string, string | string[] | undefined>):
     // if the step ever grows again.
     minScore: min > 0 && min <= SCORE_CEILING && min % SCORE_STEP === 0 ? min : 0,
     page: PAGE_RE.test(page) ? Number(page) : 1,
+    ...(Object.keys(dimensionFilters).length > 0 ? { dimensionFilters } : {}),
   }
 }
 
@@ -89,6 +118,26 @@ export function searchWith(current: string, view: EditionView): string {
   else q.delete('score')
   if (view.page > 1) q.set('page', String(view.page))
   else q.delete('page')
+
+  // Remove existing min_* or dim:* params from query before writing active ones
+  for (const key of Array.from(q.keys())) {
+    if (
+      (key.startsWith('min_') && key !== 'min_score' && key !== 'min_date' && key !== 'min_created_at') ||
+      key.startsWith('dim:') ||
+      key.startsWith('dim_min:') ||
+      key.startsWith('min_dim:')
+    ) {
+      q.delete(key)
+    }
+  }
+  if (view.dimensionFilters) {
+    for (const [dimKey, minVal] of Object.entries(view.dimensionFilters)) {
+      if (minVal > 0) {
+        q.set(`min_${dimKey}`, String(minVal))
+      }
+    }
+  }
+
   const s = q.toString()
   return s ? `?${s}` : ''
 }
@@ -99,7 +148,9 @@ export function searchWith(current: string, view: EditionView): string {
  * undo, and a reset lands on the first page anyway.
  */
 export function isDefaultView(view: EditionView): boolean {
-  return view.sort === DEFAULT_VIEW.sort && view.minScore === 0
+  const noDimFilters =
+    !view.dimensionFilters || Object.values(view.dimensionFilters).every((v) => !v || v <= 0)
+  return view.sort === DEFAULT_VIEW.sort && view.minScore === 0 && noDimFilters
 }
 
 export interface Page<T> {
@@ -154,10 +205,13 @@ function sortable(d: Dimension): boolean {
 }
 
 export interface DefinitionMeta {
+  id?: string
   key: string
   name: string
   order?: number
   is_trl?: boolean
+  max?: number
+  is_numeric?: boolean
 }
 
 /**
@@ -174,7 +228,7 @@ export function sortOptions(
   let dims: SortOption[] = []
   if (definitions && definitions.length > 0) {
     dims = [...definitions]
-      .filter((d) => !d.key.includes('risk_and_affiliation'))
+      .filter((d) => !d.key.includes('risk_and_affiliation') && d.is_numeric !== false)
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
       .map((d) => ({
         id: `dim:${d.key}`,
@@ -214,10 +268,22 @@ export function sortOptions(
 
 /** The papers as the view orders and narrows them; the input is not touched. */
 export function applyView(papers: readonly ScoredPaper[], view: EditionView): ScoredPaper[] {
-  const kept =
+  let kept =
     view.minScore > 0
       ? papers.filter((p) => p.signal_score !== null && p.signal_score >= view.minScore)
       : [...papers]
+
+  if (view.dimensionFilters) {
+    for (const [dimKey, minVal] of Object.entries(view.dimensionFilters)) {
+      if (minVal > 0) {
+        kept = kept.filter((p) => {
+          const d = dimensionByKey(p, dimKey)
+          return d && typeof d.value === 'number' && Number.isFinite(d.value) && d.value >= minVal
+        })
+      }
+    }
+  }
+
   // Array.prototype.sort is stable: equal keys keep the briefing's own order.
   if (view.sort === 'published') {
     return kept.sort((a, b) => byDateDesc(a.published_date, b.published_date))

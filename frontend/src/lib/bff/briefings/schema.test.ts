@@ -254,4 +254,68 @@ describe('Briefings BFF Schema Contracts', () => {
     const editionParsed = edition.parse({ ...payload, exclusions: [] })
     expect(editionParsed.workspace_name).toBe('Hybrid Computing')
   })
+
+  test('editionSummary validates dynamic definitions metadata with max and is_numeric', () => {
+    const payload = {
+      run_id: '00000000-0000-4000-8000-000000000020',
+      workspace_id: '00000000-0000-4000-8000-000000000010',
+      date: '2026-09-09',
+      title: 'Dynamic Definitions Briefing',
+      in_brief: 'In brief prose.',
+      in_brief_source: 'template' as const,
+      funnel: { fetched: 5, passed_screening: 2, surfaced: 2 },
+      papers: [],
+      generated_at: null,
+      definitions: [
+        {
+          id: '00000000-0000-4000-8000-000000000030',
+          key: 'trl',
+          name: 'TRL',
+          order: 1,
+          is_trl: true,
+          max: 9,
+          is_numeric: true,
+        },
+        {
+          id: '00000000-0000-4000-8000-000000000031',
+          key: 'strategic_fit',
+          name: 'Strategic Fit (1-10)',
+          order: 2,
+          is_trl: false,
+          max: 10,
+          is_numeric: true,
+        },
+        {
+          id: '00000000-0000-4000-8000-000000000032',
+          key: 'executive_summary',
+          name: 'Executive Summary',
+          order: 3,
+          is_trl: false,
+          max: 100,
+          is_numeric: false,
+        },
+      ],
+    }
+    const parsed = editionSummary.parse(payload)
+    expect(parsed.definitions).toBeDefined()
+    expect(parsed.definitions).toHaveLength(3)
+    expect(parsed.definitions?.[0]?.is_numeric).toBe(true)
+    expect(parsed.definitions?.[0]?.max).toBe(9)
+    expect(parsed.definitions?.[1]?.max).toBe(10)
+    expect(parsed.definitions?.[2]?.is_numeric).toBe(false)
+  })
+
+  test('editionQuery passthrough allows dynamic dimension query parameters', () => {
+    const rawParams = {
+      workspace_id: '00000000-0000-4000-8000-000000000010',
+      min_trl: '6',
+      'dim:schwarz_fit': '8',
+      min_novelty_score: '7.5',
+    }
+    const parsed = editionQuery.parse(rawParams)
+    expect(parsed.workspace_id).toBe('00000000-0000-4000-8000-000000000010')
+    expect((parsed as Record<string, unknown>).min_trl).toBe('6')
+    expect((parsed as Record<string, unknown>)['dim:schwarz_fit']).toBe('8')
+    expect((parsed as Record<string, unknown>).min_novelty_score).toBe('7.5')
+  })
 })

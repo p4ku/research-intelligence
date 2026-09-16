@@ -229,4 +229,112 @@ describe('EditionPaperList paging', () => {
     expect(out).toContain('TRL')
     expect(out).toContain('Schwarz Fit')
   })
+
+  test('renders dynamic dimension sliders for numeric extractions and skips non-numeric', () => {
+    const definitions = [
+      { key: 'trl', name: 'Technology Readiness Level (TRL)', order: 1, is_trl: true, max: 9, is_numeric: true },
+      { key: 'schwarz_fit', name: 'Schwarz Fit', order: 2, max: 10, is_numeric: true },
+      { key: 'tldr', name: 'TLDR Summary', order: 3, is_numeric: false },
+      { key: 'risk_and_affiliation', name: 'Risk & Affiliation', order: 4, is_numeric: false },
+    ]
+    const out = renderToStaticMarkup(
+      <EditionPaperList
+        papers={many.slice(0, 1)}
+        runId={runId}
+        logHref={logHref}
+        definitions={definitions}
+      />,
+    )
+    // Dynamic sliders rendered for numeric extractions
+    expect(out).toContain('TRL')
+    expect(out).toContain('max="9"')
+    expect(out).toContain('Schwarz Fit')
+    expect(out).toContain('max="10"')
+
+    // Non-numeric extractions must not have sliders
+    expect(out).not.toContain('TLDR Summary')
+    expect(out).not.toContain('Risk & Affiliation')
+  })
+
+  test('auto-discovers numeric dimensions from papers when definitions metadata is absent', () => {
+    const paperWithDims: ScoredPaper = {
+      ...mockPaper('00000000-0000-4000-8000-000000000099', 'Paper with Multi Dims', 85.0),
+      dimensions: [
+        {
+          key: 'rigour',
+          definition_id: '00000000-0000-4000-8000-000000000035',
+          name: 'Methodological Rigour',
+          value: 7.5,
+          raw: '7.5',
+          max: 10,
+          is_trl: false,
+        },
+        {
+          key: 'trl',
+          definition_id: '00000000-0000-4000-8000-000000000036',
+          name: 'TRL Level',
+          value: 5,
+          raw: '5',
+          max: 9,
+          is_trl: true,
+        },
+        {
+          key: 'summary_notes',
+          definition_id: '00000000-0000-4000-8000-000000000037',
+          name: 'Summary Notes',
+          value: null,
+          raw: 'Non-numeric text',
+          max: null,
+          is_trl: false,
+        },
+      ],
+    }
+
+    const out = renderToStaticMarkup(
+      <EditionPaperList
+        papers={[paperWithDims]}
+        runId={runId}
+        logHref={logHref}
+      />,
+    )
+
+    // Should discover Rigour and TRL sliders
+    expect(out).toContain('Methodological Rigour')
+    expect(out).toContain('max="10"')
+    expect(out).toContain('TRL')
+    expect(out).toContain('max="9"')
+
+    // Should skip non-numeric dimension
+    expect(out).not.toContain('Summary Notes')
+  })
+
+  test('displays filter badge with ≥ threshold for active dimension filters', () => {
+    const definitions = [
+      { key: 'trl', name: 'TRL', order: 1, is_trl: true, max: 9, is_numeric: true },
+      { key: 'schwarz_fit', name: 'Schwarz Fit', order: 2, max: 10, is_numeric: true },
+    ]
+    const out = renderToStaticMarkup(
+      <EditionPaperList
+        papers={[many[0]!]}
+        runId={runId}
+        logHref={logHref}
+        definitions={definitions}
+        initialView={{
+          sort: 'score',
+          minScore: 80,
+          page: 1,
+          dimensionFilters: {
+            trl: 4,
+          },
+        }}
+      />,
+    )
+
+    // Total score filter shows active badge
+    expect(out).toContain('≥ 80')
+    // TRL filter shows active badge
+    expect(out).toContain('≥ 4')
+    // Schwarz fit has no filter so no badge
+    expect(out).not.toContain('≥ undefined')
+  })
 })

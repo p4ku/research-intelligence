@@ -20,6 +20,26 @@ export const GET = bff('briefings', async (request, ctx) => {
     parseQuery(editionQuery, url)
   const minScore = min_score ?? score
   const sortParam = sort ?? ordering
+
+  const dimensionFilters: Record<string, number> = {}
+  for (const [k, v] of request.nextUrl.searchParams) {
+    if (!v || v.trim() === '') continue
+    const num = Number(v)
+    if (isNaN(num) || num <= 0) continue
+
+    let dimKey: string | null = null
+    if (k.startsWith('dim_min:')) dimKey = k.slice(8)
+    else if (k.startsWith('min_dim:')) dimKey = k.slice(8)
+    else if (k.startsWith('dim:')) dimKey = k.slice(4)
+    else if (k.startsWith('min_') && k !== 'min_score' && k !== 'min_date' && k !== 'min_created_at') {
+      dimKey = k.slice(4)
+    }
+
+    if (dimKey) {
+      dimensionFilters[dimKey.trim().toLowerCase()] = num
+    }
+  }
+
   const found = await briefings.findByDate(
     assertDate(date),
     await getLang(),
@@ -30,6 +50,7 @@ export const GET = bff('briefings', async (request, ctx) => {
     page_size,
     minScore,
     sortParam,
+    dimensionFilters,
   )
   if (!found) throw problem('not-found', { detail: 'No briefing for that day.' })
   return Response.json(found)

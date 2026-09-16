@@ -33,6 +33,7 @@ import {
   abortRunResponseDTO,
   pipelineRunDTO,
   pipelineRunDetailDTO,
+  rerunRunResponseDTO,
   startRunResponseDTO,
 } from './upstream'
 
@@ -162,6 +163,21 @@ export const runs = {
       return { run_id: assertUuid(res.pipeline_run_id, 'pipeline_run_id'), status: 'aborted' }
     } catch (error) {
       throw abortProblem(error)
+    }
+  },
+
+  /**
+   * Rerun a pipeline run from a step (or the failed step). Requires admin role.
+   */
+  async rerun(id: string, stepName?: string): Promise<{ pipeline_run_id: string }> {
+    const runId = assertUuid(id, 'run id')
+    const res = await django(`/api/pipeline-runs/${runId}/rerun-from-step/`, rerunRunResponseDTO, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(stepName ? { step_name: stepName } : {}),
+    })
+    return {
+      pipeline_run_id: res.pipeline_run_id ? assertUuid(res.pipeline_run_id, 'pipeline_run_id') : runId,
     }
   },
 

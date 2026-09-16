@@ -32,6 +32,11 @@ class APISecurityFixesTestCase(TestCase):
             email="researcher_sec@example.com",
             password="ResearcherPassword123!"
         )
+        self.manager_user = User.objects.create_user(
+            username="manager_sec",
+            email="manager_sec@example.com",
+            password="ManagerPassword123!"
+        )
         self.other_user = User.objects.create_user(
             username="other_sec",
             email="other_sec@example.com",
@@ -40,6 +45,7 @@ class APISecurityFixesTestCase(TestCase):
 
         self.workspace = Workspace.objects.create(name="Security Test Workspace")
         WorkspaceMember.objects.create(workspace=self.workspace, user=self.admin_user, role="admin")
+        WorkspaceMember.objects.create(workspace=self.workspace, user=self.manager_user, role="manager")
         WorkspaceMember.objects.create(workspace=self.workspace, user=self.researcher_user, role="researcher")
 
     def test_middleware_sensitive_data_redaction(self):
@@ -429,5 +435,105 @@ class APISecurityFixesTestCase(TestCase):
         PipelineRun.objects.create(workspace=self.workspace, status='completed')
         download_res = trigger_pdf_download_job_logic(self.admin_user, workspace_id=str(self.workspace.id))
         self.assertIn("quota exceeded", download_res.lower())
+
+    def test_researcher_cannot_start_or_create_pipeline_run(self):
+        """Verify that Researcher cannot start or create pipeline runs (returns 403)."""
+        self.client.force_authenticate(user=self.researcher_user)
+
+        # 1. POST /api/pipeline-runs/
+        res_create = self.client.post("/api/pipeline-runs/", {
+            "workspace_id": str(self.workspace.id),
+            "name": "Researcher Run",
+        }, format="json")
+        self.assertEqual(res_create.status_code, status.HTTP_403_FORBIDDEN)
+
+        # 2. POST /api/pipeline-runs/start/
+        res_start = self.client.post("/api/pipeline-runs/start/", {
+            "workspace_id": str(self.workspace.id),
+            "name": "Researcher Autonomous Run",
+        }, format="json")
+        self.assertEqual(res_start.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_researcher_cannot_pause_resume_tick_abort_rerun_trigger_step(self):
+        """Verify that Researcher cannot pause, resume, tick, abort, rerun, or trigger steps on a pipeline run."""
+        run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="running",
+            current_stage="search"
+        )
+        self.client.force_authenticate(user=self.researcher_user)
+
+        # 1. Pause
+        res_pause = self.client.post(f"/api/pipeline-runs/{run.id}/pause/", format="json")
+        self.assertEqual(res_pause.status_code, status.HTTP_403_FORBIDDEN)
+
+        # 2. Resume
+        res_resume = self.client.post(f"/api/pipeline-runs/{run.id}/resume/", format="json")
+        self.assertEqual(res_resume.status_code, status.HTTP_403_FORBIDDEN)
+
+        # 3. Tick
+        res_tick = self.client.post(f"/api/pipeline-runs/{run.id}/tick/", format="json")
+        self.assertEqual(res_tick.status_code, status.HTTP_403_FORBIDDEN)
+
+        # 4. Abort
+        res_abort = self.client.post(f"/api/pipeline-runs/{run.id}/abort/", format="json")
+        self.assertEqual(res_abort.status_code, status.HTTP_403_FORBIDDEN)
+
+        # 5. Rerun from step
+        res_rerun = self.client.post(f"/api/pipeline-runs/{run.id}/rerun-from-step/", {"step_name": "search"}, format="json")
+        self.assertEqual(res_rerun.status_code, status.HTTP_403_FORBIDDEN)
+
+        # 6. Trigger step
+        res_trigger = self.client.post(f"/api/pipeline-runs/{run.id}/trigger-step/", {
+            "step_type": "download",
+            "limit": 10
+        }, format="json")
+        self.assertEqual(res_trigger.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_can_pause_resume_and_rerun_pipeline_run(self):
+        """Verify that Admin role has permission to pause and resume pipeline runs."""
+        run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="running",
+            current_stage="search"
+        )
+        self.client.force_authenticate(user=self.admin_user)
+
+        # 1. Pause
+        res_pause = self.client.post(f"/api/pipeline-runs/{run.id}/pause/", format="json")
+        self.assertEqual(res_pause.status_code, status.HTTP_200_OK)
+        run.refresh_from_db()
+        self.assertEqual(run.status, "paused")
+
+        # 2. Resume
+        res_resume = self.client.post(f"/api/pipeline-runs/{run.id}/resume/", format="json")
+        self.assertEqual(res_resume.status_code, status.HTTP_200_OK)
+        run.refresh_from_db()
+        self.assertEqual(run.status, "running")
+
+    def test_manager_can_start_stop_but_cannot_rerun(self):
+        """Verify Manager can start and abort, but cannot rerun from step (Admin only)."""
+        self.client.force_authenticate(user=self.manager_user)
+
+        # 1. Start is allowed for Manager
+        res_create = self.client.post("/api/pipeline-runs/", {
+            "workspace_id": str(self.workspace.id),
+            "name": "Manager Run",
+        }, format="json")
+        self.assertEqual(res_create.status_code, status.HTTP_201_CREATED)
+
+        # 2. Abort is allowed for Manager
+        run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="running",
+            current_stage="search"
+        )
+        res_abort = self.client.post(f"/api/pipeline-runs/{run.id}/abort/", format="json")
+        self.assertEqual(res_abort.status_code, status.HTTP_200_OK)
+
+        # 3. Rerun is forbidden for Manager (Admin only)
+        res_rerun = self.client.post(f"/api/pipeline-runs/{run.id}/rerun-from-step/", {"step_name": "search"}, format="json")
+        self.assertEqual(res_rerun.status_code, status.HTTP_403_FORBIDDEN)
+
 
 

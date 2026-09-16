@@ -94,6 +94,12 @@ export const abortRunResponseDTO = z.looseObject({
   pipeline_run_id: z.string(),
 })
 
+export const rerunRunResponseDTO = z.looseObject({
+  status: z.string().optional(),
+  message: z.string().optional(),
+  pipeline_run_id: z.string().optional(),
+})
+
 /**
  * `PipelineRunDetailSerializer` — the list shape plus per-run counts and
  * storage stats. `storage_stats` is loose because the serializer's success

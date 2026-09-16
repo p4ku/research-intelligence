@@ -163,6 +163,7 @@ export const briefings = {
       pageSize?: number,
       minScore?: number,
       sort?: string,
+      dimensionFilters?: Record<string, number>,
     ): Promise<Edition | null> => {
       if (sourceOf('briefings') === 'django') {
         try {
@@ -173,6 +174,11 @@ export const briefings = {
           if (pageSize !== undefined) params.set('page_size', String(pageSize))
           if (minScore !== undefined && minScore > 0) params.set('min_score', String(minScore))
           if (sort && sort !== 'score') params.set('sort', sort)
+          if (dimensionFilters) {
+            for (const [dimKey, minVal] of Object.entries(dimensionFilters)) {
+              if (minVal > 0) params.set(`min_${dimKey}`, String(minVal))
+            }
+          }
           const q = params.toString() ? `?${params.toString()}` : ''
           const ed = await django(
             `/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/editions/${date}/${q}`,
@@ -259,14 +265,25 @@ export const briefings = {
           papers: res.papers.filter((p) => p.signal_score !== null && p.signal_score >= minScore),
         }
       }
+      if (dimensionFilters) {
+        for (const [dimKey, minVal] of Object.entries(dimensionFilters)) {
+          if (minVal > 0) {
+            res = {
+              ...res,
+              papers: res.papers.filter((p) => {
+                const dim = p.dimensions?.find((d) => d.key === dimKey)
+                return dim && typeof dim.value === 'number' && dim.value >= minVal
+              }),
+            }
+          }
+        }
+      }
       if (page !== undefined && pageSize !== undefined) {
-        const isExcluded = scope === 'excluded'
-        const total = res.total ?? (isExcluded ? res.exclusions.length : res.papers.length)
+        const total = scope === 'excluded' ? res.exclusions.length : res.papers.length
         const start = (page - 1) * pageSize
-        const paperSlice =
-          res.papers.length > pageSize ? res.papers.slice(start, start + pageSize) : res.papers
+        const paperSlice = scope !== 'excluded' ? res.papers.slice(start, start + pageSize) : res.papers
         const exclusionSlice =
-          isExcluded && res.exclusions.length > pageSize
+          scope === 'excluded'
             ? res.exclusions.slice(start, start + pageSize)
             : res.exclusions
         return {
@@ -300,6 +317,7 @@ export const briefings = {
       pageSize?: number,
       minScore?: number,
       sort?: string,
+      dimensionFilters?: Record<string, number>,
     ): Promise<Edition | null> => {
       if (workspaceId)
         return briefings.getByDate(
@@ -312,6 +330,7 @@ export const briefings = {
           pageSize,
           minScore,
           sort,
+          dimensionFilters,
         )
       const found = editionFor(await briefings.listEverywhere(lang), date, runId)
       if (!found) return null

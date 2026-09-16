@@ -48,6 +48,7 @@ export async function EditionHead({
   page = 1,
   minScore,
   sort,
+  dimensionFilters,
 }: {
   wsId?: string
   runId?: string
@@ -61,9 +62,10 @@ export async function EditionHead({
   page?: number
   minScore?: number
   sort?: string
+  dimensionFilters?: Record<string, number>
 }) {
   const edition = await forPage(
-    briefings.findByDate(date, lang, wsId, runId, 'included', page, 20, minScore, sort),
+    briefings.findByDate(date, lang, wsId, runId, 'included', page, 20, minScore, sort, dimensionFilters),
   )
   // A date with no edition is a true 404 — rendered in-stream now that the
   // shell has already gone out (see docs/skeletons.md).
@@ -247,6 +249,7 @@ export async function EditionPapers({
   page = 1,
   minScore,
   sort,
+  dimensionFilters,
 }: {
   wsId?: string
   runId?: string
@@ -255,9 +258,10 @@ export async function EditionPapers({
   page?: number
   minScore?: number
   sort?: string
+  dimensionFilters?: Record<string, number>
 }) {
   const edition = await forPage(
-    briefings.findByDate(date, lang, wsId, runId, 'included', page, 20, minScore, sort),
+    briefings.findByDate(date, lang, wsId, runId, 'included', page, 20, minScore, sort, dimensionFilters),
   )
   if (!edition) notFound()
 

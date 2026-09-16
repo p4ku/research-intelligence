@@ -40,17 +40,11 @@ export default async function BriefingEditionPage({
   searchParams,
 }: {
   params: Promise<{ date: string }>
-  searchParams: Promise<{
-    domain?: string
-    run?: string
-    page?: string
-    score?: string
-    sort?: string
-  }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const [
     { date },
-    { domain, run, page: pageStr, score: scoreStr, sort: sortStr },
+    rawParams,
     state,
     t,
     lang,
@@ -63,6 +57,37 @@ export default async function BriefingEditionPage({
     getLang(),
     getFeatures(),
   ])
+  const one = (k: string) => {
+    const v = rawParams[k]
+    return Array.isArray(v) ? v[0] : v
+  }
+  const domain = one('domain')
+  const run = one('run')
+  const pageStr = one('page')
+  const scoreStr = one('score')
+  const sortStr = one('sort')
+
+  const dimensionFilters: Record<string, number> = {}
+  for (const [k, v] of Object.entries(rawParams)) {
+    if (!v) continue
+    const valStr = Array.isArray(v) ? v[0] : v
+    if (!valStr || !/^\d+(\.\d+)?$/.test(valStr)) continue
+    const num = Number(valStr)
+    if (num <= 0) continue
+
+    let dimKey: string | null = null
+    if (k.startsWith('dim_min:')) dimKey = k.slice(8)
+    else if (k.startsWith('min_dim:')) dimKey = k.slice(8)
+    else if (k.startsWith('dim:')) dimKey = k.slice(4)
+    else if (k.startsWith('min_') && k !== 'min_score' && k !== 'min_date' && k !== 'min_created_at') {
+      dimKey = k.slice(4)
+    }
+
+    if (dimKey) {
+      dimensionFilters[dimKey.trim().toLowerCase()] = num
+    }
+  }
+
   // A missing domain list is not a missing page: an outage gets the honest
   // notice, a user with no membership gets the membership copy — only a
   // date with no edition (or not a date at all) is a true 404.
@@ -102,6 +127,7 @@ export default async function BriefingEditionPage({
             page={page}
             minScore={minScore}
             sort={sort}
+            dimensionFilters={dimensionFilters}
           />
         </ViewTransition>
       </Suspense>
@@ -128,6 +154,7 @@ export default async function BriefingEditionPage({
             page={page}
             minScore={minScore}
             sort={sort}
+            dimensionFilters={dimensionFilters}
           />
         </ViewTransition>
       </Suspense>

@@ -5,7 +5,9 @@ import type { InFlightRun } from '@/lib/bff/pipeline-runs/admission'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { Lang, T } from '@/lib/i18n'
 import { paperHref } from '@/lib/papers/href'
+import { getWorkspacesState } from '@/lib/workspace-server'
 import { editionHref } from '../briefing/format'
+import { runnableWorkspaces } from '../runs/stoppable'
 import { currentRun, inFlightRuns, recentBriefings } from './data'
 import { clockStamp, formatAuthors, formatClock, formatDay, periodLabel } from './format'
 import { HomeGrid, HomeLinks, type HomePaper } from './home-ui'
@@ -68,9 +70,17 @@ export async function LedgerSection({
   domains: RunDomain[]
   today: string
 }) {
-  const [items, current, inFlight] = await forPage(
-    Promise.all([recentBriefings(lang), currentRun(), inFlightRuns()]),
+  const [items, current, inFlight, workspaces] = await forPage(
+    Promise.all([
+      recentBriefings(lang),
+      currentRun(),
+      inFlightRuns(),
+      getWorkspacesState(),
+    ]),
   )
+  const runnable = runnableWorkspaces(workspaces)
+  const runnableDomains = domains.filter((d) => runnable.has(d.id))
+
   const rows: HomeRow[] = items.map(({ run, edition }) => {
     const status = rowStatus(run, current?.id ?? null)
     const completed = run.status === 'completed'
@@ -88,7 +98,7 @@ export async function LedgerSection({
       failedDay: status === 'failed' ? day : null,
       papers: completed ? run.total_papers_passed_screening : null,
       retry:
-        status === 'failed' && run.retryable
+        status === 'failed' && run.retryable && runnable.has(run.workspace_id)
           ? {
               workspace_id: run.workspace_id,
               start_date: run.period_start ?? undefined,
@@ -140,7 +150,11 @@ export async function LedgerSection({
           </div>
         </>
       }
-      card={<RunCard domains={domains} inFlight={flying} today={today} />}
+      card={
+        runnableDomains.length > 0 ? (
+          <RunCard domains={runnableDomains} inFlight={flying} today={today} />
+        ) : null
+      }
     >
       <LiveRefresh processingIds={inFlight.map((run) => run.id)} />
     </HomeGrid>

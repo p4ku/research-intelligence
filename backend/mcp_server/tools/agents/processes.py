@@ -34,7 +34,7 @@ def start_research_agent_logic(
     - Mode 1 (Relative Lookback Days): Pass `n_last_days` (default: 7). Queries `now() - N days` to `now()`.
     - Mode 2 (Explicit Date Range): Pass `start_date` and/or `end_date` (ISO strings). Overrides relative days.
     """
-    workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
