@@ -35,6 +35,7 @@ from tests_e2e.scenarios import (
     run_paper_page_scorecard_journey_scenario,
     run_run_admission_guard_scenario,
     run_briefing_filters_and_pagination_scenario,
+    run_three_personas_rbac_journey_scenario,
 )
 
 
@@ -272,6 +273,13 @@ class TestFullPipelineE2E:
         assert results["checks"]["scope_excluded"] == "PASSED"
         assert results["checks"]["pagination"] == "PASSED"
         assert results["checks"]["sorting"] == "PASSED"
+
+    @pytest.mark.e2e
+    def test_three_personas_rbac_journey(self):
+        config = E2EConfig.from_env()
+        results = run_three_personas_rbac_journey_scenario(config)
+        assert results["status"] == "passed"
+        assert results["persona_checks"]["admin_full_lifecycle"] == "PASSED"
 
 
 

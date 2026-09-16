@@ -50,6 +50,7 @@ from tests_e2e.scenarios import (
     run_paper_page_scorecard_journey_scenario,
     run_run_admission_guard_scenario,
     run_briefing_filters_and_pagination_scenario,
+    run_three_personas_rbac_journey_scenario,
 )
 
 # Configure rich colored terminal logging
@@ -518,6 +519,11 @@ def main():
             total_elapsed = time.time() - t0
             print(f"\n✅ BRIEFING FILTERS, SCOPE & PAGINATION SCENARIO COMPLETED in {total_elapsed:.1f}s (Checks: {res.get('checks')})\n")
 
+        elif args.scenario in ("personas", "three_personas", "rbac_personas"):
+            res = run_three_personas_rbac_journey_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ THREE PERSONAS RBAC JOURNEY COMPLETED in {total_elapsed:.1f}s (Checks: {res.get('persona_checks')})\n")
+
         elif args.scenario == "all":
             logger.info("🧪 Running ALL E2E test scenarios sequentially...")
             suite_results = []
@@ -637,6 +643,13 @@ def main():
                 run_briefing_filters_and_pagination_scenario,
                 config,
                 workspace_id=briefing_res.get("workspace_id") if isinstance(briefing_res, dict) else None,
+            )
+
+            # 23. Three Personas RBAC Journey
+            _run_and_track(
+                "Three Personas RBAC Journey",
+                run_three_personas_rbac_journey_scenario,
+                config,
             )
 
             total_elapsed = time.time() - t0

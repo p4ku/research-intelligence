@@ -1506,6 +1506,65 @@ class ApiEndpointOptimizationsTestCase(TestCase):
         # Ignored gracefully, all 4 papers returned
         self.assertEqual(resp_invalid.json()["total"], 4)
 
+        # 10. Dynamic dimension sorting on custom extraction dimensions:
+        # Novelty: Alpha (9), Beta (8), Gamma (5), Delta (3)
+        resp_sort_nov = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&sort=dim:novelty_score"
+        )
+        self.assertEqual(resp_sort_nov.status_code, 200)
+        titles_nov = [p["title"] for p in resp_sort_nov.json()["papers"]]
+        self.assertEqual(titles_nov, ["Paper Alpha", "Paper Beta", "Paper Gamma", "Paper Delta"])
+
+        # Strategic Fit: Alpha (9), Gamma (8), Beta (6), Delta (3)
+        resp_sort_fit = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&sort=dim:strategic_fit_(1_10)"
+        )
+        self.assertEqual(resp_sort_fit.status_code, 200)
+        titles_fit = [p["title"] for p in resp_sort_fit.json()["papers"]]
+        self.assertEqual(titles_fit, ["Paper Alpha", "Paper Gamma", "Paper Beta", "Paper Delta"])
+
+        # 11. Combined dynamic dimension filter + dynamic dimension sort:
+        # Filter min_novelty_score=4 -> Alpha (9), Beta (8), Gamma (4)
+        # Sorted by Strategic Fit DESC -> Alpha (9), Gamma (8), Beta (6)
+        resp_combo_dim = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&min_novelty_score=4&sort=dim:strategic_fit_(1_10)"
+        )
+        self.assertEqual(resp_combo_dim.status_code, 200)
+        combo_papers = resp_combo_dim.json()["papers"]
+        self.assertEqual([p["title"] for p in combo_papers], ["Paper Alpha", "Paper Gamma", "Paper Beta"])
+
+        # 12. Dynamic discovery from unconfigured Extraction category on papers:
+        # Create an extraction with a category not in workspace.extraction_definitions
+        p_extra = Paper.objects.create(
+            workspace=self.workspace,
+            title="Paper Epsilon With Dynamic Cat",
+            source_database="arxiv",
+            hash_id="p_eps_hash"
+        )
+        PaperMetric.objects.create(
+            paper=p_extra,
+            pipeline_run=run,
+            workspace=self.workspace,
+            screening_status="accepted",
+            signal_score=99.0,
+        )
+        Extraction.objects.create(
+            workspace=self.workspace,
+            paper=p_extra,
+            category="Energy Efficiency Index",
+            fields_data={"efficiency_ratio": 95},
+            validation_status="pass"
+        )
+        resp_enriched = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included"
+        )
+        self.assertEqual(resp_enriched.status_code, 200)
+        enriched_defs = resp_enriched.json()["definitions"]
+        eff_def = next((d for d in enriched_defs if d["key"] == "energy_efficiency_index"), None)
+        self.assertIsNotNone(eff_def, "Definitions metadata must dynamically enrich unconfigured extraction categories")
+        self.assertEqual(eff_def["name"], "Energy Efficiency Index")
+        self.assertTrue(eff_def["is_numeric"])
+
 
 
     def test_workspace_scorecard_pagination_preserves_global_ordering(self):

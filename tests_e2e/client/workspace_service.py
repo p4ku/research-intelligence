@@ -410,8 +410,10 @@ class WorkspaceService:
         page_size: Optional[int] = None,
         min_score: Optional[float] = None,
         sort: Optional[str] = None,
+        dimension_filters: Optional[Dict[str, float]] = None,
+        **kwargs,
     ) -> Dict[str, Any]:
-        """Fetch edition detail with optional run, scope, pagination, min_score, and sort filtering."""
+        """Fetch edition detail with optional run, scope, pagination, min_score, sort, and dynamic dimension filtering."""
         params = {}
         if run_id:
             params["run_id"] = run_id
@@ -425,6 +427,15 @@ class WorkspaceService:
             params["min_score"] = min_score
         if sort:
             params["sort"] = sort
+        if dimension_filters:
+            for dim_k, dim_v in dimension_filters.items():
+                if dim_v is not None:
+                    if dim_k.startswith(('min_', 'dim:', 'dim_min:', 'min_dim:')):
+                        params[dim_k] = dim_v
+                    else:
+                        params[f"min_{dim_k}"] = dim_v
+        if kwargs:
+            params.update(kwargs)
 
         resp = self.client.get(f"/api/workspaces/{workspace_id}/editions/{date}/", params=params, expected_status=200)
         return resp.json()

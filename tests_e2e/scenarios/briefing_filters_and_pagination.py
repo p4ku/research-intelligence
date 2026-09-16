@@ -238,10 +238,10 @@ def run_briefing_filters_and_pagination_scenario(
     results["checks"]["pagination"] = "PASSED"
 
     # =========================================================================
-    # Phase 3: Validate Min Score Floor Filtering
+    # Phase 3: Validate Min Score Floor & Dynamic Dimension Filtering
     # =========================================================================
-    logger.info("\n🎚️ Phase 3: Testing Min Score Floor Filtering...")
-    # Find max score among papers to pick a realistic threshold
+    logger.info("\n🎚️ Phase 3: Testing Min Score Floor & Dynamic Dimension Filtering...")
+    # 3.1 Min Score Floor
     all_scores = [float(p.get("signal_score") or 0.0) for p in all_papers if p.get("signal_score") is not None]
     if all_scores:
         median_score = sorted(all_scores)[len(all_scores) // 2]
@@ -269,10 +269,84 @@ def run_briefing_filters_and_pagination_scenario(
         logger.info("   ⏭ No scored papers found; skipping numeric floor assertion.")
         results["checks"]["min_score_filter"] = "SKIPPED"
 
+    # 3.2 Dynamic Dimension Floor Filtering (e.g. min_<dim_key>, dim:<dim_key>, min_dim:<dim_key>)
+    dim_candidates = {}
+    for p in all_papers:
+        for d in p.get("dimensions", []) or []:
+            d_key = (d.get("key") or "").strip().lower()
+            val = d.get("value")
+            if d_key and isinstance(val, (int, float)) and val > 0:
+                dim_candidates.setdefault(d_key, []).append(float(val))
+
+    if dim_candidates:
+        test_dim_key, test_dim_vals = next(iter(dim_candidates.items()))
+        test_dim_vals_sorted = sorted(test_dim_vals)
+        dim_floor = test_dim_vals_sorted[len(test_dim_vals_sorted) // 2]
+        logger.info(f"   • Testing dynamic dimension filter 'min_{test_dim_key}={dim_floor}'...")
+
+        dim_filtered_detail = ws_svc.get_edition_detail(
+            target_ws_id,
+            target_date,
+            run_id=target_run_id,
+            scope="all",
+            dimension_filters={test_dim_key: dim_floor},
+        )
+        dim_filtered_papers = dim_filtered_detail.get("papers", [])
+        logger.info(f"   • Returned {len(dim_filtered_papers)} papers for dimension '{test_dim_key}' >= {dim_floor}")
+
+        for p in dim_filtered_papers:
+            p_dims = {
+                (d.get("key") or "").strip().lower(): d.get("value")
+                for d in p.get("dimensions", []) or []
+            }
+            # Fallback to matching dimension name
+            for d in p.get("dimensions", []) or []:
+                name_slug = (d.get("name") or "").strip().lower().replace(" ", "_").replace("-", "_")
+                if name_slug and name_slug not in p_dims:
+                    p_dims[name_slug] = d.get("value")
+
+            p_val = p_dims.get(test_dim_key)
+            if p_val is not None and isinstance(p_val, (int, float)):
+                assert p_val >= dim_floor, (
+                    f"Paper {p.get('id')} dimension '{test_dim_key}' value {p_val} is below floor {dim_floor}"
+                )
+        logger.info(f"   ✅ All returned papers satisfy dynamic dimension filter '{test_dim_key}' >= {dim_floor}.")
+
+        # Extreme dimension floor filter (above max value) -> must return 0 papers
+        extreme_dim_floor = max(test_dim_vals) + 1000.0
+        extreme_dim_detail = ws_svc.get_edition_detail(
+            target_ws_id,
+            target_date,
+            run_id=target_run_id,
+            scope="all",
+            dimension_filters={test_dim_key: extreme_dim_floor},
+        )
+        assert len(extreme_dim_detail.get("papers", [])) == 0, (
+            f"Extreme dimension floor {extreme_dim_floor} should return 0 papers, got: {len(extreme_dim_detail.get('papers', []))}"
+        )
+        logger.info(f"   ✅ Extreme dynamic dimension floor min_{test_dim_key}={extreme_dim_floor} correctly returned 0 papers.")
+
+        # Alternative prefix syntax test: 'dim:<dim_key>'
+        alt_prefix_detail = ws_svc.get_edition_detail(
+            target_ws_id,
+            target_date,
+            run_id=target_run_id,
+            scope="all",
+            dimension_filters={f"dim:{test_dim_key}": dim_floor},
+        )
+        assert len(alt_prefix_detail.get("papers", [])) == len(dim_filtered_papers), (
+            f"Alternative prefix 'dim:{test_dim_key}' returned different count than 'min_{test_dim_key}'"
+        )
+        logger.info(f"   ✅ Prefix flexibility ('dim:{test_dim_key}' vs 'min_{test_dim_key}') verified.")
+        results["checks"]["dynamic_dimension_filter"] = "PASSED"
+    else:
+        logger.info("   ⏭ No dimension values found on papers; skipping dynamic dimension floor test.")
+        results["checks"]["dynamic_dimension_filter"] = "SKIPPED"
+
     # =========================================================================
-    # Phase 4: Validate Multi-Criteria Sorting
+    # Phase 4: Validate Multi-Criteria Sorting & Dynamic Discovery
     # =========================================================================
-    logger.info("\n🔄 Phase 4: Testing Sorting Modes...")
+    logger.info("\n🔄 Phase 4: Testing Sorting Modes & Dynamic Extractions Discovery...")
 
     # 4.1 Default / sort='score' (descending)
     sort_score = ws_svc.get_edition_detail(target_ws_id, target_date, run_id=target_run_id, scope="all", sort="score")
@@ -289,18 +363,86 @@ def run_briefing_filters_and_pagination_scenario(
     assert isinstance(sort_pub.get("papers"), list), "sort='published' must return valid papers list"
     logger.info(f"   ✅ Verified sort='published' returns valid list of {len(sort_pub.get('papers'))} papers.")
 
-    # 4.3 Dimension sorting (if definitions exist)
+    # 4.3 Dimension sorting with monotonicity assertion (sort=dim:<key>)
     definitions = target_edition.get("definitions", [])
-    if definitions and len(definitions) > 0:
-        first_dim_key = definitions[0].get("key") or definitions[0].get("id") or definitions[0].get("name")
-        if first_dim_key:
-            dim_sort_param = f"dim:{first_dim_key}"
-            logger.info(f"   • Testing dimension sort '{dim_sort_param}'...")
-            dim_detail = ws_svc.get_edition_detail(
-                target_ws_id, target_date, run_id=target_run_id, scope="all", sort=dim_sort_param
+    sort_dim_key = None
+    if definitions:
+        for d in definitions:
+            k = d.get("key") or d.get("id") or d.get("name")
+            if k and not str(k).startswith("risk_"):
+                sort_dim_key = str(k).lower().replace(" ", "_").replace("-", "_")
+                break
+
+    if not sort_dim_key and dim_candidates:
+        sort_dim_key = next(iter(dim_candidates.keys()))
+
+    if sort_dim_key:
+        dim_sort_param = f"dim:{sort_dim_key}"
+        logger.info(f"   • Testing dimension sort '{dim_sort_param}'...")
+        dim_detail = ws_svc.get_edition_detail(
+            target_ws_id, target_date, run_id=target_run_id, scope="all", sort=dim_sort_param
+        )
+        sorted_papers = dim_detail.get("papers", [])
+        assert isinstance(sorted_papers, list), f"Sort by {dim_sort_param} returned invalid list"
+        logger.info(f"   • Sort by {dim_sort_param} returned {len(sorted_papers)} papers.")
+
+        # Extract values for the sorted dimension and verify monotonicity
+        extracted_dim_vals = []
+        for p in sorted_papers:
+            val = None
+            for d in p.get("dimensions", []) or []:
+                d_k = (d.get("key") or "").strip().lower()
+                d_n = (d.get("name") or "").strip().lower().replace(" ", "_").replace("-", "_")
+                if d_k == sort_dim_key or d_n == sort_dim_key or (sort_dim_key == "trl" and d.get("is_trl")):
+                    if isinstance(d.get("value"), (int, float)):
+                        val = float(d.get("value"))
+                        break
+            extracted_dim_vals.append(val if val is not None else -float("inf"))
+
+        for i in range(len(extracted_dim_vals) - 1):
+            assert extracted_dim_vals[i] >= extracted_dim_vals[i + 1], (
+                f"Dimension values not descending in sort='{dim_sort_param}': {extracted_dim_vals[i]} < {extracted_dim_vals[i+1]}"
             )
-            assert isinstance(dim_detail.get("papers"), list), f"Sort by {dim_sort_param} returned invalid list"
-            logger.info(f"   ✅ Verified dimension sort '{dim_sort_param}' returns {len(dim_detail.get('papers'))} papers.")
+        logger.info(f"   ✅ Verified sort='{dim_sort_param}' produces descending dimension order: {extracted_dim_vals[:5]}")
+        results["checks"]["dimension_sorting"] = "PASSED"
+    else:
+        results["checks"]["dimension_sorting"] = "SKIPPED"
+
+    # 4.4 Dynamic Extractions Discovery in Definitions Metadata
+    if definitions:
+        logger.info(f"   • Validating dynamic extraction discovery in definitions metadata ({len(definitions)} definitions)...")
+        for d in definitions:
+            assert "key" in d, f"Definition metadata missing 'key': {d}"
+            assert "name" in d, f"Definition metadata missing 'name': {d}"
+            assert "is_numeric" in d, f"Definition metadata missing 'is_numeric': {d}"
+            assert d.get("max") is not None, f"Definition metadata missing 'max': {d}"
+        logger.info(f"   ✅ Definitions metadata conforms to dynamic extraction contract.")
+        results["checks"]["definitions_metadata_discovery"] = "PASSED"
+
+    # 4.5 Combined Filter + Dimension Sort + Pagination
+    if dim_candidates and all_scores:
+        logger.info("   • Testing combined filter (min_score + dynamic dimension floor + sort + page_size)...")
+        combo_dim_key = next(iter(dim_candidates.keys()))
+        combo_dim_val = sorted(dim_candidates[combo_dim_key])[0]
+        combo_score_floor = sorted(all_scores)[0]
+
+        combo_detail = ws_svc.get_edition_detail(
+            target_ws_id,
+            target_date,
+            run_id=target_run_id,
+            scope="all",
+            min_score=combo_score_floor,
+            dimension_filters={combo_dim_key: combo_dim_val},
+            sort=f"dim:{combo_dim_key}",
+            page=1,
+            page_size=2,
+        )
+        assert "papers" in combo_detail
+        assert combo_detail.get("page") == 1
+        assert combo_detail.get("page_size") == 2
+        logger.info(f"   ✅ Combined multi-criteria query succeeded (returned {len(combo_detail.get('papers', []))} papers, total: {combo_detail.get('total')}).")
+        results["checks"]["combined_filters_and_sort"] = "PASSED"
+
     results["checks"]["sorting"] = "PASSED"
 
     # =========================================================================

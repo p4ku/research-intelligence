@@ -511,6 +511,10 @@ class APISecurityFixesTestCase(TestCase):
         run.refresh_from_db()
         self.assertEqual(run.status, "running")
 
+        # 3. Rerun from step is allowed for Admin
+        res_rerun = self.client.post(f"/api/pipeline-runs/{run.id}/rerun-from-step/", {"step_name": "search"}, format="json")
+        self.assertEqual(res_rerun.status_code, status.HTTP_200_OK)
+
     def test_manager_can_start_stop_but_cannot_rerun(self):
         """Verify Manager can start and abort, but cannot rerun from step (Admin only)."""
         self.client.force_authenticate(user=self.manager_user)
@@ -534,6 +538,51 @@ class APISecurityFixesTestCase(TestCase):
         # 3. Rerun is forbidden for Manager (Admin only)
         res_rerun = self.client.post(f"/api/pipeline-runs/{run.id}/rerun-from-step/", {"step_name": "search"}, format="json")
         self.assertEqual(res_rerun.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_three_personas_scrapers_and_definitions_rbac(self):
+        """Verify scrapers and extraction definitions creation permissions across Admin, Manager, and Researcher."""
+        scraper_payload = {
+            "workspace": str(self.workspace.id),
+            "provider": "arxiv",
+            "search_query": 'cat:cs.AI AND "machine learning"',
+            "limit": 5,
+        }
+        ext_def_payload = {
+            "workspace": str(self.workspace.id),
+            "name": "Strategic Fit Metric",
+            "system_prompt": "Evaluate fit.",
+            "user_prompt_template": "Paper: {{title}}",
+            "response_schema": {"type": "object"},
+            "exit_metrics": ["fit_score"],
+        }
+
+        # 1. Researcher is FORBIDDEN from creating scrapers and definitions
+        self.client.force_authenticate(user=self.researcher_user)
+        res_res_scr = self.client.post("/api/scrapers/", scraper_payload, format="json")
+        self.assertEqual(res_res_scr.status_code, status.HTTP_403_FORBIDDEN)
+
+        res_res_def = self.client.post("/api/extraction-definitions/", ext_def_payload, format="json")
+        self.assertEqual(res_res_def.status_code, status.HTTP_403_FORBIDDEN)
+
+        # 2. Manager CAN create scrapers and definitions
+        self.client.force_authenticate(user=self.manager_user)
+        res_mgr_scr = self.client.post("/api/scrapers/", scraper_payload, format="json")
+        self.assertEqual(res_mgr_scr.status_code, status.HTTP_201_CREATED)
+
+        res_mgr_def = self.client.post("/api/extraction-definitions/", ext_def_payload, format="json")
+        self.assertEqual(res_mgr_def.status_code, status.HTTP_201_CREATED)
+
+        # 3. Admin CAN create scrapers and definitions
+        self.client.force_authenticate(user=self.admin_user)
+        scraper_payload["search_query"] = 'cat:cs.AI AND "deep learning"'
+        res_adm_scr = self.client.post("/api/scrapers/", scraper_payload, format="json")
+        self.assertEqual(res_adm_scr.status_code, status.HTTP_201_CREATED)
+
+        ext_def_payload["name"] = "TRL Metric Admin"
+        ext_def_payload["exit_metrics"] = ["trl_level"]
+        res_adm_def = self.client.post("/api/extraction-definitions/", ext_def_payload, format="json")
+        self.assertEqual(res_adm_def.status_code, status.HTTP_201_CREATED)
+
 
 
 
