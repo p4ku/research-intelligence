@@ -624,10 +624,20 @@ def main():
             _run_and_track("Paper Page Scorecard Journey", run_paper_page_scorecard_journey_scenario, config)
 
             # 21. Executive Briefing Export
-            _run_and_track("Executive Briefing Export", run_executive_briefing_export_scenario, config)
+            briefing_res = _run_and_track(
+                "Executive Briefing Export",
+                run_executive_briefing_export_scenario,
+                config,
+                preserve_workspace=True,
+            )
 
             # 22. Briefing Filters, Scope & Pagination
-            _run_and_track("Briefing Filters, Scope & Pagination", run_briefing_filters_and_pagination_scenario, config)
+            _run_and_track(
+                "Briefing Filters, Scope & Pagination",
+                run_briefing_filters_and_pagination_scenario,
+                config,
+                workspace_id=briefing_res.get("workspace_id") if isinstance(briefing_res, dict) else None,
+            )
 
             total_elapsed = time.time() - t0
             print_suite_summary(suite_results, total_elapsed, config=config)

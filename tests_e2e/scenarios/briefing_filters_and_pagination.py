@@ -23,6 +23,7 @@ Validates:
 
 import logging
 import math
+import random
 from typing import Dict, Any, Optional, List
 from ..config import E2EConfig
 from ..client import (
@@ -30,12 +31,16 @@ from ..client import (
     AuthService,
     WorkspaceService,
     PipelineService,
+    AgentService,
 )
 
 logger = logging.getLogger("e2e_briefing_filters")
 
 
-def run_briefing_filters_and_pagination_scenario(config: Optional[E2EConfig] = None) -> Dict[str, Any]:
+def run_briefing_filters_and_pagination_scenario(
+    config: Optional[E2EConfig] = None,
+    workspace_id: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Executes comprehensive E2E validation of editions scope, server-side pagination,
     score floor filtering, and dimension sorting.
@@ -53,41 +58,97 @@ def run_briefing_filters_and_pagination_scenario(config: Optional[E2EConfig] = N
     logger.info(f"📍 Target API : {cfg.base_url}")
     logger.info("=================================================================")
 
-    # 1. Discover a workspace and date with completed editions
-    workspaces = ws_svc.list_workspaces()
-    assert len(workspaces) > 0, "No workspaces found on target environment."
-
     target_ws_id = None
     target_date = None
     target_run_id = None
     target_edition = None
+    created_temp_workspace = False
 
-    logger.info("🔍 Searching for an existing workspace with editions...")
-    for ws in workspaces:
-        ws_id = ws["id"]
+    # 1. Check passed workspace_id first
+    if workspace_id:
         try:
-            editions = ws_svc.list_editions(ws_id)
-            if editions and len(editions) > 0:
+            editions = ws_svc.list_editions(workspace_id)
+            if editions:
                 for ed in editions:
-                    # Look for an edition with completed papers
                     d = ed.get("date")
                     if d:
-                        detail = ws_svc.get_edition_detail(ws_id, d, scope="all")
+                        detail = ws_svc.get_edition_detail(workspace_id, d, scope="all")
                         papers = detail.get("papers", [])
-                        if len(papers) >= 2 or detail.get("funnel", {}).get("passed_screening", 0) > 0:
-                            target_ws_id = ws_id
+                        if len(papers) >= 1 or detail.get("funnel", {}).get("passed_screening", 0) > 0:
+                            target_ws_id = workspace_id
                             target_date = d
                             target_run_id = detail.get("run_id") or ed.get("run_id")
                             target_edition = detail
                             break
-            if target_ws_id:
-                break
         except Exception as e:
-            logger.debug(f"Workspace {ws_id} edition inspection note: {e}")
+            logger.debug(f"Passed workspace {workspace_id} edition inspection note: {e}")
+
+    # 2. Search for an existing workspace with editions if needed
+    if not target_ws_id:
+        logger.info("🔍 Searching for an existing workspace with editions...")
+        workspaces = ws_svc.list_workspaces()
+        for ws in workspaces:
+            ws_id = ws["id"]
+            try:
+                editions = ws_svc.list_editions(ws_id)
+                if editions and len(editions) > 0:
+                    for ed in editions:
+                        d = ed.get("date")
+                        if d:
+                            detail = ws_svc.get_edition_detail(ws_id, d, scope="all")
+                            papers = detail.get("papers", [])
+                            if len(papers) >= 1 or detail.get("funnel", {}).get("passed_screening", 0) > 0:
+                                target_ws_id = ws_id
+                                target_date = d
+                                target_run_id = detail.get("run_id") or ed.get("run_id")
+                                target_edition = detail
+                                break
+                if target_ws_id:
+                    break
+            except Exception as e:
+                logger.debug(f"Workspace {ws_id} edition inspection note: {e}")
+
+    # 3. Self-provision if no workspace with editions exists
+    if not target_ws_id or not target_date:
+        logger.info("📦 No workspace with editions found. Self-provisioning edition test workspace...")
+        random_suffix = random.randint(10000000, 99999999)
+        ws_name = f"test_e2e_briefing_filters_{random_suffix}"
+        ws_data = ws_svc.create_workspace(
+            name=ws_name,
+            abstract_acceptance_criteria="Accept machine learning, neural networks, language models.",
+            abstract_rejection_criteria="Reject unrelated disciplines.",
+            full_text_acceptance_criteria="Accept papers with clear evaluation.",
+            full_text_rejection_criteria="Reject pure opinion.",
+            screening_llm_model="google/gemini-3.8-flash",
+        )
+        target_ws_id = ws_data["id"]
+        created_temp_workspace = True
+
+        ws_svc.create_scraper(
+            workspace_id=target_ws_id,
+            provider="arxiv",
+            search_query='cat:cs.AI AND all:"transformer architecture"',
+            limit=3,
+        )
+        agent_svc = AgentService(client)
+        logger.info("🚀 Launching research pipeline to generate briefing edition...")
+        proc = agent_svc.start_research_agent(
+            workspace_id=target_ws_id,
+            name=f"Edition Filters Run - {ws_name}",
+            limit=3,
+        )
+        completed_agent = agent_svc.poll_until_complete(proc["id"], max_timeout_sec=cfg.max_timeout_sec)
+        assert completed_agent.get("status") == "completed", f"Pipeline failed: {completed_agent}"
+
+        editions = ws_svc.list_editions(target_ws_id)
+        assert len(editions) > 0, "Self-provisioned pipeline must generate at least one edition"
+        ed = editions[0]
+        target_date = ed.get("date")
+        target_run_id = ed.get("run_id") or completed_agent.get("pipeline_run")
+        target_edition = ws_svc.get_edition_detail(target_ws_id, target_date, scope="all")
 
     assert target_ws_id and target_date, (
-        "Could not find an existing workspace with editions to test. "
-        "Run the full SLR pipeline first to generate at least one briefing edition."
+        "Could not find or provision a workspace with editions to test."
     )
 
     logger.info(f"✅ Found testable edition: Workspace '{target_ws_id}', Date '{target_date}', Run '{target_run_id}'")
@@ -195,12 +256,14 @@ def run_briefing_filters_and_pagination_scenario(config: Optional[E2EConfig] = N
             assert score >= median_score, f"Paper {p.get('id')} score {score} is below min_score {median_score}"
         logger.info(f"   ✅ All {len(filtered_papers)} returned papers satisfy signal_score >= {median_score}.")
 
-        # Extreme min_score test (1000)
+        # Extreme min_score test (above max score)
+        max_score = max(all_scores)
+        extreme_min_score = max_score + 1000.0
         empty_detail = ws_svc.get_edition_detail(
-            target_ws_id, target_date, run_id=target_run_id, scope="all", min_score=1000.0
+            target_ws_id, target_date, run_id=target_run_id, scope="all", min_score=extreme_min_score
         )
-        assert len(empty_detail.get("papers", [])) == 0, "min_score=1000 should return 0 papers"
-        logger.info("   ✅ min_score=1000 correctly filtered out all papers.")
+        assert len(empty_detail.get("papers", [])) == 0, f"min_score={extreme_min_score} should return 0 papers"
+        logger.info(f"   ✅ min_score={extreme_min_score} correctly filtered out all papers.")
         results["checks"]["min_score_filter"] = "PASSED"
     else:
         logger.info("   ⏭ No scored papers found; skipping numeric floor assertion.")
@@ -275,6 +338,14 @@ def run_briefing_filters_and_pagination_scenario(config: Optional[E2EConfig] = N
     logger.info(f"   • Min Score Floor Filtering              : VERIFIED")
     logger.info(f"   • Multi-Criteria Sorting (Score, Dim)    : VERIFIED")
     logger.info("=================================================================")
+
+    cleanup_ws = target_ws_id if (created_temp_workspace or (workspace_id and cfg.delete_after)) else None
+    if cleanup_ws and cfg.delete_after:
+        try:
+            ws_svc.delete_workspace(cleanup_ws)
+            logger.info(f"🧹 Cleaned up edition test workspace '{cleanup_ws}'")
+        except Exception as e:
+            logger.warning(f"Could not delete test workspace {cleanup_ws}: {e}")
 
     results["status"] = "passed"
     return results

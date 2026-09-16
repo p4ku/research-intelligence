@@ -64,6 +64,7 @@ def run_paper_page_scorecard_journey_scenario(config: Optional[E2EConfig] = None
         full_text_rejection_criteria="Reject pure opinion articles.",
         signal_score_code="score = 0.5 * fit_score + 0.5 * trl\nreturn round(score * 10.0, 2)",
         screening_llm_model="google/gemini-3.8-flash",
+        extraction_definitions=[],
     )
     workspace_id = ws_data["id"]
 

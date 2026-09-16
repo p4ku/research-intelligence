@@ -74,6 +74,7 @@ class PipelineService:
         status: str = None,
         page: int = None,
         page_size: int = None,
+        limit: int = None,
         return_full_response: bool = False,
     ) -> Any:
         params = {}
@@ -83,8 +84,9 @@ class PipelineService:
             params["status"] = status
         if page is not None:
             params["page"] = page
-        if page_size is not None:
-            params["page_size"] = page_size
+        effective_page_size = page_size if page_size is not None else limit
+        if effective_page_size is not None:
+            params["page_size"] = effective_page_size
         resp = self.client.get("/api/pipeline-runs/", params=params, expected_status=200)
         data = resp.json()
         if return_full_response:
@@ -99,6 +101,7 @@ class PipelineService:
         search: str = None,
         page: int = None,
         page_size: int = None,
+        limit: int = None,
         return_full_response: bool = False,
     ) -> Any:
         params = {}
@@ -112,8 +115,9 @@ class PipelineService:
             params["search"] = search
         if page is not None:
             params["page"] = page
-        if page_size is not None:
-            params["page_size"] = page_size
+        effective_page_size = page_size if page_size is not None else limit
+        if effective_page_size is not None:
+            params["page_size"] = effective_page_size
         resp = self.client.get("/api/papers/", params=params, expected_status=200)
         data = resp.json()
         if return_full_response:

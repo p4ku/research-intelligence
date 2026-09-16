@@ -72,10 +72,10 @@ class WorkspaceService:
     def create_workspace(
         self,
         name: str,
-        abstract_acceptance_criteria: str,
-        abstract_rejection_criteria: str,
-        full_text_acceptance_criteria: str,
-        full_text_rejection_criteria: str,
+        abstract_acceptance_criteria: str = "Accept all relevant academic research papers.",
+        abstract_rejection_criteria: str = "Do not reject relevant papers.",
+        full_text_acceptance_criteria: str = "Accept papers with empirical evaluations.",
+        full_text_rejection_criteria: str = "Reject non-technical position papers.",
         abstract_screening_system_prompt: Optional[str] = None,
         abstract_screening_user_prompt_template: Optional[str] = None,
         abstract_screening_response_schema: Optional[Dict[str, Any]] = None,
@@ -202,6 +202,9 @@ class WorkspaceService:
         exit_metrics: list[str] | str,
         postprocessing_code: Optional[str] = None,
         llm_model: str = "google/gemini-3.8-flash",
+        primary_frontend_metric: Optional[str] = None,
+        secondary_frontend_metrics: Optional[str] = None,
+        **kwargs,
     ) -> Optional[Dict[str, Any]]:
         metrics_list = (
             [m.strip() for m in exit_metrics.split(',') if m.strip()]
@@ -217,7 +220,16 @@ class WorkspaceService:
             "exit_metrics": metrics_list,
             "llm_model": llm_model,
             "is_active": True,
+            **kwargs,
         }
+        if primary_frontend_metric is not None:
+            payload["primary_frontend_metric"] = primary_frontend_metric
+        if secondary_frontend_metrics is not None:
+            payload["secondary_frontend_metrics"] = (
+                [m.strip() for m in secondary_frontend_metrics.split(',') if m.strip()]
+                if isinstance(secondary_frontend_metrics, str)
+                else list(secondary_frontend_metrics)
+            )
         if postprocessing_code is not None:
             payload["postprocessing_code"] = postprocessing_code
 

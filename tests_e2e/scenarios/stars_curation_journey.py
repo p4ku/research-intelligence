@@ -21,6 +21,7 @@ from ..client import (
     AuthService,
     WorkspaceService,
     PipelineService,
+    AgentService,
 )
 
 logger = logging.getLogger("e2e_stars_journey")
@@ -61,29 +62,66 @@ def run_stars_curation_journey_scenario(
     # Phase 2: Find or Provision Target Resources
     target_ws_id = workspace_id
     created_temp_workspace = False
-
-    if not target_ws_id:
-        existing_workspaces = ws_svc.list_workspaces()
-        if existing_workspaces:
-            target_ws_id = existing_workspaces[0]["id"]
-        else:
-            random_suffix = random.randint(100000, 999999)
-            ws_data = ws_svc.create_workspace(name=f"test_e2e_stars_{random_suffix}")
-            target_ws_id = ws_data["id"]
-            created_temp_workspace = True
-
-    # Retrieve accessible papers and pipeline runs in this workspace
-    papers = pipeline_svc.list_papers(workspace_id=target_ws_id, limit=5)
-    runs = pipeline_svc.list_pipeline_runs(workspace_id=target_ws_id)
-
     target_paper_id = None
     target_run_id = None
 
-    if papers and len(papers) > 0:
-        target_paper_id = papers[0]["id"]
+    if target_ws_id:
+        papers = pipeline_svc.list_papers(workspace_id=target_ws_id, limit=5)
+        runs = pipeline_svc.list_pipeline_runs(workspace_id=target_ws_id, limit=5)
+        if papers:
+            target_paper_id = papers[0]["id"]
+        if runs:
+            target_run_id = runs[0]["id"]
 
-    if runs and len(runs) > 0:
-        target_run_id = runs[0]["id"]
+    # Fallback to checking all accessible resources
+    if not target_paper_id or not target_run_id:
+        all_papers = pipeline_svc.list_papers(limit=5)
+        all_runs = pipeline_svc.list_pipeline_runs(limit=5)
+        if all_papers and not target_paper_id:
+            target_paper_id = all_papers[0]["id"]
+        if all_runs and not target_run_id:
+            target_run_id = all_runs[0]["id"]
+
+    # If still missing papers or runs, self-provision 1-paper workspace and run
+    if not target_paper_id or not target_run_id:
+        logger.info("📦 No papers/runs found in accessible workspaces. Provisioning test workspace...")
+        random_suffix = random.randint(100000, 999999)
+        ws_data = ws_svc.create_workspace(
+            name=f"test_e2e_stars_{random_suffix}",
+            abstract_acceptance_criteria="Accept all relevant academic research papers.",
+            abstract_rejection_criteria="Do not reject relevant papers.",
+            full_text_acceptance_criteria="Accept papers with empirical evaluations.",
+            full_text_rejection_criteria="Reject non-technical position papers.",
+        )
+        target_ws_id = ws_data["id"]
+        created_temp_workspace = True
+
+        ws_svc.create_scraper(
+            workspace_id=target_ws_id,
+            provider="arxiv",
+            search_query='cat:cs.AI AND all:"transformer architecture"',
+            limit=1,
+        )
+        agent_svc = AgentService(client)
+        logger.info("🚀 Ingesting 1 paper for stars curation validation...")
+        agent_proc = agent_svc.start_research_agent(
+            workspace_id=target_ws_id,
+            name=f"Stars Provisioning - {target_ws_id}",
+            limit=1,
+            reprocess_existing=True,
+        )
+        agent_svc.poll_until_complete(
+            agent_proc["id"], max_timeout_sec=cfg.max_timeout_sec
+        )
+        papers = pipeline_svc.list_papers(workspace_id=target_ws_id, limit=5)
+        runs = pipeline_svc.list_pipeline_runs(workspace_id=target_ws_id, limit=5)
+        if papers:
+            target_paper_id = papers[0]["id"]
+        if runs:
+            target_run_id = runs[0]["id"]
+
+    logger.info(f"   • Selected Target Paper ID : {target_paper_id}")
+    logger.info(f"   • Selected Target Run ID   : {target_run_id}")
 
     results = {
         "status": "PASSED",
@@ -154,12 +192,19 @@ def run_stars_curation_journey_scenario(
         results["tested_isolation_guard"] = True
 
     finally:
-        if created_temp_workspace and target_ws_id:
+        if created_temp_workspace and target_ws_id and cfg.delete_after:
             try:
                 ws_svc.delete_workspace(target_ws_id)
                 logger.info(f"🧹 Cleaned up temporary workspace {target_ws_id}")
             except Exception as e:
                 logger.warning(f"Could not delete temp workspace {target_ws_id}: {e}")
+
+    assert results["tested_isolation_guard"], "Security isolation guard test must pass"
+    if target_paper_id:
+        assert results["tested_paper_star"], "Paper star test must pass"
+        assert results["tested_unstar"], "Paper unstar test must pass"
+    if target_run_id:
+        assert results["tested_briefing_star"], "Briefing star test must pass"
 
     logger.info("=================================================================")
     logger.info("🎉 STARS CURATION E2E USER JOURNEY COMPLETED SUCCESSFULLY")

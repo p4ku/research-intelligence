@@ -23,10 +23,13 @@ from ..client import (
 logger = logging.getLogger("e2e_briefing_export")
 
 
-def run_executive_briefing_export_scenario(config: Optional[E2EConfig] = None) -> Dict[str, Any]:
+def run_executive_briefing_export_scenario(
+    config: Optional[E2EConfig] = None,
+    preserve_workspace: bool = False,
+) -> Dict[str, Any]:
     """
-    Validates end-to-end executive narrative briefing synthesis:
-    1. Provisions workspace and triggers an autonomous review pipeline.
+    Executes Executive Briefing Synthesis and Markdown Export E2E Scenario:
+    1. Triggers an autonomous research agent pipeline run for a workspace.
     2. Waits for pipeline completion (including step 7 reporting).
     3. Queries GET /api/reports/?pipeline_run={pr_id} (frontend /briefing contract).
     4. Validates markdown structure, executive summary, breakthrough papers, and economics trace.
@@ -151,7 +154,7 @@ def run_executive_briefing_export_scenario(config: Optional[E2EConfig] = None) -
         }
 
     finally:
-        if cfg.delete_after:
+        if cfg.delete_after and not preserve_workspace:
             try:
                 ws_svc.delete_workspace(workspace_id)
             except Exception as del_err:
