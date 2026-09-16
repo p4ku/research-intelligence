@@ -348,6 +348,12 @@ CELERY_TIMEZONE = 'UTC'
 CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'health_check_interval': 15,
+    'socket_keepalive': True,
+    'socket_timeout': 30,
+    'socket_connect_timeout': 15,
+}
 
 # ==============================================================================
 # Feature Switching / Capability Toggles (Default: False for opt-in features)
