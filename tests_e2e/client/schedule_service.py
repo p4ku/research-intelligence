@@ -53,6 +53,10 @@ class ScheduleService:
             "configuration_override": configuration_override or {},
             "is_active": is_active,
         }
+        if frequency == "one_off" and not one_off_datetime:
+            from datetime import datetime, timezone, timedelta
+            one_off_datetime = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+
         if one_off_datetime:
             payload["one_off_datetime"] = one_off_datetime
         logger.info(f"📅 Creating Workflow Schedule '{name}' for workspace '{workspace_id}' (freq: {frequency})...")

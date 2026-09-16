@@ -86,10 +86,13 @@ def run_workflow_schedule_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         )
 
         # 3. Create One-Off Schedule (auto-deactivates upon execution to prevent recurring Celery Beat runs)
+        from datetime import datetime, timezone, timedelta
+        run_dt = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
         sched_data = sched_svc.create_schedule(
             workspace_id=workspace_id,
             name=schedule_name,
             frequency="one_off",
+            one_off_datetime=run_dt,
             timezone_name="UTC",
             prevent_overlap=True,
             max_consecutive_failures=3,
