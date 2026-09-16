@@ -35,4 +35,3 @@ export const POST = bff('pipeline-runs', async (request, ctx) => {
   invalidateCorpusSnapshot()
   return Response.json(restarted)
 })
-

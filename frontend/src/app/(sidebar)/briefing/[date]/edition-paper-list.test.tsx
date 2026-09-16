@@ -232,7 +232,14 @@ describe('EditionPaperList paging', () => {
 
   test('renders dynamic dimension sliders for numeric extractions and skips non-numeric', () => {
     const definitions = [
-      { key: 'trl', name: 'Technology Readiness Level (TRL)', order: 1, is_trl: true, max: 9, is_numeric: true },
+      {
+        key: 'trl',
+        name: 'Technology Readiness Level (TRL)',
+        order: 1,
+        is_trl: true,
+        max: 9,
+        is_numeric: true,
+      },
       { key: 'schwarz_fit', name: 'Schwarz Fit', order: 2, max: 10, is_numeric: true },
       { key: 'tldr', name: 'TLDR Summary', order: 3, is_numeric: false },
       { key: 'risk_and_affiliation', name: 'Risk & Affiliation', order: 4, is_numeric: false },
@@ -291,11 +298,7 @@ describe('EditionPaperList paging', () => {
     }
 
     const out = renderToStaticMarkup(
-      <EditionPaperList
-        papers={[paperWithDims]}
-        runId={runId}
-        logHref={logHref}
-      />,
+      <EditionPaperList papers={[paperWithDims]} runId={runId} logHref={logHref} />,
     )
 
     // Should discover Rigour and TRL sliders

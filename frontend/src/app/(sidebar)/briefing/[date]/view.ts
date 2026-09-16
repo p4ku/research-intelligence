@@ -84,7 +84,12 @@ export function viewFrom(params: Record<string, string | string[] | undefined>):
     if (k.startsWith('dim_min:')) dimKey = k.slice(8)
     else if (k.startsWith('min_dim:')) dimKey = k.slice(8)
     else if (k.startsWith('dim:')) dimKey = k.slice(4)
-    else if (k.startsWith('min_') && k !== 'min_score' && k !== 'min_date' && k !== 'min_created_at') {
+    else if (
+      k.startsWith('min_') &&
+      k !== 'min_score' &&
+      k !== 'min_date' &&
+      k !== 'min_created_at'
+    ) {
       dimKey = k.slice(4)
     }
 
@@ -122,7 +127,10 @@ export function searchWith(current: string, view: EditionView): string {
   // Remove existing min_* or dim:* params from query before writing active ones
   for (const key of Array.from(q.keys())) {
     if (
-      (key.startsWith('min_') && key !== 'min_score' && key !== 'min_date' && key !== 'min_created_at') ||
+      (key.startsWith('min_') &&
+        key !== 'min_score' &&
+        key !== 'min_date' &&
+        key !== 'min_created_at') ||
       key.startsWith('dim:') ||
       key.startsWith('dim_min:') ||
       key.startsWith('min_dim:')

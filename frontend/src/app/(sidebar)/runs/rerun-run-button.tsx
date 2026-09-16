@@ -15,7 +15,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { BffClientError, bffFetch } from '@/lib/bff/client'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import { errorsFromSubmit } from '@/lib/bff/problem-copy'
-import { fmt, type T } from '@/lib/i18n'
+import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import { ArrowPathIcon } from '@heroicons/react/16/solid'
 import { useRouter } from 'next/navigation'
@@ -80,9 +80,7 @@ export function RerunRunButton({ run }: { run: RerunRun }) {
             <AlertDialogTitle>{t('Rerun this pipeline?')}</AlertDialogTitle>
             <AlertDialogDescription>
               {fmt(
-                t(
-                  'The {domain} pipeline run will re-execute from the failed step or beginning.',
-                ),
+                t('The {domain} pipeline run will re-execute from the failed step or beginning.'),
                 { domain: run.workspace_name },
               )}
             </AlertDialogDescription>

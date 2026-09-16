@@ -1,7 +1,11 @@
 import type { InFlightRun } from '@/lib/bff/pipeline-runs/admission'
+import { ALL_ON } from '@/lib/features'
 import type { T } from '@/lib/i18n'
 import { describe, expect, test } from 'bun:test'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { HomeGrid } from './home-ui'
 import { runCardNote } from './run-card'
+import { LedgerSkeletonRegion } from './skeletons'
 
 const t: T = (s) => s
 
@@ -57,19 +61,13 @@ describe('runCardNote', () => {
 
 describe('HomeGrid and DashboardSkeleton role visibility', () => {
   test('HomeGrid renders ledger with basis-full when card is omitted for researcher', () => {
-    const { renderToStaticMarkup } = require('react-dom/server')
-    const { HomeGrid } = require('./home-ui')
-    const out = renderToStaticMarkup(
-      <HomeGrid ledger={<div>Ledger Content</div>} />,
-    )
+    const out = renderToStaticMarkup(<HomeGrid ledger={<div>Ledger Content</div>} />)
     expect(out).toContain('Ledger Content')
     expect(out).toContain('basis-full')
     expect(out).not.toContain('<aside')
   })
 
   test('HomeGrid renders card aside when card is provided for admin/manager', () => {
-    const { renderToStaticMarkup } = require('react-dom/server')
-    const { HomeGrid } = require('./home-ui')
     const out = renderToStaticMarkup(
       <HomeGrid ledger={<div>Ledger Content</div>} card={<div>Run Card</div>} />,
     )
@@ -79,9 +77,6 @@ describe('HomeGrid and DashboardSkeleton role visibility', () => {
   })
 
   test('LedgerSkeletonRegion omits RunCardSkeleton when showCard is false', () => {
-    const { renderToStaticMarkup } = require('react-dom/server')
-    const { LedgerSkeletonRegion } = require('./skeletons')
-    const { ALL_ON } = require('@/lib/features')
     const out = renderToStaticMarkup(
       <LedgerSkeletonRegion t={t} features={ALL_ON} showCard={false} />,
     )
@@ -91,9 +86,6 @@ describe('HomeGrid and DashboardSkeleton role visibility', () => {
   })
 
   test('LedgerSkeletonRegion includes RunCardSkeleton when showCard is true', () => {
-    const { renderToStaticMarkup } = require('react-dom/server')
-    const { LedgerSkeletonRegion } = require('./skeletons')
-    const { ALL_ON } = require('@/lib/features')
     const out = renderToStaticMarkup(
       <LedgerSkeletonRegion t={t} features={ALL_ON} showCard={true} />,
     )

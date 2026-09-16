@@ -1124,6 +1124,12 @@
                           },
                           "is_trl": {
                             "type": "boolean"
+                          },
+                          "max": {
+                            "type": "number"
+                          },
+                          "is_numeric": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -1873,6 +1879,12 @@
                 },
                 "is_trl": {
                   "type": "boolean"
+                },
+                "max": {
+                  "type": "number"
+                },
+                "is_numeric": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -2074,6 +2086,12 @@
                   "type": "number"
                 },
                 "is_trl": {
+                  "type": "boolean"
+                },
+                "max": {
+                  "type": "number"
+                },
+                "is_numeric": {
                   "type": "boolean"
                 }
               },

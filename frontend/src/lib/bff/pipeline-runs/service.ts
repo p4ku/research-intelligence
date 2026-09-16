@@ -177,7 +177,9 @@ export const runs = {
       body: JSON.stringify(stepName ? { step_name: stepName } : {}),
     })
     return {
-      pipeline_run_id: res.pipeline_run_id ? assertUuid(res.pipeline_run_id, 'pipeline_run_id') : runId,
+      pipeline_run_id: res.pipeline_run_id
+        ? assertUuid(res.pipeline_run_id, 'pipeline_run_id')
+        : runId,
     }
   },
 

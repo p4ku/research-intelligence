@@ -42,14 +42,7 @@ export default async function BriefingEditionPage({
   params: Promise<{ date: string }>
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const [
-    { date },
-    rawParams,
-    state,
-    t,
-    lang,
-    features,
-  ] = await Promise.all([
+  const [{ date }, rawParams, state, t, lang, features] = await Promise.all([
     params,
     searchParams,
     getWorkspacesState(),
@@ -79,7 +72,12 @@ export default async function BriefingEditionPage({
     if (k.startsWith('dim_min:')) dimKey = k.slice(8)
     else if (k.startsWith('min_dim:')) dimKey = k.slice(8)
     else if (k.startsWith('dim:')) dimKey = k.slice(4)
-    else if (k.startsWith('min_') && k !== 'min_score' && k !== 'min_date' && k !== 'min_created_at') {
+    else if (
+      k.startsWith('min_') &&
+      k !== 'min_score' &&
+      k !== 'min_date' &&
+      k !== 'min_created_at'
+    ) {
       dimKey = k.slice(4)
     }
 

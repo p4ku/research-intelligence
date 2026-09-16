@@ -9,6 +9,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { useFeatures } from '@/lib/features-client'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
+import { dimensionShortName } from '@/lib/papers/dimension-label'
 import { paperHref } from '@/lib/papers/href'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { useStars } from '@/lib/stars-client'
@@ -16,7 +17,6 @@ import clsx from 'clsx'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { dimensionShortName } from '@/lib/papers/dimension-label'
 import {
   applyView,
   DEFAULT_VIEW,
@@ -371,7 +371,10 @@ export function EditionPaperList({
             </div>
           </FilterGroup>
 
-          <FilterGroup label={t('Total Score')} value={view.minScore > 0 ? `≥ ${view.minScore}` : undefined}>
+          <FilterGroup
+            label={t('Total Score')}
+            value={view.minScore > 0 ? `≥ ${view.minScore}` : undefined}
+          >
             <MinScoreSlider
               value={view.minScore}
               ceiling={SCORE_CEILING}

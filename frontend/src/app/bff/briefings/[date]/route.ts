@@ -31,7 +31,12 @@ export const GET = bff('briefings', async (request, ctx) => {
     if (k.startsWith('dim_min:')) dimKey = k.slice(8)
     else if (k.startsWith('min_dim:')) dimKey = k.slice(8)
     else if (k.startsWith('dim:')) dimKey = k.slice(4)
-    else if (k.startsWith('min_') && k !== 'min_score' && k !== 'min_date' && k !== 'min_created_at') {
+    else if (
+      k.startsWith('min_') &&
+      k !== 'min_score' &&
+      k !== 'min_date' &&
+      k !== 'min_created_at'
+    ) {
       dimKey = k.slice(4)
     }
 

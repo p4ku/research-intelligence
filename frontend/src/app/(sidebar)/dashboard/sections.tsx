@@ -71,12 +71,7 @@ export async function LedgerSection({
   today: string
 }) {
   const [items, current, inFlight, workspaces] = await forPage(
-    Promise.all([
-      recentBriefings(lang),
-      currentRun(),
-      inFlightRuns(),
-      getWorkspacesState(),
-    ]),
+    Promise.all([recentBriefings(lang), currentRun(), inFlightRuns(), getWorkspacesState()]),
   )
   const runnable = runnableWorkspaces(workspaces)
   const runnableDomains = domains.filter((d) => runnable.has(d.id))

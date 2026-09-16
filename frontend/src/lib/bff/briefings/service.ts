@@ -281,11 +281,10 @@ export const briefings = {
       if (page !== undefined && pageSize !== undefined) {
         const total = scope === 'excluded' ? res.exclusions.length : res.papers.length
         const start = (page - 1) * pageSize
-        const paperSlice = scope !== 'excluded' ? res.papers.slice(start, start + pageSize) : res.papers
+        const paperSlice =
+          scope !== 'excluded' ? res.papers.slice(start, start + pageSize) : res.papers
         const exclusionSlice =
-          scope === 'excluded'
-            ? res.exclusions.slice(start, start + pageSize)
-            : res.exclusions
+          scope === 'excluded' ? res.exclusions.slice(start, start + pageSize) : res.exclusions
         return {
           ...res,
           papers: paperSlice,
