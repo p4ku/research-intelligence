@@ -222,50 +222,98 @@ export interface DefinitionMeta {
   is_numeric?: boolean
 }
 
+export interface NumericDimensionItem {
+  key: string
+  name: string
+  label: string
+  max: number
+  step: number
+  order: number
+}
+
 /**
- * The sorts on offer for these papers: the Schwarz Score, the publication
- * date when any paper has one, then one per scored dimension — TRL included — in the workspace's
- * definition order, each key once. When definitions are provided, they supply
- * the dimension options even if the current page of papers is filtered down.
+ * Discovers all numeric extraction dimensions on offer:
+ * 1. From workspace definitions metadata (if available and numeric).
+ * 2. And discovered from papers' actual dimensions (for extractions evaluated on papers).
+ * De-duplicated by key, filtered from non-numeric and risk/compliance flags, and ordered.
+ */
+export function discoverNumericDimensions(
+  papers: readonly ScoredPaper[],
+  t: T,
+  definitions?: readonly DefinitionMeta[],
+): NumericDimensionItem[] {
+  const result: NumericDimensionItem[] = []
+  const seenKeys = new Set<string>()
+
+  // 1. From definitions metadata if supplied
+  if (definitions && definitions.length > 0) {
+    for (const def of definitions) {
+      if (def.is_numeric === false) continue
+      if (def.key.includes('risk_and_affiliation')) continue
+
+      const max = def.max ?? (def.is_trl ? 9 : 100)
+      const label = dimensionShortName(
+        {
+          name: def.name,
+          is_trl: Boolean(
+            def.is_trl ?? (def.name.toLowerCase().includes('trl') || def.key.includes('trl')),
+          ),
+        },
+        t,
+      )
+      seenKeys.add(def.key)
+      result.push({
+        key: def.key,
+        name: def.name,
+        label,
+        max,
+        step: 1,
+        order: def.order ?? result.length,
+      })
+    }
+  }
+
+  // 2. Discover from papers' actual dimensions
+  let paperIndex = 0
+  for (const p of papers) {
+    for (const d of p.dimensions ?? []) {
+      if (!d.key || seenKeys.has(d.key)) continue
+      if (d.is_risk_and_affiliation || d.key.includes('risk_and_affiliation')) continue
+      if (typeof d.value !== 'number' || !Number.isFinite(d.value)) continue
+
+      const max = d.max ?? (d.is_trl ? 9 : 100)
+      const label = dimensionShortName(d, t)
+      seenKeys.add(d.key)
+      result.push({
+        key: d.key,
+        name: d.name,
+        label,
+        max,
+        step: 1,
+        order: d.order ?? 100 + paperIndex++,
+      })
+    }
+  }
+
+  return result.sort((a, b) => a.order - b.order)
+}
+
+/**
+ * The sorts on offer for these papers: the Total Score (always on top), the publication
+ * date when any paper has one, then one per numeric extraction dimension — TRL, custom
+ * metrics, Schwarz Fit, etc. — discovered dynamically from definitions and papers.
  */
 export function sortOptions(
   papers: readonly ScoredPaper[],
   t: T,
   definitions?: readonly DefinitionMeta[],
 ): SortOption[] {
-  let dims: SortOption[] = []
-  if (definitions && definitions.length > 0) {
-    dims = [...definitions]
-      .filter((d) => !d.key.includes('risk_and_affiliation') && d.is_numeric !== false)
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-      .map((d) => ({
-        id: `dim:${d.key}`,
-        label: dimensionShortName(
-          {
-            name: d.name,
-            is_trl: Boolean(
-              d.is_trl ?? (d.name.toLowerCase().includes('trl') || d.key.includes('trl')),
-            ),
-          },
-          t,
-        ),
-      }))
-  } else {
-    const seen = new Map<string, { d: Dimension; order: number; index: number }>()
-    let index = 0
-    for (const p of papers) {
-      for (const d of p.dimensions ?? []) {
-        if (!sortable(d) || seen.has(d.key)) continue
-        seen.set(d.key, { d, order: d.order ?? Number.MAX_SAFE_INTEGER, index: index++ })
-      }
-    }
-    dims = [...seen.values()]
-      .sort((a, b) => a.order - b.order || a.index - b.index)
-      .map(({ d }) => ({ id: `dim:${d.key}`, label: dimensionShortName(d, t) }))
-  }
-  // The same rule for the date: the editions endpoint sends no publication
-  // date, and the scorecard may not either, so an order by it would leave the
-  // list as it was. The option appears once any paper carries one.
+  const numDims = discoverNumericDimensions(papers, t, definitions)
+  const dims: SortOption[] = numDims.map((d) => ({
+    id: `dim:${d.key}`,
+    label: d.label,
+  }))
+
   const dated = papers.some((p) => Boolean(p.published_date))
   return [
     { id: 'score', label: t('Total Score') },

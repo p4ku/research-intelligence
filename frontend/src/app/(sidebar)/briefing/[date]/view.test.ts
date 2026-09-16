@@ -153,6 +153,23 @@ describe('sortOptions', () => {
       { id: 'dim:schwarz_fit', label: 'Schwarz Fit' },
     ])
   })
+
+  test('dynamically discovers extractions on papers when definitions is partial or only has TRL', () => {
+    const definitions = [
+      { key: 'trl', name: 'Technology Readiness Level (TRL)', order: 1, is_trl: true },
+    ]
+    const paperWithExtractions = paper('p1', 80, null, [
+      dim('trl', 5, { is_trl: true }),
+      dim('research_metric', 72, { name: 'Research Metric' }),
+      dim('schwarz_fit', 40, { name: 'Schwarz Fit' }),
+    ])
+    expect(sortOptions([paperWithExtractions], t, definitions)).toEqual([
+      { id: 'score', label: 'Total Score' },
+      { id: 'dim:trl', label: 'TRL' },
+      { id: 'dim:research_metric', label: 'Research Metric' },
+      { id: 'dim:schwarz_fit', label: 'Schwarz Fit' },
+    ])
+  })
 })
 
 describe('applyView', () => {

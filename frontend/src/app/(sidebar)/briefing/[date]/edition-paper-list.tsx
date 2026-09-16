@@ -9,7 +9,6 @@ import { Spinner } from '@/components/ui/spinner'
 import { useFeatures } from '@/lib/features-client'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
-import { dimensionShortName } from '@/lib/papers/dimension-label'
 import { paperHref } from '@/lib/papers/href'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { useStars } from '@/lib/stars-client'
@@ -20,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import {
   applyView,
   DEFAULT_VIEW,
+  discoverNumericDimensions,
   isDefaultView,
   PAGE_SIZE,
   pageOf,
@@ -149,7 +149,11 @@ export function EditionPaperList({
   // The effective filter, not the state: with the chip gone there would be no
   // way to clear it, so a flip taken mid-filter must show the whole edition.
   const filtering = stars && starredOnly
-  const sorts = sortOptions(papers, t, definitions)
+  const numericDimensions = useMemo(
+    () => discoverNumericDimensions(papers, t, definitions),
+    [definitions, papers, t],
+  )
+  const sorts = useMemo(() => sortOptions(papers, t, definitions), [definitions, papers, t])
   // The effective view, like the effective filter: a sort the rail cannot
   // offer is the score's.
   const view = withKnownSort(asked, sorts)
@@ -186,77 +190,6 @@ export function EditionPaperList({
     ? Math.min(totalPapers, (currentPage - 1) * pageSize + shown.length)
     : paged.to
   const cardsToRender = isServerPaged ? shown : paged.rows
-
-  interface NumericDimensionItem {
-    key: string
-    name: string
-    label: string
-    max: number
-    step: number
-    order: number
-  }
-
-  const numericDimensions = useMemo(() => {
-    const result: NumericDimensionItem[] = []
-    const seenKeys = new Set<string>()
-
-    // 1. From definitions metadata if supplied
-    if (definitions && definitions.length > 0) {
-      for (const def of definitions) {
-        if (def.is_numeric === false) continue
-        if (def.key.includes('risk_and_affiliation')) continue
-        const isNum =
-          def.is_numeric === true ||
-          (def.max !== undefined && def.max > 0) ||
-          Boolean(def.is_trl) ||
-          def.name.toLowerCase().includes('trl')
-        if (!isNum) continue
-
-        const max = def.max ?? (def.is_trl ? 9 : 100)
-        const label = dimensionShortName(
-          {
-            name: def.name,
-            is_trl: Boolean(
-              def.is_trl ?? (def.name.toLowerCase().includes('trl') || def.key.includes('trl')),
-            ),
-          },
-          t,
-        )
-        seenKeys.add(def.key)
-        result.push({
-          key: def.key,
-          name: def.name,
-          label,
-          max,
-          step: 1,
-          order: def.order ?? result.length,
-        })
-      }
-    }
-
-    // 2. Discover from papers' actual dimensions
-    for (const p of papers) {
-      for (const d of p.dimensions ?? []) {
-        if (!d.key || seenKeys.has(d.key)) continue
-        if (d.is_risk_and_affiliation || d.key.includes('risk_and_affiliation')) continue
-        if (typeof d.value !== 'number' || !Number.isFinite(d.value)) continue
-
-        const max = d.max ?? (d.is_trl ? 9 : 100)
-        const label = dimensionShortName(d, t)
-        seenKeys.add(d.key)
-        result.push({
-          key: d.key,
-          name: d.name,
-          label,
-          max,
-          step: 1,
-          order: d.order ?? result.length,
-        })
-      }
-    }
-
-    return result.sort((a, b) => a.order - b.order)
-  }, [definitions, papers, t])
 
   const hasActiveDimFilter = Boolean(
     view.dimensionFilters && Object.values(view.dimensionFilters).some((v) => v > 0),

@@ -278,6 +278,17 @@ export const briefings = {
           }
         }
       }
+      if (sort && sort.startsWith('dim:')) {
+        const dimKey = sort.slice(4)
+        res = {
+          ...res,
+          papers: [...res.papers].sort((a, b) => {
+            const vA = a.dimensions?.find((d) => d.key === dimKey)?.value ?? -Infinity
+            const vB = b.dimensions?.find((d) => d.key === dimKey)?.value ?? -Infinity
+            return (vB as number) - (vA as number)
+          }),
+        }
+      }
       if (page !== undefined && pageSize !== undefined) {
         const total = scope === 'excluded' ? res.exclusions.length : res.papers.length
         const start = (page - 1) * pageSize

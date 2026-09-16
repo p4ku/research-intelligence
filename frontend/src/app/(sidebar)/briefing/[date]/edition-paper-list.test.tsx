@@ -340,4 +340,69 @@ describe('EditionPaperList paging', () => {
     // Schwarz fit has no filter so no badge
     expect(out).not.toContain('≥ undefined')
   })
+
+  test('sort dropdown and sliders both include dynamically discovered dimensions when definitions only has TRL', () => {
+    const definitions = [
+      {
+        key: 'trl',
+        name: 'Technology Readiness Level (TRL)',
+        order: 1,
+        is_trl: true,
+        max: 9,
+        is_numeric: true,
+      },
+    ]
+    const paperWithExtractions = {
+      ...many[0]!,
+      dimensions: [
+        {
+          key: 'trl',
+          definition_id: 'def-1',
+          name: 'TRL',
+          value: 4,
+          raw: '4',
+          max: 9,
+          is_trl: true,
+        },
+        {
+          key: 'research_metric',
+          definition_id: null,
+          name: 'Research Metric',
+          value: 72,
+          raw: '72',
+          max: 100,
+          is_trl: false,
+        },
+        {
+          key: 'schwarz_fit',
+          definition_id: null,
+          name: 'Schwarz Fit',
+          value: 40,
+          raw: '40',
+          max: 100,
+          is_trl: false,
+        },
+      ],
+    }
+
+    const out = renderToStaticMarkup(
+      <EditionPaperList
+        papers={[paperWithExtractions]}
+        runId={runId}
+        logHref={logHref}
+        definitions={definitions}
+      />,
+    )
+
+    // Verify sliders exist for all three
+    expect(out).toContain('TRL')
+    expect(out).toContain('Research Metric')
+    expect(out).toContain('Schwarz Fit')
+
+    // Verify sort options and sliders exist in output
+    expect(out).toContain('Total Score')
+    expect(out).toContain('TRL')
+    expect(out).toContain('Research Metric')
+    expect(out).toContain('Schwarz Fit')
+  })
 })

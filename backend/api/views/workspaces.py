@@ -648,6 +648,27 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             for d in definitions
         ]
 
+        def _enrich_definitions_from_exts(exts_list):
+            known_keys = {m["key"] for m in definitions_metadata}
+            for ext in exts_list:
+                cat = (ext.category or '').strip()
+                if not cat:
+                    continue
+                cat_slug = cat.lower().replace(' ', '_').replace('-', '_')
+                if cat_slug in known_keys or is_risk_dimension(cat, cat_slug):
+                    continue
+                known_keys.add(cat_slug)
+                max_scale, is_trl = resolve_dimension_scale(cat)
+                definitions_metadata.append({
+                    "id": None,
+                    "key": cat_slug,
+                    "name": cat,
+                    "order": 100 + len(definitions_metadata),
+                    "is_trl": is_trl or 'trl' in cat_slug,
+                    "max": max_scale,
+                    "is_numeric": True,
+                })
+
         # Dynamic dimension filters from query params (e.g. min_trl=4, dim:schwarz_fit=60, min_dim:trl=4)
         dim_filters = {}
         for param_k, param_v in request.query_params.items():
@@ -756,6 +777,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                         )
                         for ext in exts:
                             extractions_map.setdefault(ext.paper_id, []).append(ext)
+                        _enrich_definitions_from_exts(exts)
 
                     from research_intelligence.services.scorecard_service import build_single_scored_paper
 
@@ -778,7 +800,13 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
 
                     def _dim_val(sp):
                         for d in sp.get('dimensions', []):
-                            if d.get('key') == target_dim_key:
+                            k = (d.get('key') or '').strip().lower()
+                            n = (d.get('name') or '').strip().lower().replace(' ', '_').replace('-', '_')
+                            if (
+                                k == target_dim_key
+                                or n == target_dim_key
+                                or (target_dim_key == 'trl' and (d.get('is_trl') or 'trl' in k or 'trl' in n))
+                            ):
                                 v = d.get('value')
                                 if isinstance(v, (int, float)):
                                     return v
@@ -921,6 +949,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                 )
                 for ext in exts:
                     extractions_map.setdefault(ext.paper_id, []).append(ext)
+                _enrich_definitions_from_exts(exts)
 
             from research_intelligence.services.scorecard_service import build_single_scored_paper
 
@@ -939,6 +968,28 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                 sp['workspace_id'] = str(workspace.id)
                 sp['pipeline_run_id'] = str(run.id)
                 surfaced.append(sp)
+
+            if sort_param.startswith('dim:'):
+                target_dim_key = sort_param[4:].strip().lower()
+
+                def _unpaged_dim_val(sp):
+                    for d in sp.get('dimensions', []):
+                        k = (d.get('key') or '').strip().lower()
+                        n = (d.get('name') or '').strip().lower().replace(' ', '_').replace('-', '_')
+                        if (
+                            k == target_dim_key
+                            or n == target_dim_key
+                            or (target_dim_key == 'trl' and (d.get('is_trl') or 'trl' in k or 'trl' in n))
+                        ):
+                            v = d.get('value')
+                            if isinstance(v, (int, float)):
+                                return v
+                    return -float('inf')
+
+                surfaced.sort(
+                    key=lambda sp: (_unpaged_dim_val(sp), sp.get('signal_score') or 0.0),
+                    reverse=True
+                )
 
         run_dt = run.completed_at or run.run_date or run.started_at
         actual_date_str = run_dt.strftime('%Y-%m-%d')

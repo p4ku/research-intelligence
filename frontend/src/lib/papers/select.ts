@@ -28,7 +28,13 @@ export function trlDimension(paper: ScoredPaper): Dimension | undefined {
 }
 
 export function dimensionByKey(paper: ScoredPaper, key: string): Dimension | undefined {
-  return (paper.dimensions ?? []).find((d) => d.key === key)
+  const normKey = key.trim().toLowerCase()
+  return (paper.dimensions ?? []).find(
+    (d) =>
+      d.key?.toLowerCase() === normKey ||
+      d.name?.toLowerCase().replace(/[\s-]+/g, '_') === normKey ||
+      (normKey === 'trl' && (d.is_trl || d.name?.toLowerCase().includes('trl'))),
+  )
 }
 
 /**
