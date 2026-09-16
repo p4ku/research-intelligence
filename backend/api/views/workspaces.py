@@ -255,55 +255,9 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['get'], url_path='scoring')
     def scoring(self, request, pk=None):
+        from .scoring import build_workspace_scoring_response
         workspace = self.get_object()
-        active_defs = list(workspace.extraction_definitions.filter(is_active=True).order_by('created_at'))
-        active_count = len(active_defs)
-
-        variables = [
-            {
-                "key": d.name.lower().replace(" ", "_"),
-                "definition_id": str(d.id),
-                "name": d.name,
-                "max": None,
-                "is_trl": "trl" in d.name.lower(),
-            }
-            for d in active_defs
-        ]
-
-        weights = [
-            {
-                "key": d.name.lower().replace(" ", "_"),
-                "definition_id": str(d.id),
-                "name": d.name,
-                "weight": round(1000.0 / active_count) / 10.0 if active_count > 0 else 0,
-            }
-            for d in active_defs
-        ]
-
-        pm = (
-            PaperMetric.objects.filter(workspace=workspace, signal_score__isnull=False)
-            .select_related('paper')
-            .order_by('-signal_score', '-created_at')
-            .first()
-        )
-        example_obj = None
-        if pm and pm.paper:
-            example_obj = {
-                "paper_id": str(pm.paper.id),
-                "title": pm.paper.title,
-                "signal_score": pm.signal_score,
-                "variables": (pm.signal_score_details or {}).get("variables", {}),
-            }
-
-        return Response({
-            "workspace_id": str(workspace.id),
-            "code": workspace.signal_score_code or None,
-            "code_source": "workspace" if workspace.signal_score_code else "stub",
-            "variables": variables,
-            "weights": weights,
-            "weights_source": "stub",
-            "example": example_obj,
-        })
+        return build_workspace_scoring_response(workspace)
 
     @extend_schema(
         operation_id="workspace_editions_list",

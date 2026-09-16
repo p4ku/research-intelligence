@@ -981,6 +981,14 @@ class DatasetInvarianceAndQueryBenchmarkTestCase(TestCase):
         """
         Verify GET /api/workspaces/{workspace_id}/scoring/ matches frontend schema.
         """
+        from research_intelligence.models import ExtractionDefinition
+        ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Technology Readiness Level (TRL)",
+            response_schema={"type": "object"},
+            is_active=True,
+        )
+
         paper = Paper.objects.create(
             workspace=self.workspace,
             title="Quantum Benchmark Paper",
@@ -1005,9 +1013,26 @@ class DatasetInvarianceAndQueryBenchmarkTestCase(TestCase):
         self.assertEqual(data["workspace_id"], str(self.workspace.id))
         self.assertIn("variables", data)
         self.assertIn("weights", data)
+        self.assertEqual(data["code"], "score = qubits * 0.5")
+        self.assertEqual(data["code_source"], "latest_metric")
         self.assertIsNotNone(data["example"])
         self.assertEqual(data["example"]["title"], "Quantum Benchmark Paper")
         self.assertEqual(data["example"]["signal_score"], 88.5)
+
+        # Check variable scale resolution
+        trl_var = next((v for v in data["variables"] if "trl" in v["key"]), None)
+        self.assertIsNotNone(trl_var)
+        self.assertEqual(trl_var["max"], 9)
+        self.assertTrue(trl_var["is_trl"])
+
+        # Check when workspace has explicit code
+        self.workspace.signal_score_code = "score = 42"
+        self.workspace.save(update_fields=['signal_score_code'])
+        resp2 = self.client.get(f"/api/workspaces/{self.workspace.id}/scoring/")
+        self.assertEqual(resp2.status_code, 200)
+        data2 = resp2.json()
+        self.assertEqual(data2["code"], "score = 42")
+        self.assertEqual(data2["code_source"], "workspace")
 
     def test_workspace_editions_and_edition_detail_actions(self):
         """
