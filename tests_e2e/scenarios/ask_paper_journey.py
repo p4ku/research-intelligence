@@ -113,17 +113,31 @@ def run_ask_paper_journey_scenario(
     created_new_workspace = False
 
     # Step 0: Ensure we have an active workspace with ingested dynamic papers
+    if target_workspace_id:
+        try:
+            existing_papers = pipeline_svc.list_papers(workspace_id=target_workspace_id, page_size=5)
+            if existing_papers and len(existing_papers) >= 1:
+                chosen_paper = existing_papers[0]
+                logger.info(f"📂 Utilizing provided workspace ({target_workspace_id}) with {len(existing_papers)} papers.")
+            else:
+                target_workspace_id = None
+        except Exception:
+            target_workspace_id = None
+
     if not target_workspace_id:
         # Check if there is an existing workspace with papers from previous runs
         existing_workspaces = ws_svc.list_workspaces()
         for ws in existing_workspaces:
             ws_id = ws["id"]
-            existing_papers = pipeline_svc.list_papers(workspace_id=ws_id, page_size=5)
-            if existing_papers and len(existing_papers) >= 1:
-                target_workspace_id = ws_id
-                chosen_paper = existing_papers[0]
-                logger.info(f"📂 Utilizing existing workspace '{ws.get('name')}' ({ws_id}) with {len(existing_papers)} papers.")
-                break
+            try:
+                existing_papers = pipeline_svc.list_papers(workspace_id=ws_id, page_size=5)
+                if existing_papers and len(existing_papers) >= 1:
+                    target_workspace_id = ws_id
+                    chosen_paper = existing_papers[0]
+                    logger.info(f"📂 Utilizing existing workspace '{ws.get('name')}' ({ws_id}) with {len(existing_papers)} papers.")
+                    break
+            except Exception:
+                continue
 
     if not target_workspace_id or not chosen_paper:
         # Provision dedicated workspace and ingest dynamic papers via Research Agent
@@ -142,19 +156,19 @@ def run_ask_paper_journey_scenario(
         )
         target_workspace_id = ws_data["id"]
 
-        # Register active scraper with broad arXiv CS topic to ensure dynamic paper arrival
+        # Register active scraper with focused arXiv CS topic to ensure quick, concise paper ingestion
         ws_svc.create_scraper(
             workspace_id=target_workspace_id,
             provider="arxiv",
-            search_query="all:neural AND all:network",
-            limit=2,
+            search_query='cat:cs.AI AND (all:"machine learning" OR all:"neural network")',
+            limit=1,
         )
 
         logger.info("🚀 Launching research agent to ingest dynamic literature...")
         agent_proc = agent_svc.start_research_agent(
             workspace_id=target_workspace_id,
             name=f"Ask Paper Ingestion - {workspace_name}",
-            limit=2,
+            limit=1,
             reprocess_existing=True,
         )
         t_start = time.time()

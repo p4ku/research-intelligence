@@ -21,7 +21,7 @@ class ChatService:
         paper_id: Optional[str] = None,
         session_id: Optional[str] = None,
         deep_thinking: bool = False,
-        timeout_sec: int = 120,
+        timeout_sec: int = 240,
     ) -> Dict[str, Any]:
         payload = {
             "workspace_id": workspace_id,
