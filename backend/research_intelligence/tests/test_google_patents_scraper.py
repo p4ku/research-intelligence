@@ -307,6 +307,23 @@ class ScraperModelAndSerializerTests(TestCase):
         self.assertEqual(instance.api_key, "user-supplied-key")
         self.assertEqual(instance.provider, "google_patents")
 
+    def test_scraper_admin_has_api_key_field(self):
+        from django.contrib.admin.sites import site
+        from research_intelligence.admin import ScraperAdmin
+
+        scraper_admin = ScraperAdmin(Scraper, site)
+        self.assertIn("api_key", scraper_admin.fields)
+        self.assertIn("api_key_badge", scraper_admin.list_display)
+
+        # Test badge rendering
+        scraper_with_key = Scraper(api_key="1234567890abcdef")
+        badge_html = scraper_admin.api_key_badge(scraper_with_key)
+        self.assertIn("CUSTOM", badge_html)
+
+        scraper_no_key = Scraper(api_key="")
+        badge_no_key = scraper_admin.api_key_badge(scraper_no_key)
+        self.assertIn("ENV DEFAULT", badge_no_key)
+
 
 class RealWorldSerpApiPayloadTests(TestCase):
     @patch("research_intelligence.scrapers.google_patents.urllib.request.urlopen")

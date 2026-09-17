@@ -2356,10 +2356,21 @@ class APIKeyAdmin(admin.ModelAdmin):
 
 @admin.register(Scraper)
 class ScraperAdmin(admin.ModelAdmin):
-    list_display = ('workspace', 'provider_badge', 'search_query', 'n_last_days', 'status_badge', 'created_at')
+    list_display = ('workspace', 'provider_badge', 'api_key_badge', 'search_query', 'n_last_days', 'status_badge', 'created_at')
     list_filter = ('provider', 'is_active', 'workspace')
     search_fields = ('workspace__name', 'search_query')
-    fields = ('workspace', 'provider', 'search_query', 'limit', 'sort_by', 'sort_order', 'n_last_days', 'is_active')
+    fields = ('workspace', 'provider', 'api_key', 'search_query', 'limit', 'sort_by', 'sort_order', 'n_last_days', 'is_active')
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        if db_field.name == "api_key":
+            kwargs["widget"] = forms.TextInput(
+                attrs={
+                    "placeholder": "e.g. SerpApi / Lens token (optional - defaults to server ENV)",
+                    "style": "width: 420px; font-family: monospace;",
+                    "autocomplete": "off",
+                }
+            )
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
 
     def provider_badge(self, obj):
         colors = {
@@ -2367,9 +2378,17 @@ class ScraperAdmin(admin.ModelAdmin):
             'openalex': '#0d6efd',
             'lens': '#6f42c1',
             'pubmed': '#20c997',
+            'google_patents': '#d63384',
         }
         return render_badge(obj.get_provider_display(), colors.get(obj.provider, '#6c757d'))
     provider_badge.short_description = "Provider"
+
+    def api_key_badge(self, obj):
+        if obj.api_key:
+            masked = f"{obj.api_key[:4]}...{obj.api_key[-3:]}" if len(obj.api_key) > 7 else "***"
+            return render_badge(f"CUSTOM ({masked})", "#198754")
+        return render_badge("ENV DEFAULT", "#6c757d")
+    api_key_badge.short_description = "API Key"
 
     def status_badge(self, obj):
         return render_badge("ACTIVE", "#198754") if obj.is_active else render_badge("DISABLED", "#6c757d")
