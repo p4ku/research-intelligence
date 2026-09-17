@@ -19,7 +19,9 @@ def sync_pipeline_run_stage_results(pipeline_run, dag_nodes, config=None, agent_
         comp_runs = list(ComponentRun.objects.filter(pipeline_run=pipeline_run).order_by('started_at', 'id'))
     else:
         comp_runs = list(comp_runs)
-    cfg = config or {}
+    cfg = dict(config or {})
+    cfg["_from_stage_results_sync"] = True
+    cfg.setdefault("comp_runs", comp_runs)
 
     for name, node in dag_nodes.items():
         if name == 'abstract_screening':

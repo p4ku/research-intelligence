@@ -44,6 +44,27 @@ class AbstractScreeningNode(BaseWorkflowNode):
     def is_skippable(self, pipeline_run, workspace, config: Dict[str, Any]) -> bool:
         if bool(config.get("skip_abstract_screening", getattr(workspace, 'skip_abstract_screening', False))):
             return True
+
+        # Check if scrapers are already prefetched on workspace
+        if hasattr(workspace, '_prefetched_objects_cache') and 'scrapers' in workspace._prefetched_objects_cache:
+            scrapers = [s for s in workspace._prefetched_objects_cache['scrapers'] if s.is_active]
+            return bool(scrapers and all(s.provider == 'google_patents' for s in scrapers))
+
+        # Check if comp_runs contains search runs in memory that identify patent providers
+        comp_runs = config.get("comp_runs")
+        if comp_runs is not None:
+            search_runs = [cr for cr in comp_runs if cr.step_type == 'search']
+            if search_runs and all(
+                (getattr(cr, 'scraper', None) and cr.scraper.provider == 'google_patents')
+                or 'Google Patents' in getattr(cr, 'component_name', '')
+                for cr in search_runs
+            ):
+                return True
+
+        # If syncing stage results in memory without prefetched scrapers, avoid extra DB queries
+        if config.get("_from_stage_results_sync"):
+            return False
+
         # If all active scrapers in this workspace are Google Patents, automatically skip abstract screening
         scrapers = workspace.scrapers.filter(is_active=True)
         if scrapers.exists() and all(s.provider == 'google_patents' for s in scrapers):
