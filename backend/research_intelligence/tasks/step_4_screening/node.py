@@ -42,7 +42,13 @@ class AbstractScreeningNode(BaseWorkflowNode):
     }
 
     def is_skippable(self, pipeline_run, workspace, config: Dict[str, Any]) -> bool:
-        return bool(config.get("skip_abstract_screening", getattr(workspace, 'skip_abstract_screening', False)))
+        if bool(config.get("skip_abstract_screening", getattr(workspace, 'skip_abstract_screening', False))):
+            return True
+        # If all active scrapers in this workspace are Google Patents, automatically skip abstract screening
+        scrapers = workspace.scrapers.filter(is_active=True)
+        if scrapers.exists() and all(s.provider == 'google_patents' for s in scrapers):
+            return True
+        return False
 
     def should_halt_pipeline(self, pipeline_run, workspace, config: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
         from research_intelligence.models import Paper, ComponentRun
@@ -75,7 +81,7 @@ class AbstractScreeningNode(BaseWorkflowNode):
 
     def generate_stage_summary(self, comp_run, status: str = "pending") -> str:
         if status == 'skipped':
-            return "Abstract Screening: Skipped (Proceeding directly to download)."
+            return "Abstract Screening: Skipped (Proceeding directly to download & full-text screening)."
         if status == 'completed' and comp_run:
             metrics = comp_run.metrics or {}
             passed = metrics.get('passed', 0)

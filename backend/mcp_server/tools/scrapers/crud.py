@@ -27,6 +27,7 @@ def list_scrapers_logic(user, workspace_id: str) -> str:
             "sort_order": getattr(s, 'sort_order', 'desc'),
             "n_last_days": getattr(s, 'n_last_days', 7),
             "is_active": s.is_active,
+            "has_api_key": bool(getattr(s, 'api_key', '')),
             "created_at": s.created_at.isoformat()
         })
     return json.dumps(results, indent=2, cls=DjangoJSONEncoder)
@@ -61,6 +62,7 @@ def get_scraper_logic(user, scraper_id: str) -> str:
         "sort_order": getattr(scraper, 'sort_order', 'desc'),
         "n_last_days": getattr(scraper, 'n_last_days', 7),
         "is_active": scraper.is_active,
+        "has_api_key": bool(getattr(scraper, 'api_key', '')),
         "created_at": scraper.created_at.isoformat()
     }
     return json.dumps(details, indent=2, cls=DjangoJSONEncoder)
@@ -75,9 +77,10 @@ def create_scraper_logic(
     sort_by: str = "relevance",
     sort_order: str = "desc",
     n_last_days: int = 7,
-    is_active: bool = True
+    is_active: bool = True,
+    api_key: str = ""
 ) -> str:
-    """Create a new data scraper configuration (arXiv, OpenAlex, or Lens.org) for a workspace."""
+    """Create a new data scraper configuration (arXiv, OpenAlex, Lens.org, or Google Patents) for a workspace."""
     workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager'])
     if error:
         return error
@@ -98,7 +101,8 @@ def create_scraper_logic(
             sort_by=sort_by,
             sort_order=sort_order,
             n_last_days=n_last_days if n_last_days is not None else 7,
-            is_active=is_active
+            is_active=is_active,
+            api_key=api_key or ""
         )
         return json.dumps({
             "success": True,
@@ -110,10 +114,11 @@ def create_scraper_logic(
             "sort_by": scraper.sort_by,
             "sort_order": scraper.sort_order,
             "n_last_days": scraper.n_last_days,
-            "is_active": scraper.is_active
+            "is_active": scraper.is_active,
+            "has_api_key": bool(scraper.api_key)
         }, indent=2)
     except Exception as e:
-        return f"Error creating scraper: {e}"
+        return f"Error creating scraper: {str(e)}"
 
 
 def update_scraper_logic(
@@ -125,7 +130,8 @@ def update_scraper_logic(
     sort_by: str = None,
     sort_order: str = None,
     n_last_days: int = None,
-    is_active: bool = None
+    is_active: bool = None,
+    api_key: str = None
 ) -> str:
     """Update an existing scraper configuration."""
     try:
@@ -168,6 +174,9 @@ def update_scraper_logic(
     if is_active is not None:
         scraper.is_active = is_active
 
+    if api_key is not None:
+        scraper.api_key = api_key
+
     scraper.save()
 
     return json.dumps({
@@ -180,7 +189,8 @@ def update_scraper_logic(
         "sort_by": scraper.sort_by,
         "sort_order": scraper.sort_order,
         "n_last_days": scraper.n_last_days,
-        "is_active": scraper.is_active
+        "is_active": scraper.is_active,
+        "has_api_key": bool(scraper.api_key)
     }, indent=2)
 
 

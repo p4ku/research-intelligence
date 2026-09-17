@@ -263,8 +263,9 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Lens.org API key configuration
-LENS_API_KEY = ""
+# External scraper API keys configuration
+LENS_API_KEY = os.environ.get("LENS_API_KEY", "")
+SERPAPI_API_KEY = os.environ.get("SERPAPI_API_KEY", "")
 
 # Django REST Framework configuration
 REST_FRAMEWORK = {

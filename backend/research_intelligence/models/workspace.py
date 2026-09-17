@@ -812,8 +812,10 @@ class Scraper(models.Model):
         ('arxiv', 'arXiv'),
         ('openalex', 'OpenAlex'),
         ('lens', 'Lens.org'),
+        ('google_patents', 'Google Patents'),
     ]
     provider = models.CharField(max_length=50, choices=PROVIDER_CHOICES, help_text="Target API/database provider")
+    api_key = models.CharField(max_length=255, blank=True, default="", help_text="Optional API key for this scraper provider (e.g. SerpApi, Lens, etc.)")
     search_query = models.TextField(help_text="Search query string or structured term parameter specific to this provider")
     limit = models.IntegerField(default=2000, help_text="Max results to fetch for this scraper")
     sort_by = models.CharField(max_length=50, default="relevance", choices=[('relevance', 'Relevance'), ('date', 'Date')], help_text="Sorting criteria")

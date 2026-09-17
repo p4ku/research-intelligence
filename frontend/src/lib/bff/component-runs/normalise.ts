@@ -74,6 +74,7 @@ export const COMPONENT_LABELS: Record<string, string> = {
   openalex_scraper: 'OpenAlex search',
   lens_scraper: 'Lens search',
   pubmed_scraper: 'PubMed search',
+  google_patents_scraper: 'Google Patents search',
   document_download: 'Download',
   layout_ocr: 'Layout OCR',
   parameter_extraction: 'Parameter extraction',

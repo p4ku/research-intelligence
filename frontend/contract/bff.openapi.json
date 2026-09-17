@@ -7069,6 +7069,9 @@
           },
           "is_active": {
             "type": "boolean"
+          },
+          "has_api_key": {
+            "type": "boolean"
           }
         },
         "required": [

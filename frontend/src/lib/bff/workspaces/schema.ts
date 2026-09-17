@@ -29,6 +29,7 @@ export const workspaceScraper = z
     provider: z.string(),
     search_query: z.string(),
     is_active: z.boolean(),
+    has_api_key: z.boolean().optional(),
   })
   .meta({ id: 'WorkspaceScraper' })
 

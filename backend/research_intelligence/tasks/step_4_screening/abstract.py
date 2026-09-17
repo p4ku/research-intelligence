@@ -46,6 +46,63 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None, 
             "usage": {"tokens_in": 0, "tokens_out": 0, "total_tokens": 0}
         }
 
+    # Google Patents bypass: patents often lack conventional academic abstracts and proceed directly
+    # to PDF download and multimodal full-text screening.
+    source_db = (getattr(paper, 'source_database', '') or '').lower()
+    is_patent = (
+        source_db in ('google_patents', 'google patents', 'patents')
+        or bool((getattr(paper, 'meta', None) or {}).get('patent_id'))
+    )
+    if is_patent:
+        duration_sec = round(time.time() - t0, 3)
+        status_val = "abstract_passed"
+        reasoning = (
+            "Patent document automatically bypassed abstract screening to proceed directly "
+            "to full-text retrieval and screening."
+        )
+        exit_metric_key = workspace.get_abstract_screening_exit_metric()
+        if target_pr_id:
+            try:
+                pm_obj, _ = PaperMetric.objects.get_or_create(
+                    paper=paper,
+                    pipeline_run_id=target_pr_id,
+                    defaults={
+                        "workspace": workspace,
+                        "screening_status": status_val,
+                        "abstract_screening_reasoning": reasoning
+                    }
+                )
+                pm_obj.screening_status = status_val
+                pm_obj.abstract_screening_reasoning = reasoning
+                m_data = dict(pm_obj.metrics_data or {})
+                m_data["abstract_screening"] = {
+                    "passed": True,
+                    "reasoning": reasoning,
+                    "evidence_quotes": [],
+                    "decision_category": "BYPASS_PATENT",
+                    "exit_metric_key": exit_metric_key,
+                    "exit_metric_value": "BYPASS_PATENT",
+                    "dynamic_data": {"bypassed": True, "source": "google_patents"}
+                }
+                pm_obj.metrics_data = m_data
+                pm_obj.save(update_fields=['screening_status', 'abstract_screening_reasoning', 'metrics_data'])
+            except Exception as pm_err:
+                logger.warning(f"Could not record PaperMetric for patent paper {paper.id}: {pm_err}")
+
+        logger.info(f"⏩ [PATENT BYPASS] Paper '{paper.id}' ({paper.title[:40]}...) bypassed abstract screening -> abstract_passed.")
+        return {
+            "success": True,
+            "passed": True,
+            "screening_status": status_val,
+            "reasoning": reasoning,
+            "evidence_quotes": [],
+            "decision_category": "BYPASS_PATENT",
+            "exit_metric_key": exit_metric_key,
+            "exit_metric_value": "BYPASS_PATENT",
+            "duration_seconds": duration_sec,
+            "usage": {"tokens_in": 0, "tokens_out": 0, "total_tokens": 0}
+        }
+
     provider = get_llm_provider(workspace.llm_provider)
     
     system_prompt = workspace.get_abstract_screening_system_prompt()

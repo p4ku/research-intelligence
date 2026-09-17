@@ -1,10 +1,13 @@
+from typing import Optional
 from .arxiv import ArxivScraperProvider
 from .openalex import OpenAlexScraperProvider
 from .lens import LensScraperProvider
+from .google_patents import GooglePatentsScraperProvider
 
-def get_scraper_provider(provider_name: str, n_last_days: int = 7):
+def get_scraper_provider(provider_name: str, n_last_days: int = 7, api_key: Optional[str] = None):
     """
     Factory Method to resolve and instantiate a scraper provider.
+    Supports optional provider-specific api_key.
     """
     provider_name = provider_name.lower().strip()
     if provider_name == 'arxiv':
@@ -12,6 +15,8 @@ def get_scraper_provider(provider_name: str, n_last_days: int = 7):
     elif provider_name == 'openalex':
         return OpenAlexScraperProvider(n_last_days=n_last_days)
     elif provider_name == 'lens':
-        return LensScraperProvider(n_last_days=n_last_days)
+        return LensScraperProvider(n_last_days=n_last_days, api_key=api_key)
+    elif provider_name in ('google_patents', 'google patents', 'google-patents', 'patents'):
+        return GooglePatentsScraperProvider(n_last_days=n_last_days, api_key=api_key)
     else:
         raise ValueError(f"Unknown academic scraper provider: '{provider_name}'")

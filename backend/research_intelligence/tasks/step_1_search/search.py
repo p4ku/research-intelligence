@@ -85,7 +85,10 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
         except (ValueError, TypeError):
             n_last_days = 7
 
-        provider = get_scraper_provider(scraper.provider, n_last_days=n_last_days)
+        provider_kwargs = {"n_last_days": n_last_days}
+        if getattr(scraper, 'api_key', None):
+            provider_kwargs["api_key"] = scraper.api_key
+        provider = get_scraper_provider(scraper.provider, **provider_kwargs)
         final_limit = scraper.limit if limit is None else limit
         sort_by = getattr(scraper, 'sort_by', 'relevance')
         sort_order = getattr(scraper, 'sort_order', 'desc')

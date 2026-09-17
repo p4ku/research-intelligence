@@ -86,6 +86,7 @@ export const dict: Record<string, string> = {
   'OpenAlex search': 'OpenAlex-Suche',
   'Lens search': 'Lens-Suche',
   'PubMed search': 'PubMed-Suche',
+  'Google Patents search': 'Google Patents-Suche',
   'Layout OCR': 'Layout-OCR',
   'Parameter extraction': 'Parameterextraktion',
   'Executive narrative': 'Management-Zusammenfassung',

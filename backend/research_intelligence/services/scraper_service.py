@@ -17,12 +17,13 @@ def preview_search_query(
     limit: int = 10,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    n_last_days: Optional[int] = None
+    n_last_days: Optional[int] = None,
+    api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Executes a live search query against a scientific provider (arXiv, OpenAlex, Lens.org)
+    Executes a live search query against a scientific provider (arXiv, OpenAlex, Lens.org, Google Patents)
     without downloading PDFs or persisting records to the database.
-    Supports optional date filtering (start_date, end_date, n_last_days).
+    Supports optional date filtering (start_date, end_date, n_last_days) and optional api_key.
     """
     valid_providers = [choice[0] for choice in Scraper.PROVIDER_CHOICES]
     if provider not in valid_providers:
@@ -32,14 +33,20 @@ def preview_search_query(
         raise ValueError("search_query is required.")
 
     effective_n = n_last_days if n_last_days is not None else 7
-    scraper_inst = factory.get_scraper_provider(provider, n_last_days=effective_n)
-    results = scraper_inst.search(
-        search_query.strip(),
-        max_results=min(limit, 10000),
-        start_date=start_date,
-        end_date=end_date,
-        n_last_days=n_last_days
-    )
+    prov_kwargs = {"n_last_days": effective_n}
+    if api_key:
+        prov_kwargs["api_key"] = api_key
+    scraper_inst = factory.get_scraper_provider(provider, **prov_kwargs)
+
+    search_kwargs = {
+        "max_results": min(limit, 10000),
+        "start_date": start_date,
+        "end_date": end_date,
+        "n_last_days": n_last_days,
+    }
+    if api_key:
+        search_kwargs["api_key"] = api_key
+    results = scraper_inst.search(search_query.strip(), **search_kwargs)
     return {
         "success": True,
         "provider": provider,

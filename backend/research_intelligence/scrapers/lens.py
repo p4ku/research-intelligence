@@ -13,6 +13,10 @@ class LensScraperProvider(BaseScraperProvider):
     Scraper provider implementing Lens.org scholarly API search and paper download.
     """
 
+    def __init__(self, n_last_days: int = 7, api_key: str | None = None):
+        super().__init__(n_last_days=n_last_days)
+        self.api_key = api_key or getattr(settings, "LENS_API_KEY", None)
+
     def search(
         self,
         query: str,
@@ -22,10 +26,11 @@ class LensScraperProvider(BaseScraperProvider):
         start_date: str | datetime | None = None,
         end_date: str | datetime | None = None,
         n_last_days: int | None = None,
+        **kwargs,
     ) -> list[dict]:
-        api_key = getattr(settings, "LENS_API_KEY", None)
+        api_key = kwargs.get("api_key") or self.api_key or getattr(settings, "LENS_API_KEY", None)
         if not api_key:
-            logger.warning("LENS_API_KEY not configured in settings. Returning empty results.")
+            logger.warning("LENS_API_KEY not configured in settings or scraper. Returning empty results.")
             return []
             
         start_dt, end_dt = self.resolve_date_range(start_date, end_date, n_last_days)

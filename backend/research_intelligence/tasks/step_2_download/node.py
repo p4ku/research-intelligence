@@ -57,7 +57,9 @@ class DownloadNode(BaseWorkflowNode):
     def get_input_params(self, pipeline_run, workspace, config: Dict[str, Any], limit: Optional[int] = None) -> Dict[str, Any]:
         params = super().get_input_params(pipeline_run, workspace, config, limit=limit)
         skip_abs = bool(config.get("skip_abstract_screening", getattr(workspace, 'skip_abstract_screening', False)))
-        params["target_mode"] = "all_ingested" if skip_abs else "abstract_passed"
+        scrapers = workspace.scrapers.filter(is_active=True)
+        all_patents = scrapers.exists() and all(s.provider == 'google_patents' for s in scrapers)
+        params["target_mode"] = "all_ingested" if (skip_abs or all_patents) else "abstract_passed"
         return params
 
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:

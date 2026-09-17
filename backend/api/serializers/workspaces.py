@@ -15,10 +15,27 @@ class ScraperSerializer(serializers.ModelSerializer):
         max_value=10000,
         help_text="Max results to fetch for this scraper (default: 2000, max: 10000)"
     )
+    api_key = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True,
+        default="",
+        help_text="Optional API key for this provider (e.g. SerpApi, Lens)"
+    )
+    has_api_key = serializers.SerializerMethodField(
+        read_only=True,
+        help_text="Whether this scraper has a configured API key"
+    )
+
+    def get_has_api_key(self, obj) -> bool:
+        return bool(getattr(obj, 'api_key', ''))
 
     class Meta:
         model = Scraper
-        fields = ['id', 'workspace', 'provider', 'search_query', 'limit', 'sort_by', 'sort_order', 'n_last_days', 'is_active', 'created_at']
+        fields = [
+            'id', 'workspace', 'provider', 'search_query', 'limit', 'sort_by',
+            'sort_order', 'n_last_days', 'is_active', 'api_key', 'has_api_key', 'created_at'
+        ]
 
 class ExtractionDefinitionSerializer(serializers.ModelSerializer):
     exit_metrics = serializers.ListField(
