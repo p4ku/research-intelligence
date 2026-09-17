@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { LoginPage, SidebarNav } from '../pages/index.js';
 
-const USERNAME = process.env.E2E_USERNAME || process.env.TEST_USERNAME || 'test_e2e';
-const PASSWORD = process.env.E2E_PASSWORD || process.env.TEST_PASSWORD || 't4st_pa55w0rD!#';
+const USERNAME = process.env.ADMIN_USERNAME || process.env.CONTRACT_USER || 'admin';
+const PASSWORD = process.env.ADMIN_PASSWORD || process.env.CONTRACT_PASSWORD || 'schwarz123!';
 
 test.describe('Journey 1: Authentication & Session Lifecycle', () => {
   test('Complete Authentication Journey: Rejection, Login, Session Verification, and Sign Out', async ({ page }) => {
@@ -21,8 +21,9 @@ test.describe('Journey 1: Authentication & Session Lifecycle', () => {
     expect(loginPage.currentPath()).toBe('/');
 
     console.log(`📍 Step 3: Logging in with valid user '${USERNAME}'...`);
-    const loggedIn = await loginPage.login(USERNAME, PASSWORD, true);
-    expect(loggedIn).toBe(true);
+    await loginPage.fillCredentials(USERNAME, PASSWORD);
+    await loginPage.submit();
+    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
     expect(page.url()).toContain('/dashboard');
 
     console.log('📍 Step 4: Verifying session cookies and sidebar user profile...');

@@ -118,7 +118,7 @@ export class BriefingPage extends BasePage {
 
   /** Navigates to the run's screening log (scope=excluded) via the "Screening log →" link. */
   async openScreeningLog(): Promise<string> {
-    const logLink = this.page.locator("a[href*='/briefing/'][href*='/run'], main a:has-text('Screening log'), main a:has-text('Screening-Protokoll')").first();
+    const logLink = this.page.locator("a[href*='/run']").filter({ hasText: /Screening log|Screening-Protokoll/i }).first();
     await logLink.waitFor({ state: 'visible', timeout: 10000 });
     await logLink.click();
     await this.page.waitForURL(/\/briefing\/\d{4}-\d{2}-\d{2}\/run/, { timeout: 15000 });
@@ -137,6 +137,43 @@ export class BriefingPage extends BasePage {
   /** Returns count of currently visible paper cards. */
   async getCardsCount(): Promise<number> {
     return this.paperCards.count();
+  }
+
+  /** Returns all range slider inputs on the filter rail. */
+  getSliders(): Locator {
+    return this.page.locator("aside input[type='range']");
+  }
+
+  /** Returns all sort buttons on the filter rail. */
+  getSortButtons(): Locator {
+    return this.page.locator("aside button[aria-pressed]");
+  }
+
+  /** Sets a range slider value and triggers change/pointer events. */
+  async setSliderValue(sliderIndex: number, value: number): Promise<void> {
+    const slider = this.getSliders().nth(sliderIndex);
+    await slider.waitFor({ state: 'visible', timeout: 5000 });
+    await slider.fill(String(value));
+    await slider.dispatchEvent('change');
+    await slider.dispatchEvent('pointerup');
+    await this.waitForNetworkIdle();
+  }
+
+  /** Checks if the Reset Filters button is visible. */
+  async hasResetFiltersButton(): Promise<boolean> {
+    try {
+      return await this.page.locator("button:has-text('Reset filters'), button:has-text('Filter zurücksetzen')").isVisible({ timeout: 2000 });
+    } catch {
+      return false;
+    }
+  }
+
+  /** Clicks Reset Filters button. */
+  async clickResetFilters(): Promise<void> {
+    const btn = this.page.locator("button:has-text('Reset filters'), button:has-text('Filter zurücksetzen')").first();
+    await btn.waitFor({ state: 'visible', timeout: 5000 });
+    await btn.click();
+    await this.waitForNetworkIdle();
   }
 }
 

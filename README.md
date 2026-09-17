@@ -263,6 +263,63 @@ Tests automatically run on an in-memory SQLite database (0 tokens consumed):
 # Backend test suite (949 tests)
 cd backend && uv run pytest
 
-# Frontend test suite (586 tests)
+# Frontend test suite (828 tests)
 cd frontend && bun test
 ```
+
+---
+
+## 🧪 7. Running End-to-End (E2E) Test Suites
+
+The platform includes full-spectrum E2E test suites for both the **Next.js Frontend (Playwright / TypeScript)** and **Backend REST/MCP Pipelines (Python / Pytest)**:
+
+### 1. Frontend E2E Playwright Tests
+Executes complete browser user journeys across `/dashboard`, `/briefing`, `/runs`, `/runs/[id]`, `/briefing/[date]/run`, `/papers/[id]`, dynamic extraction sliders, and role-based permissions (Admin, Manager, Researcher).
+
+```bash
+# Run all frontend E2E specs against Production (Headless):
+./tests_e2e/run_frontend_e2e.sh prod
+
+# Run against Staging or Local dev:
+./tests_e2e/run_frontend_e2e.sh staging
+./tests_e2e/run_frontend_e2e.sh local
+
+# Interactive UI Mode & Time-Travel Debugger:
+./tests_e2e/run_frontend_e2e.sh prod --ui
+
+# Visible browser window (--headed):
+./tests_e2e/run_frontend_e2e.sh prod --headed
+
+# Run specific user journey specs:
+./tests_e2e/run_frontend_e2e.sh prod specs/08_multi_persona_and_full_lifecycle.journey.spec.ts
+./tests_e2e/run_frontend_e2e.sh prod specs/09_run_admission_and_stop_rbac.journey.spec.ts
+```
+
+### 2. Backend Live Pipeline E2E Tests
+Executes autonomous multi-agent SLR reviews, screening triage, full multimodal extractions, composite signal scoring, and RBAC matrix validation across all 23 scenarios:
+
+```bash
+# Run ALL 23 backend E2E scenarios sequentially with immediate workspace cleanup:
+./tests_e2e/run_e2e.sh prod all --cleanup-after
+
+# Run against Staging or Local dev:
+./tests_e2e/run_e2e.sh staging all --cleanup-after
+./tests_e2e/run_e2e.sh local all --cleanup-after
+
+# Run via Pytest:
+pytest tests_e2e/test_full_pipeline_e2e.py -s -v
+```
+
+### 3. Required Environment Variables
+
+| Variable | Default Value | Description |
+| :--- | :--- | :--- |
+| `E2E_TARGET_ENV` | `prod` (or `staging` / `local`) | Target cloud environment or local stack. |
+| `ADMIN_USERNAME` / `E2E_USERNAME` | `admin` | Superuser / staff administrator username. |
+| `ADMIN_PASSWORD` / `E2E_PASSWORD` | `schwarz123!` | Administrator password. |
+| `E2E_BASE_URL` | `https://research-scanner.schwarz` (prod) | Next.js frontend root URL for Playwright tests. |
+| `E2E_API_URL` | `https://research-scanner.schwarz` (prod) | Django REST API root URL for backend tests. |
+| `E2E_CLEANUP_AFTER` | `false` (flag: `--cleanup-after`) | Automatically deletes test workspaces, runs, and artifacts upon completion. |
+| `E2E_TIMEOUT_SEC` | `900` | Maximum polling timeout (in seconds) for SLR agent completion. |
+| `E2E_PAPER_LIMIT` | `10` | Maximum candidate papers fetched per scraper in pipeline test runs. |
+

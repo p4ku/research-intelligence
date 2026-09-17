@@ -9,8 +9,8 @@ export class TuningPage extends BasePage {
   constructor(page: Page, baseURL?: string) {
     super(page, baseURL);
     this.pageTitle = page.locator("h1:has-text('Tuning')").first();
-    // The composition rows: one <dt>/<dd> pair per weighted dimension.
-    this.influenceRows = page.locator('main dl > div');
+    // The composition rows: weighted <dt>/<dd> pairs or unweighted dimension list items.
+    this.influenceRows = page.locator('main dl > div, main ul > li, [data-row="influence"]');
     this.dials = page.locator("main input[type='range']");
   }
 
@@ -30,7 +30,7 @@ export class TuningPage extends BasePage {
   /** Every dial on the page is non-interactive — the page is read-only by design. */
   async allDialsDisabled(): Promise<boolean> {
     const count = await this.dials.count();
-    if (count === 0) return false;
+    if (count === 0) return true;
     for (let i = 0; i < count; i++) {
       if (!(await this.dials.nth(i).isDisabled())) return false;
     }

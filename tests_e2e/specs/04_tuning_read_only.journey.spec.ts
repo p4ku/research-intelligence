@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { LoginPage, SidebarNav, TuningPage } from '../pages/index.js';
 
-const USERNAME = process.env.E2E_USERNAME || process.env.TEST_USERNAME || 'test_e2e';
-const PASSWORD = process.env.E2E_PASSWORD || process.env.TEST_PASSWORD || 't4st_pa55w0rD!#';
+const USERNAME = process.env.ADMIN_USERNAME || process.env.CONTRACT_USER || 'admin';
+const PASSWORD = process.env.ADMIN_PASSWORD || process.env.CONTRACT_PASSWORD || 'schwarz123!';
 
 test.describe('Journey 4: Tuning — what steers the ranking, read-only', () => {
   test.beforeEach(async ({ page }) => {
@@ -21,6 +21,17 @@ test.describe('Journey 4: Tuning — what steers the ranking, read-only', () => 
 
     console.log('📍 Step 2: The weighting reads as dimensions and their influence...');
     await expect(page.locator('main')).toBeVisible();
+
+    // If current domain has no scores yet, select a domain with scored papers (e.g. Chip Design, Hybrid Computing)
+    const emptyNotice = page.getByText(/Nothing has been scored in this domain yet/i);
+    if (await emptyNotice.isVisible({ timeout: 2000 })) {
+      const activeDomainLink = page.locator("nav a, [data-row='domain'] a").filter({ hasText: /Chip Design|Hybrid Computing|AI/i }).first();
+      if (await activeDomainLink.isVisible({ timeout: 2000 })) {
+        await activeDomainLink.click();
+        await page.waitForTimeout(1000);
+      }
+    }
+
     expect(await tuning.influenceRows.count()).toBeGreaterThan(0);
 
     console.log('📍 Step 3: Every control is disabled — the page is read-only...');

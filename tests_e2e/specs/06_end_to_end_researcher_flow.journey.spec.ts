@@ -8,8 +8,8 @@ import {
   WorkspaceSwitcher,
 } from '../pages/index.js';
 
-const USERNAME = process.env.E2E_USERNAME || process.env.TEST_USERNAME || 'test_e2e';
-const PASSWORD = process.env.E2E_PASSWORD || process.env.TEST_PASSWORD || 't4st_pa55w0rD!#';
+const USERNAME = process.env.ADMIN_USERNAME || process.env.CONTRACT_USER || 'admin';
+const PASSWORD = process.env.ADMIN_PASSWORD || process.env.CONTRACT_PASSWORD || 'schwarz123!';
 
 test.describe('Journey 6: Full End-to-End Researcher Journey (Comprehensive)', () => {
   test('Complete Researcher Flow: Auth -> Dashboard -> Briefings -> Settings -> Logout', async ({ page }) => {

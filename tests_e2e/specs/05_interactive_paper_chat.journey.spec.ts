@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { LoginPage, SidebarNav, AskPage } from '../pages/index.js';
 
-const USERNAME = process.env.E2E_USERNAME || process.env.TEST_USERNAME || 'test_e2e';
-const PASSWORD = process.env.E2E_PASSWORD || process.env.TEST_PASSWORD || 't4st_pa55w0rD!#';
+const USERNAME = process.env.ADMIN_USERNAME || process.env.CONTRACT_USER || 'admin';
+const PASSWORD = process.env.ADMIN_PASSWORD || process.env.CONTRACT_PASSWORD || 'schwarz123!';
 
 test.describe('Journey 5: Interactive Paper Chat & Scientific Reasoning', () => {
   // /ask is fixed off since 9 Sep 2026 (frontend/src/lib/features.ts): the

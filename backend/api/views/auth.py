@@ -323,3 +323,73 @@ class TokenRefreshView(APIView):
         if serializer.is_valid():
             return Response(serializer.validated_data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+
+
+class CreateUserView(APIView):
+    """
+    Create a new Django user account with an encrypted password.
+    Requires staff member or superuser privileges.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        summary="Create User Account",
+        description="Creates a new user account with credentials and role flags (staff/superuser only).",
+        tags=['Authentication'],
+        responses={201: OpenApiResponse(description="User created successfully")}
+    )
+    def post(self, request, *args, **kwargs):
+        import json
+        from mcp_server.tools.users.management import create_user_logic
+        data = request.data
+        username = data.get("username")
+        password = data.get("password")
+        email = data.get("email", "")
+        first_name = data.get("first_name", "")
+        last_name = data.get("last_name", "")
+        is_staff = data.get("is_staff", False)
+        is_superuser = data.get("is_superuser", False)
+
+        res_json = create_user_logic(
+            user=request.user,
+            username=username,
+            password=password,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            is_staff=is_staff,
+            is_superuser=is_superuser,
+        )
+        res_data = json.loads(res_json)
+        if res_data.get("status") == "error":
+            err_msg = res_data.get("error", "")
+            if "permission" in err_msg.lower() or "denied" in err_msg.lower():
+                return Response(res_data, status=status.HTTP_403_FORBIDDEN)
+            return Response(res_data, status=status.HTTP_400_BAD_REQUEST)
+        return Response(res_data, status=status.HTTP_201_CREATED)
+
+
+class DeleteUserView(APIView):
+    """
+    Delete a Django user account by username.
+    Requires staff member or superuser privileges.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        summary="Delete User Account",
+        description="Deletes a user account by username (staff/superuser only).",
+        tags=['Authentication'],
+        responses={200: OpenApiResponse(description="User deleted successfully")}
+    )
+    def delete(self, request, username, *args, **kwargs):
+        import json
+        from mcp_server.tools.users.management import delete_user_logic
+        res_json = delete_user_logic(user=request.user, user_id_or_username=username)
+        res_data = json.loads(res_json)
+        if res_data.get("status") == "error":
+            err_msg = res_data.get("error", "")
+            if "permission" in err_msg.lower() or "denied" in err_msg.lower():
+                return Response(res_data, status=status.HTTP_403_FORBIDDEN)
+            return Response(res_data, status=status.HTTP_400_BAD_REQUEST)
+        return Response(res_data, status=status.HTTP_200_OK)

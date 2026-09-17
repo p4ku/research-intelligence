@@ -18,7 +18,7 @@ from .views.agents import ResearchAgentViewSet
 from .views.pipeline_runs import PipelineRunViewSet, ComponentRunViewSet
 from .views.schedules import WorkflowScheduleViewSet
 from .views.activity_logs import UserActivityLogViewSet
-from .views.auth import LoginView, TokenRefreshView, UserProfileView, ChangePasswordView, LogoutView
+from .views.auth import LoginView, TokenRefreshView, UserProfileView, ChangePasswordView, LogoutView, CreateUserView, DeleteUserView
 from .views.stars import StarsView
 from .views.diagnostics import HealthCheckView, DeepDiagnosticsView
 from observability.views import TelemetryAnalyticsAPIView
@@ -54,6 +54,8 @@ urlpatterns = [
     path('auth/me/', UserProfileView.as_view(), name='user-profile'),
     path('auth/me/password/', ChangePasswordView.as_view(), name='user-change-password-alias'),
     path('auth/change-password/', ChangePasswordView.as_view(), name='user-change-password'),
+    path('auth/users/', CreateUserView.as_view(), name='user-create'),
+    path('auth/users/<str:username>/', DeleteUserView.as_view(), name='user-delete'),
     path('health/', HealthCheckView.as_view(), name='health-check'),
     path('health/diagnostics/', DeepDiagnosticsView.as_view(), name='deep-diagnostics'),
     path('telemetry/', TelemetryAnalyticsAPIView.as_view(), name='api-telemetry'),

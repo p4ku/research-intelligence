@@ -1,5 +1,6 @@
 import { Page, Locator } from '@playwright/test';
 import { BasePage } from './BasePage.js';
+import { LoginPage } from './LoginPage.js';
 
 export class SidebarNav extends BasePage {
   readonly navDashboard: Locator;

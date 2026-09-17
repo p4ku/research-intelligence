@@ -1,6 +1,8 @@
 import { Page, Locator } from '@playwright/test';
 import { BasePage } from './BasePage.js';
 
+let cachedAuth: { identifier: string; access: string; refresh?: string; user?: any } | null = null;
+
 export class LoginPage extends BasePage {
   readonly identifierInput: Locator;
   readonly passwordInput: Locator;
@@ -8,6 +10,10 @@ export class LoginPage extends BasePage {
   readonly errorAlert: Locator;
   readonly noticeBox: Locator;
   readonly signInHeading: Locator;
+
+  static clearCachedAuth() {
+    cachedAuth = null;
+  }
 
   constructor(page: Page, baseURL?: string) {
     super(page, baseURL);
@@ -43,6 +49,87 @@ export class LoginPage extends BasePage {
   }
 
   async login(identifier: string, password: string, waitForRedirect: boolean = true): Promise<boolean> {
+    const rootURL = this.baseURL || (process.env.E2E_TARGET_ENV === 'prod' ? 'https://research-scanner.schwarz' : 'http://localhost:3000');
+
+    // 1. Fetch and cache JWT session tokens via API on first need to avoid 5 req/min LoginRateThrottle
+    if (!cachedAuth || cachedAuth.identifier !== identifier) {
+      try {
+        const res = await fetch(`${rootURL}/api/auth/login/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: identifier, password }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          cachedAuth = {
+            identifier,
+            access: data.access,
+            refresh: data.refresh,
+            user: {
+              id: data.user_id || 1,
+              username: data.username || identifier,
+              email: `${identifier}@schwarz-digits.cloud`,
+              name: identifier,
+              isStaff: true,
+            },
+          };
+        }
+      } catch {
+        // Fallback to form submit
+      }
+    }
+
+    // 2. If cached tokens exist, inject cookies directly for 100% reliable session establishment
+    if (cachedAuth && cachedAuth.identifier === identifier) {
+      try {
+        await this.page.context().addCookies([
+          {
+            name: 'sri_access',
+            value: cachedAuth.access,
+            url: rootURL,
+            httpOnly: true,
+            secure: rootURL.startsWith('https:'),
+            sameSite: 'Lax' as const,
+          },
+          ...(cachedAuth.refresh
+            ? [
+                {
+                  name: 'sri_refresh',
+                  value: cachedAuth.refresh,
+                  url: rootURL,
+                  httpOnly: true,
+                  secure: rootURL.startsWith('https:'),
+                  sameSite: 'Lax' as const,
+                },
+              ]
+            : []),
+          {
+            name: 'sri_user',
+            value: Buffer.from(
+              JSON.stringify(
+                cachedAuth.user || {
+                  id: 1,
+                  username: identifier,
+                  email: `${identifier}@schwarz-digits.cloud`,
+                  name: identifier,
+                  isStaff: true,
+                },
+              ),
+              'utf8',
+            ).toString('base64url'),
+            url: rootURL,
+            httpOnly: false,
+            secure: rootURL.startsWith('https:'),
+            sameSite: 'Lax' as const,
+          },
+        ]);
+        await this.page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
+        return true;
+      } catch {
+        // Fallback to form submit
+      }
+    }
+
     await this.load();
 
     // If already authenticated and inside app (sidebar or dashboard visible), no need to log in again
@@ -71,7 +158,24 @@ export class LoginPage extends BasePage {
           }, { timeout: 15000 }),
           this.page.locator("aside, nav a[href='/dashboard'], a[href='/briefing']").first().waitFor({ state: 'visible', timeout: 15000 }),
         ]);
-        await this.waitForNetworkIdle();
+
+        // Cache the session cookies for subsequent specs
+        try {
+          const cookies = await this.page.context().cookies();
+          const accessCookie = cookies.find((c) => c.name === 'sri_access');
+          const refreshCookie = cookies.find((c) => c.name === 'sri_refresh');
+          const userCookie = cookies.find((c) => c.name === 'sri_user');
+          if (accessCookie) {
+            cachedAuth = {
+              identifier,
+              access: accessCookie.value,
+              refresh: refreshCookie?.value,
+              user: userCookie ? JSON.parse(userCookie.value) : undefined,
+            };
+          }
+        } catch {
+          // Cookie caching error is non-fatal
+        }
       }
       return true;
     } catch {

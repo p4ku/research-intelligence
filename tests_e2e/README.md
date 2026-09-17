@@ -21,9 +21,12 @@ Located in `tests_e2e/pages/` and `tests_e2e/specs/`:
   1. `01_auth_session_lifecycle.journey.spec.ts`: Rejection of bad credentials, login, session cookies, deep-link protection, and sign out.
   2. `02_analyst_daily_review.journey.spec.ts`: Today Dashboard funnel metrics, reading executive Briefing, and opening a paper from it (the `/papers` steps left with the flag).
   3. `03_manager_workspace_and_settings.journey.spec.ts`: Multi-tenant workspace switching, `/settings` inspection (Profile, Role, Password, Workspace Metadata), and bilingual EN <-> DE locale toggle.
-  4. `05_interactive_paper_chat.journey.spec.ts`: Deep-dive literature question answering in `/ask`, reasoning engine, and citation stream validation. **Skipped** while `ask` is fixed off.
-  5. `06_end_to_end_researcher_flow.journey.spec.ts`: Comprehensive full researcher flow executing the entire application lifecycle end-to-end in a single session.
-  6. `07_feature_flags.journey.spec.ts`: The fixed state of the three demo feature flags — `all_papers` and `ask` off, `stars` on, no toggles — and that a cookie cannot move it (see **Demo feature flags** below).
+  4. `04_tuning_read_only.journey.spec.ts`: Read-only tuning inspection of weighted and unweighted ranking dimensions.
+  5. `05_interactive_paper_chat.journey.spec.ts`: Deep-dive literature question answering in `/ask`, reasoning engine, and citation stream validation. **Skipped** while `ask` is fixed off.
+  6. `06_end_to_end_researcher_flow.journey.spec.ts`: Comprehensive full researcher flow executing the entire application lifecycle end-to-end in a single session.
+  7. `07_feature_flags.journey.spec.ts`: The fixed state of the three demo feature flags — `all_papers` and `ask` off, `stars` on, no toggles — and that a cookie cannot move it (see **Demo feature flags** below).
+  8. `08_multi_persona_and_full_lifecycle.journey.spec.ts`: End-to-end user journey from API setup (workspaces, scrapers, dynamic extractions) to Dashboard, Runs & 8 steps detail, Briefing (sliders and dimension sorting), Screening Log exclusions, and Paper Scorecard.
+  9. `09_run_admission_and_stop_rbac.journey.spec.ts`: Persona permission checks (Researcher launch blocked with 401/403 -> UI pipeline launch -> Admin stops active run via modal -> Rerun button enabled exclusively for Admin).
 
 ### Demo feature flags: `all_papers` and `ask` are fixed off, `stars` fixed on
 
@@ -91,8 +94,17 @@ npm install
 ```
 
 ### 2. Run all frontend user journeys:
-The default target is the local Next.js dev server (`cd frontend && bun run dev`, http://localhost:3000). The browser never touches production unless you ask for it — but the local Next server only proxies, so logins and chat sessions land on whichever Django `frontend/.env` names (`BACKEND_INTERNAL_URL` / `NEXT_PUBLIC_API_URL`, default `http://localhost:8000`). Point that at a local backend that has the `test_e2e` user (`E2E_USERNAME` / `E2E_PASSWORD` override the credentials) and warm the dev server once before the run, or the first compile can outlast the 15 s login redirect wait. An unrecognised `E2E_TARGET_ENV` is an error, not a fallback.
+The default target is the local Next.js dev server (`cd frontend && bun run dev`, http://localhost:3000). The browser never touches production unless you ask for it — but the local Next server only proxies, so logins and chat sessions land on whichever Django `frontend/.env` names (`BACKEND_INTERNAL_URL` / `NEXT_PUBLIC_API_URL`, default `http://localhost:8000`). Point that at a local backend that has the `admin` user (`ADMIN_USERNAME` / `ADMIN_PASSWORD` override the credentials). An unrecognised `E2E_TARGET_ENV` is an error, not a fallback.
+
 ```bash
+# Recommended: Run all frontend E2E specs against Production (Headless):
+./tests_e2e/run_frontend_e2e.sh prod
+
+# Run against Staging or Local dev:
+./tests_e2e/run_frontend_e2e.sh staging
+./tests_e2e/run_frontend_e2e.sh local
+
+# Or directly with npm in tests_e2e/:
 npm test                             # Runs all specs against Local dev (headless)
 npm run test:staging                 # Runs against Staging
 npm run test:prod                    # Runs against Production
@@ -100,21 +112,25 @@ npm run test:prod                    # Runs against Production
 
 ### 3. Interactive UI Mode & Debugging (Time-Travel Debugger):
 ```bash
-npm run test:ui                      # Opens Playwright visual UI Mode
-npm run test:headed                  # Opens visible Chrome browser
-npm run test:debug                   # Starts Playwright inspector step-by-step
-npm run test:report                  # Opens rich HTML execution report
+./tests_e2e/run_frontend_e2e.sh prod --ui       # Opens Playwright visual UI Mode
+./tests_e2e/run_frontend_e2e.sh prod --headed   # Opens visible Chrome browser
+./tests_e2e/run_frontend_e2e.sh prod --debug    # Starts Playwright inspector step-by-step
+./tests_e2e/run_frontend_e2e.sh --report        # Opens rich HTML execution report
 ```
 
 ### 4. Run a specific user journey spec:
 ```bash
-npx playwright test specs/settings.spec.ts    # /settings journey (role, profile, password)
-npx playwright test specs/auth.spec.ts        # Authentication & logout journey
-npx playwright test specs/navigation.spec.ts  # Sidebar navigation journey
-npx playwright test specs/workspace.spec.ts   # Workspace switcher journey
-npx playwright test specs/papers.spec.ts      # Papers exploration & scorecards
-npx playwright test specs/i18n.spec.ts        # Bilingual locale toggle (EN <-> DE)
-npx playwright test specs/ask.spec.ts         # Paper Chat / Ask interface
+# Multi-persona setup, dashboard, runs, dynamic sliders, and screening log:
+./tests_e2e/run_frontend_e2e.sh prod specs/08_multi_persona_and_full_lifecycle.journey.spec.ts
+
+# Persona permission checks (launch blocked -> UI start -> Admin stop -> Admin rerun):
+./tests_e2e/run_frontend_e2e.sh prod specs/09_run_admission_and_stop_rbac.journey.spec.ts
+
+# Classic journey specs:
+./tests_e2e/run_frontend_e2e.sh prod specs/01_auth_session_lifecycle.journey.spec.ts
+./tests_e2e/run_frontend_e2e.sh prod specs/02_analyst_daily_review.journey.spec.ts
+./tests_e2e/run_frontend_e2e.sh prod specs/03_manager_workspace_and_settings.journey.spec.ts
+./tests_e2e/run_frontend_e2e.sh prod specs/04_tuning_read_only.journey.spec.ts
 ```
 
 ---
@@ -176,12 +192,28 @@ npx playwright test specs/ask.spec.ts         # Paper Chat / Ask interface
 
 ### 3. Run on Different Environments:
 ```bash
-./tests_e2e/run_e2e.sh staging          # Run on Staging
-./tests_e2e/run_e2e.sh prod             # Run on Production
-./tests_e2e/run_e2e.sh local            # Run on Local development server
+# Recommended: Run ALL 23 scenarios on Production with immediate cleanup:
+./tests_e2e/run_e2e.sh prod all --cleanup-after
+
+# Run on Staging or Local dev:
+./tests_e2e/run_e2e.sh staging all --cleanup-after
+./tests_e2e/run_e2e.sh local all --cleanup-after
 ```
 
-### 4. Run with Pytest:
+### 4. Required Environment Variables
+
+| Variable | Default Value | Description |
+| :--- | :--- | :--- |
+| `E2E_TARGET_ENV` | `prod` (or `staging` / `local`) | Target cloud environment or local stack. |
+| `ADMIN_USERNAME` / `E2E_USERNAME` | `admin` | Superuser / staff administrator username. |
+| `ADMIN_PASSWORD` / `E2E_PASSWORD` | `schwarz123!` | Administrator password. |
+| `E2E_BASE_URL` | `https://research-scanner.schwarz` (prod) | Next.js frontend root URL for Playwright tests. |
+| `E2E_API_URL` | `https://research-scanner.schwarz` (prod) | Django REST API root URL for backend tests. |
+| `E2E_CLEANUP_AFTER` | `false` (flag: `--cleanup-after`) | Automatically deletes test workspaces, runs, and artifacts upon completion. |
+| `E2E_TIMEOUT_SEC` | `900` | Maximum polling timeout (in seconds) for SLR agent completion. |
+| `E2E_PAPER_LIMIT` | `10` | Maximum candidate papers fetched per scraper in pipeline test runs. |
+
+### 5. Run with Pytest:
 ```bash
 pytest tests_e2e/test_full_pipeline_e2e.py -s -v
 ```

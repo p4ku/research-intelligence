@@ -583,6 +583,49 @@ class APISecurityFixesTestCase(TestCase):
         res_adm_def = self.client.post("/api/extraction-definitions/", ext_def_payload, format="json")
         self.assertEqual(res_adm_def.status_code, status.HTTP_201_CREATED)
 
+    def test_create_delete_user_and_workspace_members_api(self):
+        """Verify POST /api/auth/users/, DELETE /api/auth/users/{u}/, and /api/workspaces/{id}/members/."""
+        # Setup: make admin_user staff so they can create users
+        self.admin_user.is_staff = True
+        self.admin_user.save(update_fields=['is_staff'])
+
+        new_username = "test_e2e_api_user_99"
+        user_payload = {
+            "username": new_username,
+            "password": "SecurePassword123!",
+            "email": "api_user99@schwarz.de",
+            "first_name": "API",
+            "last_name": "User",
+        }
+
+        # 1. Non-staff researcher cannot create user
+        self.client.force_authenticate(user=self.researcher_user)
+        res_fail = self.client.post("/api/auth/users/", user_payload, format="json")
+        self.assertEqual(res_fail.status_code, status.HTTP_403_FORBIDDEN)
+
+        # 2. Staff admin can create user
+        self.client.force_authenticate(user=self.admin_user)
+        res_create = self.client.post("/api/auth/users/", user_payload, format="json")
+        self.assertEqual(res_create.status_code, status.HTTP_201_CREATED)
+
+        # 3. Add user as member to workspace
+        res_member = self.client.post(f"/api/workspaces/{self.workspace.id}/members/", {
+            "username": new_username,
+            "role": "manager",
+        }, format="json")
+        self.assertEqual(res_member.status_code, status.HTTP_201_CREATED)
+
+        # 4. List workspace members
+        res_list = self.client.get(f"/api/workspaces/{self.workspace.id}/members/")
+        self.assertEqual(res_list.status_code, status.HTTP_200_OK)
+        members_data = res_list.json()
+        self.assertTrue(any(m["username"] == new_username and m["role"] == "manager" for m in members_data))
+
+        # 5. Delete user
+        res_del = self.client.delete(f"/api/auth/users/{new_username}/")
+        self.assertEqual(res_del.status_code, status.HTTP_200_OK)
+
+
 
 
 

@@ -28,8 +28,8 @@ import {
  *     card renders inside the shell's <main>.
  */
 
-const USERNAME = process.env.E2E_USERNAME || process.env.TEST_USERNAME || 'test_e2e';
-const PASSWORD = process.env.E2E_PASSWORD || process.env.TEST_PASSWORD || 't4st_pa55w0rD!#';
+const USERNAME = process.env.ADMIN_USERNAME || process.env.CONTRACT_USER || 'admin';
+const PASSWORD = process.env.ADMIN_PASSWORD || process.env.CONTRACT_PASSWORD || 'schwarz123!';
 
 /** The shared not-found card, in both languages. */
 const NOT_FOUND_COPY = /We couldn't find that\.|Das konnten wir nicht finden\./;

@@ -1039,6 +1039,55 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
 
         return Response({"digest_email": digest_email})
 
+    @extend_schema(
+        tags=['Workspaces Management', 'Team Management'],
+        description="List or add members to this workspace with a specific role ('admin', 'manager', 'researcher').",
+        responses={
+            200: OpenApiResponse(description="Workspace members list"),
+            201: OpenApiResponse(description="Member added or updated"),
+        }
+    )
+    @action(detail=True, methods=['get', 'post'], url_path='members')
+    def members(self, request, pk=None):
+        import json
+        workspace = self.get_object()
+        if request.method == 'GET':
+            members_list = WorkspaceMember.objects.filter(workspace=workspace).select_related('user')
+            return Response([
+                {
+                    "user_id": m.user.id,
+                    "username": m.user.username,
+                    "email": m.user.email,
+                    "role": m.role,
+                }
+                for m in members_list
+            ], status=status.HTTP_200_OK)
+
+        # POST: add/update member
+        from mcp_server.tools.workspaces.members import add_workspace_member_logic
+        target_username = (
+            request.data.get('member_username_or_email')
+            or request.data.get('username')
+            or request.data.get('email')
+        )
+        role = request.data.get('role', 'researcher')
+        res_str = add_workspace_member_logic(
+            user=request.user,
+            workspace_id=str(workspace.id),
+            member_username_or_email=target_username,
+            role=role,
+        )
+        try:
+            res_data = json.loads(res_str)
+        except Exception:
+            res_data = {"message": res_str}
+
+        if "Error" in str(res_str) or res_data.get("status") == "error":
+            if "permission" in str(res_str).lower() or "denied" in str(res_str).lower():
+                return Response(res_data, status=status.HTTP_403_FORBIDDEN)
+            return Response(res_data, status=status.HTTP_400_BAD_REQUEST)
+        return Response(res_data, status=status.HTTP_201_CREATED)
+
 
 
 @extend_schema(tags=['Extraction Definitions'])
