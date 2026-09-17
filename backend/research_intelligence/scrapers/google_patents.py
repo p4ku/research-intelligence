@@ -173,6 +173,8 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
 
                 patent_link = clean_text(raw.get("patent_link"))
                 pdf_url = clean_text(raw.get("pdf"))
+                # Prefer direct PDF URL; fall back to patent landing page if direct PDF is omitted
+                document_url = pdf_url or patent_link
                 snippet = clean_text(raw.get("snippet"))
 
                 inventor = clean_text(raw.get("inventor"))
@@ -192,6 +194,7 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
                     "patent_id": patent_id,
                     "publication_number": pub_num,
                     "patent_link": patent_link,
+                    "pdf_url": pdf_url,
                     "serpapi_details_link": clean_text(raw.get("serpapi_link")),
                     "priority_date": clean_text(raw.get("priority_date")),
                     "filing_date": clean_text(raw.get("filing_date")),
@@ -212,7 +215,7 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
                     "authors": authors,
                     "abstract": snippet,
                     "hash_id": hash_id,
-                    "pdf_url": pdf_url,
+                    "pdf_url": document_url,
                     "other_url": patent_link,
                     "source_url": patent_link or pdf_url,
                     "source_database": "google_patents",
@@ -237,14 +240,38 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
         return results
 
     def download_file(self, url: str) -> bytes:
-        """Downloads patent PDF binary safely with size limits and SSRF guard."""
+        """Downloads patent PDF binary safely with size limits and SSRF guard.
+        If URL points to a Google Patents landing page (e.g. patents.google.com),
+        attempts to resolve and download the direct PDF URL."""
         if not url or not url.lower().startswith(("http://", "https://")):
             raise ValueError(f"Invalid URL scheme for download: '{url}'")
         if not is_safe_external_url(url):
             raise ValueError(f"Disallowed private/internal IP URL: '{url}'")
+
+        target_url = url
+        # If the URL is a landing page rather than a direct PDF, attempt to extract the PDF link
+        if "patents.google.com/patent" in target_url and not target_url.lower().endswith(".pdf"):
+            try:
+                page_bytes = safe_download_url(
+                    target_url,
+                    headers={"User-Agent": USER_AGENT, "Accept": "text/html,*/*"},
+                    max_bytes=5 * 1024 * 1024,
+                    timeout=15.0,
+                )
+                html_text = page_bytes.decode("utf-8", errors="replace")
+                match = re.search(
+                    r'href=["\'](https://patentimages\.storage\.googleapis\.com/[^"\']+\.pdf)["\']',
+                    html_text,
+                    re.IGNORECASE,
+                )
+                if match and is_safe_external_url(match.group(1)):
+                    target_url = match.group(1)
+            except Exception as e:
+                logger.warning(f"Could not resolve landing page {target_url} to PDF: {e}")
+
         try:
             return safe_download_url(
-                url,
+                target_url,
                 headers={
                     "User-Agent": USER_AGENT,
                     "Accept": "application/pdf,application/octet-stream;q=0.9,*/*;q=0.5",
@@ -253,5 +280,5 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
                 timeout=30.0,
             )
         except Exception as e:
-            logger.exception(f"Error downloading patent document from {url}: {e}")
+            logger.exception(f"Error downloading patent document from {target_url}: {e}")
             raise e
