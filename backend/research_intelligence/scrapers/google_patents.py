@@ -131,13 +131,17 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
             "q": query,
             "after": after_val,
             "before": before_val,
-            "sort": "new" if sort_by == "date" else "relevance",
             "dups": "language",
             "patents": "true",
             "scholar": "false",
             "num": str(page_size),
             "api_key": effective_key,
         }
+
+        # SerpApi Google Patents only supports 'new' or 'old' for sort.
+        # Relevance sort is Google Patents default and must NOT be explicitly passed as 'relevance'.
+        if sort_by in ("date", "new", "old"):
+            params["sort"] = "old" if (sort_order == "asc" or sort_by == "old") else "new"
 
         results: List[Dict[str, Any]] = []
         pages_fetched = 0

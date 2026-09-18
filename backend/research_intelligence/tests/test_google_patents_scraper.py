@@ -109,6 +109,38 @@ class GooglePatentsScraperUnitTests(TestCase):
         self.assertEqual(r["meta"]["country"], "US")
         self.assertEqual(r["meta"]["patent_id"], "US-12345678-B1")
 
+    @patch("research_intelligence.scrapers.google_patents.urllib.request.urlopen")
+    def test_search_omits_sort_parameter_for_relevance(self, mock_urlopen):
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps({"organic_results": []}).encode("utf-8")
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        provider = GooglePatentsScraperProvider(api_key="mock-key")
+        provider.search(query="quantum error correction", sort_by="relevance")
+
+        req = mock_urlopen.call_args[0][0]
+        parsed = urllib.parse.urlparse(req.full_url)
+        params = dict(urllib.parse.parse_qsl(parsed.query))
+
+        # Crucial: SerpApi raises 400 if sort='relevance' is passed; it MUST be omitted
+        self.assertNotIn("sort", params)
+
+    @patch("research_intelligence.scrapers.google_patents.urllib.request.urlopen")
+    def test_search_sort_asc_uses_old(self, mock_urlopen):
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps({"organic_results": []}).encode("utf-8")
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        provider = GooglePatentsScraperProvider(api_key="mock-key")
+        provider.search(query="quantum error correction", sort_by="date", sort_order="asc")
+
+        req = mock_urlopen.call_args[0][0]
+        parsed = urllib.parse.urlparse(req.full_url)
+        params = dict(urllib.parse.parse_qsl(parsed.query))
+        self.assertEqual(params.get("sort"), "old")
+
     @patch("research_intelligence.scrapers.google_patents.safe_download_url")
     @patch("research_intelligence.scrapers.google_patents.is_safe_external_url")
     def test_download_file_calls_safe_download(self, mock_is_safe, mock_safe_download):
