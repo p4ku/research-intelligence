@@ -17,8 +17,10 @@ def preview_search_query_logic(
     start_date: str = None,
     end_date: str = None,
     n_last_days: int = None,
+    workspace_id: str = None,
+    api_key: str = None,
 ) -> str:
-    """Executes a live search query against a scientific provider (arXiv, OpenAlex, Lens.org) without downloading PDFs or storing DB runs."""
+    """Executes a live search query against a scientific provider (arXiv, OpenAlex, Lens.org, Google Patents) without downloading PDFs or storing DB runs."""
     valid_providers = [choice[0] for choice in Scraper.PROVIDER_CHOICES]
     if provider not in valid_providers:
         return f"Error: Invalid provider '{provider}'. Must be one of: {valid_providers}"
@@ -33,7 +35,9 @@ def preview_search_query_logic(
             limit=limit,
             start_date=start_date,
             end_date=end_date,
-            n_last_days=n_last_days
+            n_last_days=n_last_days,
+            api_key=api_key,
+            workspace_id=workspace_id,
         )
         return json.dumps(payload, indent=2, cls=DjangoJSONEncoder)
     except Exception as e:

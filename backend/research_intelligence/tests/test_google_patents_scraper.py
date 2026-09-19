@@ -47,6 +47,55 @@ class GooglePatentsScraperUnitTests(TestCase):
             results = provider.search("quantum", limit=5)
             self.assertEqual(results, [])
 
+    @override_settings(SERPAPI_API_KEY="")
+    def test_resolve_api_key_from_workspace_scraper_model(self):
+        with patch.dict("os.environ", {}, clear=True):
+            Scraper.objects.create(
+                workspace=self.workspace,
+                provider="google_patents",
+                search_query="test query",
+                api_key="db-serpapi-ws-key",
+                is_active=True,
+            )
+            provider = GooglePatentsScraperProvider(api_key="", workspace=self.workspace)
+            self.assertEqual(provider.api_key, "db-serpapi-ws-key")
+
+    @override_settings(SERPAPI_API_KEY="")
+    def test_resolve_api_key_from_global_active_scraper_model(self):
+        with patch.dict("os.environ", {}, clear=True):
+            Scraper.objects.create(
+                workspace=self.workspace,
+                provider="google_patents",
+                search_query="test query",
+                api_key="db-serpapi-global-key",
+                is_active=True,
+            )
+            provider = GooglePatentsScraperProvider(api_key="")
+            self.assertEqual(provider.api_key, "db-serpapi-global-key")
+
+    @override_settings(SERPAPI_API_KEY="")
+    @patch("research_intelligence.scrapers.google_patents.urllib.request.urlopen")
+    def test_search_uses_api_key_from_model_fallback(self, mock_urlopen):
+        with patch.dict("os.environ", {}, clear=True):
+            Scraper.objects.create(
+                workspace=self.workspace,
+                provider="google_patents",
+                search_query="test query",
+                api_key="db-serpapi-active-key",
+                is_active=True,
+            )
+            mock_response = MagicMock()
+            mock_response.read.return_value = json.dumps({"organic_results": []}).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_response
+
+            provider = GooglePatentsScraperProvider(api_key="")
+            provider.search("solid state battery", limit=5)
+
+            self.assertTrue(mock_urlopen.called)
+            called_req = mock_urlopen.call_args[0][0]
+            url = called_req.full_url
+            self.assertIn("api_key=db-serpapi-active-key", url)
+
     @patch("research_intelligence.scrapers.google_patents.urllib.request.urlopen")
     def test_search_formats_query_and_dates(self, mock_urlopen):
         mock_response = MagicMock()

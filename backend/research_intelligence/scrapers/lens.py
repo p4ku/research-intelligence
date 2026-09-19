@@ -13,9 +13,69 @@ class LensScraperProvider(BaseScraperProvider):
     Scraper provider implementing Lens.org scholarly API search and paper download.
     """
 
-    def __init__(self, n_last_days: int = 7, api_key: str | None = None):
+    def __init__(
+        self,
+        n_last_days: int = 7,
+        api_key: str | None = None,
+        workspace: object | None = None,
+        workspace_id: str | None = None,
+        **kwargs,
+    ):
         super().__init__(n_last_days=n_last_days)
-        self.api_key = api_key or getattr(settings, "LENS_API_KEY", None)
+        self.workspace = workspace
+        self.workspace_id = workspace_id or (getattr(workspace, "id", None) if workspace else None)
+        self.api_key = self._resolve_api_key(
+            explicit_key=api_key,
+            workspace=self.workspace,
+            workspace_id=self.workspace_id,
+        )
+
+    @classmethod
+    def _resolve_api_key(
+        cls,
+        explicit_key: str | None = None,
+        instance_key: str | None = None,
+        workspace: object | None = None,
+        workspace_id: str | None = None,
+    ) -> str | None:
+        """Resolves LENS_API_KEY from args, instance, settings, env, or database Scraper model."""
+        if explicit_key and str(explicit_key).strip():
+            return str(explicit_key).strip()
+        if instance_key and str(instance_key).strip():
+            return str(instance_key).strip()
+
+        settings_key = getattr(settings, "LENS_API_KEY", "")
+        if settings_key and str(settings_key).strip():
+            return str(settings_key).strip()
+
+        import os
+        env_key = os.environ.get("LENS_API_KEY", "")
+        if env_key and str(env_key).strip():
+            return str(env_key).strip()
+
+        try:
+            from research_intelligence.models import Scraper
+            qs = Scraper.objects.filter(provider="lens").exclude(api_key="").exclude(api_key__isnull=True)
+            if workspace:
+                ws_scraper = qs.filter(workspace=workspace, is_active=True).first() or qs.filter(workspace=workspace).first()
+                if ws_scraper and ws_scraper.api_key and ws_scraper.api_key.strip():
+                    return ws_scraper.api_key.strip()
+            elif workspace_id:
+                ws_scraper = qs.filter(workspace_id=workspace_id, is_active=True).first() or qs.filter(workspace_id=workspace_id).first()
+                if ws_scraper and ws_scraper.api_key and ws_scraper.api_key.strip():
+                    return ws_scraper.api_key.strip()
+
+            active_scraper = qs.filter(is_active=True).first()
+            if active_scraper and active_scraper.api_key and active_scraper.api_key.strip():
+                return active_scraper.api_key.strip()
+
+            any_scraper = qs.first()
+            if any_scraper and any_scraper.api_key and any_scraper.api_key.strip():
+                return any_scraper.api_key.strip()
+        except Exception as exc:
+            logger.debug(f"Could not query Scraper model for LENS_API_KEY: {exc}")
+
+        return None
 
     def search(
         self,
@@ -28,9 +88,16 @@ class LensScraperProvider(BaseScraperProvider):
         n_last_days: int | None = None,
         **kwargs,
     ) -> list[dict]:
-        api_key = kwargs.get("api_key") or self.api_key or getattr(settings, "LENS_API_KEY", None)
+        target_ws = kwargs.get("workspace") or self.workspace
+        target_ws_id = kwargs.get("workspace_id") or self.workspace_id
+        api_key = self._resolve_api_key(
+            explicit_key=kwargs.get("api_key"),
+            instance_key=self.api_key,
+            workspace=target_ws,
+            workspace_id=target_ws_id,
+        )
         if not api_key:
-            logger.warning("LENS_API_KEY not configured in settings or scraper. Returning empty results.")
+            logger.warning("LENS_API_KEY not configured in settings, environment, or Scraper model. Returning empty results.")
             return []
             
         start_dt, end_dt = self.resolve_date_range(start_date, end_date, n_last_days)

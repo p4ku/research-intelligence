@@ -88,6 +88,9 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
         provider_kwargs = {"n_last_days": n_last_days}
         if getattr(scraper, 'api_key', None):
             provider_kwargs["api_key"] = scraper.api_key
+        elif scraper.provider in ('google_patents', 'google patents', 'google-patents', 'patents', 'lens'):
+            provider_kwargs["workspace"] = workspace
+            provider_kwargs["workspace_id"] = str(workspace.id) if workspace else None
         provider = get_scraper_provider(scraper.provider, **provider_kwargs)
         final_limit = scraper.limit if limit is None else limit
         sort_by = getattr(scraper, 'sort_by', 'relevance')
@@ -107,7 +110,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
             sort_order=sort_order,
             start_date=start_date,
             end_date=end_date,
-            n_last_days=n_last_days
+            n_last_days=n_last_days,
         )
         fetch_elapsed = round(time.time() - start_time, 2)
         logger.info(f"📦 [SEARCH FETCHED] Provider '{scraper.provider}' returned {len(results)} candidate papers in {fetch_elapsed}s.")

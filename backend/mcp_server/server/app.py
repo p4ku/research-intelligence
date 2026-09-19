@@ -890,10 +890,12 @@ def preview_search_query(
     start_date: str | None = None,
     end_date: str | None = None,
     n_last_days: int | None = 7,
+    workspace_id: str | None = None,
+    api_key: str | None = None,
 ) -> str:
     """
     [DRY RUN SEARCH]
-    Execute a live search query against a provider (arXiv, OpenAlex, Lens) to inspect results without downloading PDFs or saving to DB.
+    Execute a live search query against a provider (arXiv, OpenAlex, Lens, Google Patents) to inspect results without downloading PDFs or saving to DB.
     
     WHEN TO USE:
     - Use when designing and tuning queries to check the volume and quality of results before creating a scraper.
@@ -910,19 +912,23 @@ def preview_search_query(
        - If only end_date: searches from (end_date - n_last_days) to end_date.
     
     PARAMETERS:
-    - provider: Academic provider ('arxiv', 'openalex', 'lens').
+    - provider: Academic provider ('arxiv', 'openalex', 'lens', 'google_patents').
     - search_query: Query string to test against the provider.
     - limit: Max candidate results to return (1-50, default: 10).
     - start_date: Optional ISO start date string (e.g. '2026-08-01').
     - end_date: Optional ISO end date string (e.g. '2026-08-31').
     - n_last_days: Optional lookback window in days (default: 7).
+    - workspace_id: Optional workspace UUID string to prioritize workspace-configured scraper API keys.
+    - api_key: Optional explicit API key override (e.g. SerpApi or Lens API key).
     """
 
     try:
-        user, workspace, api_key = get_auth_context()
-        check_scope(api_key, "scrapers:read")
+        user, workspace, auth_api_key = get_auth_context()
+        check_scope(auth_api_key, "scrapers:read")
     except Exception as e:
         return str(e)
+
+    effective_ws_id = workspace_id or (str(workspace.id) if workspace else None)
     return preview_search_query_logic(
         user,
         provider,
@@ -930,7 +936,9 @@ def preview_search_query(
         limit=limit,
         start_date=start_date,
         end_date=end_date,
-        n_last_days=n_last_days
+        n_last_days=n_last_days,
+        workspace_id=effective_ws_id,
+        api_key=api_key,
     )
 
 

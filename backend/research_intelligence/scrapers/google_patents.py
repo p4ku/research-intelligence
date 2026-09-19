@@ -370,13 +370,90 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
     Retrieves patent listings, bibliographic metadata, dates, and direct PDF links.
     """
 
-    def __init__(self, n_last_days: int = 7, api_key: Optional[str] = None):
+    def __init__(
+        self,
+        n_last_days: int = 7,
+        api_key: Optional[str] = None,
+        workspace: Optional[Any] = None,
+        workspace_id: Optional[Union[str, Any]] = None,
+        **kwargs,
+    ):
         super().__init__(n_last_days=n_last_days)
-        self.api_key = (
-            api_key
-            or getattr(settings, "SERPAPI_API_KEY", "")
-            or os.environ.get("SERPAPI_API_KEY", "")
+        self.workspace = workspace
+        self.workspace_id = workspace_id or (getattr(workspace, "id", None) if workspace else None)
+        self.api_key = self._resolve_api_key(
+            explicit_key=api_key,
+            workspace=self.workspace,
+            workspace_id=self.workspace_id,
         )
+
+    @classmethod
+    def _resolve_api_key(
+        cls,
+        explicit_key: Optional[str] = None,
+        instance_key: Optional[str] = None,
+        workspace: Optional[Any] = None,
+        workspace_id: Optional[Union[str, Any]] = None,
+    ) -> str:
+        """
+        Resolves SERPAPI_API_KEY with cascading priority:
+        1. Explicitly passed key (method argument or kwargs)
+        2. Instance key (set during __init__)
+        3. django.conf.settings.SERPAPI_API_KEY
+        4. os.environ["SERPAPI_API_KEY"]
+        5. Active Scraper model instance in database (filtered by workspace if available, or globally)
+        """
+        if explicit_key and str(explicit_key).strip():
+            return str(explicit_key).strip()
+        if instance_key and str(instance_key).strip():
+            return str(instance_key).strip()
+
+        settings_key = getattr(settings, "SERPAPI_API_KEY", "")
+        if settings_key and str(settings_key).strip():
+            return str(settings_key).strip()
+
+        env_key = os.environ.get("SERPAPI_API_KEY", "")
+        if env_key and str(env_key).strip():
+            return str(env_key).strip()
+
+        # Fallback: Query database Scraper model
+        try:
+            from research_intelligence.models import Scraper
+            PATENT_PROVIDERS = ["google_patents", "google patents", "google-patents", "patents"]
+            qs = Scraper.objects.filter(provider__in=PATENT_PROVIDERS).exclude(api_key="").exclude(api_key__isnull=True)
+
+            if workspace:
+                ws_scraper = qs.filter(workspace=workspace, is_active=True).first() or qs.filter(workspace=workspace).first()
+                if ws_scraper and ws_scraper.api_key and ws_scraper.api_key.strip():
+                    logger.info(
+                        f"Resolved Google Patents SERPAPI_API_KEY from database Scraper model for workspace '{getattr(workspace, 'name', workspace)}' (scraper {ws_scraper.id})."
+                    )
+                    return ws_scraper.api_key.strip()
+            elif workspace_id:
+                ws_scraper = qs.filter(workspace_id=workspace_id, is_active=True).first() or qs.filter(workspace_id=workspace_id).first()
+                if ws_scraper and ws_scraper.api_key and ws_scraper.api_key.strip():
+                    logger.info(
+                        f"Resolved Google Patents SERPAPI_API_KEY from database Scraper model for workspace_id '{workspace_id}' (scraper {ws_scraper.id})."
+                    )
+                    return ws_scraper.api_key.strip()
+
+            active_scraper = qs.filter(is_active=True).first()
+            if active_scraper and active_scraper.api_key and active_scraper.api_key.strip():
+                logger.info(
+                    f"Resolved Google Patents SERPAPI_API_KEY from database active Scraper model (scraper {active_scraper.id}, workspace '{getattr(active_scraper.workspace, 'name', active_scraper.workspace)}')."
+                )
+                return active_scraper.api_key.strip()
+
+            any_scraper = qs.first()
+            if any_scraper and any_scraper.api_key and any_scraper.api_key.strip():
+                logger.info(
+                    f"Resolved Google Patents SERPAPI_API_KEY from database Scraper model (scraper {any_scraper.id}, workspace '{getattr(any_scraper.workspace, 'name', any_scraper.workspace)}')."
+                )
+                return any_scraper.api_key.strip()
+        except Exception as exc:
+            logger.debug(f"Could not query Scraper model for SERPAPI_API_KEY: {exc}")
+
+        return ""
 
     def _request_json(self, params: Dict[str, str], timeout: int = 30) -> Dict[str, Any]:
         """Calls SerpApi with retries for transient HTTP failures."""
@@ -423,14 +500,19 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
         date_type: str = "publication",
         **kwargs,
     ) -> List[Dict[str, Any]]:
-        effective_key = (
-            kwargs.get("api_key")
-            or self.api_key
-            or getattr(settings, "SERPAPI_API_KEY", "")
-            or os.environ.get("SERPAPI_API_KEY", "")
+        target_ws = kwargs.get("workspace") or self.workspace
+        target_ws_id = kwargs.get("workspace_id") or self.workspace_id
+        effective_key = self._resolve_api_key(
+            explicit_key=kwargs.get("api_key"),
+            instance_key=self.api_key,
+            workspace=target_ws,
+            workspace_id=target_ws_id,
         )
         if not effective_key:
-            logger.warning("SERPAPI_API_KEY is not configured. Google Patents search returning empty results.")
+            logger.warning(
+                "SERPAPI_API_KEY is not configured in settings, environment, or Scraper model. "
+                "Google Patents search returning empty results."
+            )
             return []
 
         start_dt, end_dt = self.resolve_date_range(start_date, end_date, n_last_days)
