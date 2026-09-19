@@ -291,7 +291,7 @@ def reap_zombie_tasks_task(
     """
     Celery Beat scheduled task executing periodic zombie process reaping with automatic retry resilience.
     """
-    logger.info("🕒 [CELERY BEAT] Running periodic Zombie Process & Stale Task Watchdog...")
+    logger.debug("🕒 [CELERY BEAT] Running periodic Zombie Process & Stale Task Watchdog...")
     return reap_zombie_tasks(
         max_component_age_minutes=max_component_age_minutes,
         max_pipeline_age_minutes=max_pipeline_age_minutes,
