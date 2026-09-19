@@ -504,7 +504,7 @@ if SENTRY_DSN and not is_testing:
     )
 
 
-# Console Logging Configuration for observability
+# Console & Distributed Redis Logging Configuration for observability
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -523,29 +523,39 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
+        'redis_logs': {
+            'class': 'research_intelligence.logging_handlers.RedisLogHandler',
+            'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'),
+            'formatter': 'simple',
+        },
     },
     'root': {
-        'handlers': ['console'],
+        'handlers': ['console', 'redis_logs'],
         'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'),
     },
     'loggers': {
         'django': {
-            'handlers': ['console'],
+            'handlers': ['console', 'redis_logs'],
             'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'),
             'propagate': False,
         },
         'django.request': {
-            'handlers': ['console'],
+            'handlers': ['console', 'redis_logs'],
             'level': 'ERROR',
             'propagate': False,
         },
         'api': {
-            'handlers': ['console'],
+            'handlers': ['console', 'redis_logs'],
             'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'),
             'propagate': False,
         },
         'research_intelligence': {
-            'handlers': ['console'],
+            'handlers': ['console', 'redis_logs'],
+            'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'),
+            'propagate': False,
+        },
+        'celery': {
+            'handlers': ['console', 'redis_logs'],
             'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'),
             'propagate': False,
         },

@@ -5792,11 +5792,13 @@ admin.site.site_title = "Schwarz Research Intelligence Admin"
 admin.site.index_title = mark_safe(
     'Schwarz Research Intelligence Management Portal &nbsp;&nbsp;'
     '<a href="/admin/storage-browser/" style="display: inline-block; background-color: #0d6efd; color: white !important; padding: 4px 10px; border-radius: 4px; font-weight: bold; text-decoration: none; font-size: 13px; line-height: 1.2; white-space: nowrap; vertical-align: middle;">📂 S3 Storage Browser</a> &nbsp;'
-    '<a href="/admin/queue-monitor/" style="display: inline-block; background-color: #6f42c1; color: white !important; padding: 4px 10px; border-radius: 4px; font-weight: bold; text-decoration: none; font-size: 13px; line-height: 1.2; white-space: nowrap; vertical-align: middle;">⚡ Queue & Worker Monitor</a>'
+    '<a href="/admin/queue-monitor/" style="display: inline-block; background-color: #6f42c1; color: white !important; padding: 4px 10px; border-radius: 4px; font-weight: bold; text-decoration: none; font-size: 13px; line-height: 1.2; white-space: nowrap; vertical-align: middle;">⚡ Queue & Worker Monitor</a> &nbsp;'
+    '<a href="/admin/system-logs/" style="display: inline-block; background-color: #198754; color: white !important; padding: 4px 10px; border-radius: 4px; font-weight: bold; text-decoration: none; font-size: 13px; line-height: 1.2; white-space: nowrap; vertical-align: middle;">📜 System Live Logs (API & Worker)</a>'
 )
 
 from research_intelligence.admin_views.storage_browser import storage_browser_view
 from research_intelligence.admin_views.queue_monitor import queue_monitor_view
+from research_intelligence.admin_views.system_logs import system_logs_view
 
 _original_admin_get_urls = admin.site.get_urls
 
@@ -5805,6 +5807,7 @@ def get_admin_urls():
     custom_urls = [
         path('storage-browser/', admin.site.admin_view(storage_browser_view), name='storage-browser'),
         path('queue-monitor/', admin.site.admin_view(queue_monitor_view), name='queue-monitor'),
+        path('system-logs/', admin.site.admin_view(system_logs_view), name='system-logs'),
     ]
     return custom_urls + _original_admin_get_urls()
 

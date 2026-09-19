@@ -1,0 +1,597 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}System Live Logs (API & Worker) | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  :root {
+    --log-bg: #0d1117;
+    --log-panel-bg: #161b22;
+    --log-border: #30363d;
+    --log-text: #c9d1d9;
+    --log-muted: #8b949e;
+    --log-info: #58a6ff;
+    --log-warn: #d29922;
+    --log-error: #f85149;
+    --log-worker: #bc8cff;
+    --log-api: #3fb950;
+  }
+
+  .logs-container {
+    padding: 16px 20px 40px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #e6edf3;
+  }
+
+  .logs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .logs-title-group h1 {
+    margin: 0 0 4px 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: #f0f6fc;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logs-title-group p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--log-muted);
+  }
+
+  .logs-actions-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Control Panel Toolbar */
+  .control-card {
+    background-color: var(--log-panel-bg);
+    border: 1px solid var(--log-border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .filter-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--log-muted);
+  }
+
+  .btn-pill {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--log-border);
+    background: #21262d;
+    color: #c9d1d9;
+    transition: all 0.15s ease;
+  }
+
+  .btn-pill:hover {
+    background: #30363d;
+    color: #ffffff;
+  }
+
+  .btn-pill.active {
+    background: #1f6feb;
+    border-color: #388bfd;
+    color: #ffffff;
+  }
+
+  .search-input {
+    background: #0d1117;
+    border: 1px solid var(--log-border);
+    color: #f0f6fc;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    width: 240px;
+    transition: border-color 0.2s;
+  }
+
+  .search-input:focus {
+    border-color: #58a6ff;
+    outline: none;
+  }
+
+  .select-input {
+    background: #0d1117;
+    border: 1px solid var(--log-border);
+    color: #f0f6fc;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+
+  /* Terminal Window */
+  .terminal-frame {
+    background-color: var(--log-bg);
+    border: 1px solid var(--log-border);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .terminal-header {
+    background-color: var(--log-panel-bg);
+    border-bottom: 1px solid var(--log-border);
+    padding: 10px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--log-muted);
+  }
+
+  .terminal-meta-stats {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .terminal-body {
+    height: 65vh;
+    min-height: 400px;
+    max-height: 800px;
+    overflow-y: auto;
+    overflow-x: auto;
+    padding: 14px 16px;
+    font-family: 'Fira Code', 'JetBrains Mono', 'SFMono-Regular', Consolas, Menlo, Monaco, monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--log-text);
+  }
+
+  .terminal-body::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .terminal-body::-webkit-scrollbar-track {
+    background: #0d1117;
+  }
+  .terminal-body::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 5px;
+  }
+  .terminal-body::-webkit-scrollbar-thumb:hover {
+    background: #484f58;
+  }
+
+  .log-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    padding: 2px 0;
+  }
+
+  .log-line:hover {
+    background-color: rgba(255, 255, 255, 0.04);
+  }
+
+  .log-ts {
+    color: #6e7681;
+    font-size: 11.5px;
+    flex-shrink: 0;
+  }
+
+  .badge-comp {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .badge-comp.worker {
+    background-color: rgba(188, 140, 255, 0.2);
+    color: #d2a8ff;
+    border: 1px solid rgba(188, 140, 255, 0.3);
+  }
+
+  .badge-comp.api {
+    background-color: rgba(63, 185, 80, 0.2);
+    color: #7ee787;
+    border: 1px solid rgba(63, 185, 80, 0.3);
+  }
+
+  .badge-comp.beat, .badge-comp.mcp {
+    background-color: rgba(210, 153, 34, 0.2);
+    color: #e3b341;
+    border: 1px solid rgba(210, 153, 34, 0.3);
+  }
+
+  .badge-inst {
+    color: #8b949e;
+    font-size: 11px;
+    padding: 0 4px;
+    flex-shrink: 0;
+  }
+
+  .badge-level {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .badge-level.INFO { color: #58a6ff; }
+  .badge-level.WARNING { color: #d29922; }
+  .badge-level.ERROR, .badge-level.CRITICAL { color: #f85149; font-weight: 800; }
+  .badge-level.DEBUG { color: #8b949e; }
+
+  .log-logger {
+    color: #79c0ff;
+    font-size: 11.5px;
+    flex-shrink: 0;
+  }
+
+  .log-msg {
+    color: #e6edf3;
+  }
+
+  .log-line.error-line .log-msg {
+    color: #ff7b72;
+  }
+
+  .log-line.warn-line .log-msg {
+    color: #e3b341;
+  }
+
+  .task-tag {
+    background: #1f6feb33;
+    color: #79c0ff;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .status-dot.online { background-color: #3fb950; box-shadow: 0 0 6px #3fb950; }
+  .status-dot.paused { background-color: #d29922; }
+  .status-dot.offline { background-color: #f85149; }
+
+  .empty-state {
+    padding: 40px;
+    text-align: center;
+    color: var(--log-muted);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="logs-container">
+  <!-- Header -->
+  <div class="logs-header">
+    <div class="logs-title-group">
+      <h1>
+        📜 System Live Logs
+        <span class="badge-comp worker">Worker</span>
+        <span class="badge-comp api">API</span>
+      </h1>
+      <p>Aggregated real-time logs from Celery workers and Django REST API pods via Redis Streams. Restricted to superusers.</p>
+    </div>
+    <div class="logs-actions-bar">
+      <button id="toggle-stream-btn" class="btn-pill active" onclick="toggleStream()">
+        <span id="stream-dot" class="status-dot online"></span>
+        <span id="stream-text">Live Streaming</span>
+      </button>
+      <button class="btn-pill" onclick="clearLogs()">🧹 Clear Buffer</button>
+      <button class="btn-pill" onclick="exportLogs()">⬇️ Download .txt</button>
+    </div>
+  </div>
+
+  <!-- Filter & Control Toolbar -->
+  <div class="control-card">
+    <!-- Component Filter -->
+    <div class="filter-group">
+      <span class="filter-label">Component:</span>
+      <button class="btn-pill active" data-filter="comp" data-val="all" onclick="setComponentFilter('all')">ALL</button>
+      <button class="btn-pill" data-filter="comp" data-val="worker" onclick="setComponentFilter('worker')">Worker</button>
+      <button class="btn-pill" data-filter="comp" data-val="api" onclick="setComponentFilter('api')">API</button>
+      <button class="btn-pill" data-filter="comp" data-val="beat" onclick="setComponentFilter('beat')">Beat/MCP</button>
+    </div>
+
+    <!-- Level Filter -->
+    <div class="filter-group">
+      <span class="filter-label">Level:</span>
+      <button class="btn-pill active" data-filter="level" data-val="ALL" onclick="setLevelFilter('ALL')">ALL</button>
+      <button class="btn-pill" data-filter="level" data-val="INFO" onclick="setLevelFilter('INFO')">INFO</button>
+      <button class="btn-pill" data-filter="level" data-val="WARNING" onclick="setLevelFilter('WARNING')">WARN</button>
+      <button class="btn-pill" data-filter="level" data-val="ERROR" onclick="setLevelFilter('ERROR')">ERROR</button>
+    </div>
+
+    <!-- Pod/Instance Dropdown -->
+    <div class="filter-group">
+      <span class="filter-label">Pod / Instance:</span>
+      <select id="instance-select" class="select-input" onchange="setInstanceFilter(this.value)">
+        <option value="all">All Instances</option>
+      </select>
+    </div>
+
+    <!-- Search Box -->
+    <div class="filter-group">
+      <span class="filter-label">Search:</span>
+      <input type="text" id="search-box" class="search-input" placeholder="Search task ID, regex, errors..." oninput="onSearchChange(this.value)" />
+    </div>
+
+    <!-- Auto-scroll checkbox -->
+    <div class="filter-group">
+      <label style="font-size: 12px; color: #c9d1d9; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <input type="checkbox" id="autoscroll-chk" checked />
+        Auto-scroll
+      </label>
+    </div>
+  </div>
+
+  <!-- Terminal Log Window -->
+  <div class="terminal-frame">
+    <div class="terminal-header">
+      <div>
+        <strong>Redis Stream Buffer</strong>:
+        <span id="stats-buffered">Loading...</span>
+      </div>
+      <div class="terminal-meta-stats">
+        <span>Showing: <strong id="stats-showing">0</strong> lines</span>
+        <span>Last update: <span id="stats-last-update">{{ now_str }}</span></span>
+      </div>
+    </div>
+    <div class="terminal-body" id="terminal-body">
+      <div class="empty-state" id="loading-spinner">Connecting to Redis stream and aggregating pod logs...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let isStreaming = true;
+  let lastId = null;
+  let activeComponent = "all";
+  let activeLevel = "ALL";
+  let activeInstance = "all";
+  let activeSearch = "";
+  let pollTimer = null;
+  let allLogs = [];
+  const knownInstances = new Set();
+
+  function toggleStream() {
+    isStreaming = !isStreaming;
+    const dot = document.getElementById("stream-dot");
+    const txt = document.getElementById("stream-text");
+    const btn = document.getElementById("toggle-stream-btn");
+    if (isStreaming) {
+      dot.className = "status-dot online";
+      txt.innerText = "Live Streaming";
+      btn.classList.add("active");
+      scheduleNextPoll(100);
+    } else {
+      dot.className = "status-dot paused";
+      txt.innerText = "Paused";
+      btn.classList.remove("active");
+      if (pollTimer) clearTimeout(pollTimer);
+    }
+  }
+
+  function setComponentFilter(val) {
+    activeComponent = val;
+    document.querySelectorAll('[data-filter="comp"]').forEach(b => {
+      b.classList.toggle("active", b.getAttribute("data-val") === val);
+    });
+    renderLogs();
+  }
+
+  function setLevelFilter(val) {
+    activeLevel = val;
+    document.querySelectorAll('[data-filter="level"]').forEach(b => {
+      b.classList.toggle("active", b.getAttribute("data-val") === val);
+    });
+    renderLogs();
+  }
+
+  function setInstanceFilter(val) {
+    activeInstance = val;
+    renderLogs();
+  }
+
+  let searchTimeout = null;
+  function onSearchChange(val) {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      activeSearch = val.trim().toLowerCase();
+      renderLogs();
+    }, 250);
+  }
+
+  async function fetchLogs() {
+    try {
+      let url = `?format=json&limit=500`;
+      if (lastId) {
+        url += `&last_id=${encodeURIComponent(lastId)}`;
+      }
+
+      const resp = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
+      if (!resp.ok) {
+        console.warn("Log fetch returned status:", resp.status);
+        return;
+      }
+      const data = await resp.json();
+      if (!data.success) return;
+
+      if (data.last_id) {
+        lastId = data.last_id;
+      }
+
+      document.getElementById("stats-buffered").innerText = `${data.total_buffered || 0} entries`;
+      document.getElementById("stats-last-update").innerText = new Date().toLocaleTimeString();
+
+      // Update instance dropdown if new instances seen
+      if (Array.isArray(data.instances)) {
+        let changed = false;
+        data.instances.forEach(inst => {
+          if (!knownInstances.has(inst)) {
+            knownInstances.add(inst);
+            changed = true;
+          }
+        });
+        if (changed) {
+          updateInstanceSelect();
+        }
+      }
+
+      if (data.logs && data.logs.length > 0) {
+        if (!lastId) {
+          allLogs = data.logs;
+        } else {
+          allLogs = allLogs.concat(data.logs);
+          // Keep memory capped in client
+          if (allLogs.length > 5000) {
+            allLogs = allLogs.slice(-4000);
+          }
+        }
+        renderLogs();
+      } else if (allLogs.length === 0) {
+        const term = document.getElementById("terminal-body");
+        term.innerHTML = `<div class="empty-state">No logs recorded in Redis stream yet. Worker and API logs will appear here live.</div>`;
+      }
+    } catch (e) {
+      console.error("Error streaming logs:", e);
+    } finally {
+      if (isStreaming) {
+        scheduleNextPoll(1800);
+      }
+    }
+  }
+
+  function scheduleNextPoll(delayMs) {
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = setTimeout(fetchLogs, delayMs);
+  }
+
+  function updateInstanceSelect() {
+    const sel = document.getElementById("instance-select");
+    const currentVal = sel.value;
+    sel.innerHTML = '<option value="all">All Instances</option>';
+    Array.from(knownInstances).sort().forEach(inst => {
+      const opt = document.createElement("option");
+      opt.value = inst;
+      opt.innerText = inst;
+      if (inst === currentVal) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function renderLogs() {
+    const term = document.getElementById("terminal-body");
+    const autoscroll = document.getElementById("autoscroll-chk").checked;
+
+    const filtered = allLogs.filter(item => {
+      if (activeComponent !== "all" && item.component !== activeComponent) return false;
+      if (activeLevel !== "ALL" && item.level !== activeLevel) return false;
+      if (activeInstance !== "all" && item.instance !== activeInstance) return false;
+      if (activeSearch) {
+        const full = `${item.message} ${item.logger} ${item.task_id} ${item.instance}`.toLowerCase();
+        if (!full.includes(activeSearch)) return false;
+      }
+      return true;
+    });
+
+    document.getElementById("stats-showing").innerText = filtered.length;
+
+    if (filtered.length === 0) {
+      term.innerHTML = `<div class="empty-state">No logs matching the current filter criteria.</div>`;
+      return;
+    }
+
+    const htmlParts = filtered.map(item => {
+      const isErr = item.level === "ERROR" || item.level === "CRITICAL";
+      const isWarn = item.level === "WARNING";
+      const lineCls = isErr ? "log-line error-line" : (isWarn ? "log-line warn-line" : "log-line");
+      const compCls = `badge-comp ${escapeHtml(item.component)}`;
+      const lvlCls = `badge-level ${escapeHtml(item.level)}`;
+      const taskHtml = item.task_id ? `<span class="task-tag">task:${escapeHtml(item.task_id.substring(0, 8))}</span>` : "";
+
+      return `<div class="${lineCls}">` +
+        `<span class="log-ts">${escapeHtml(item.timestamp)}</span>` +
+        `<span class="${compCls}">${escapeHtml(item.component)}</span>` +
+        `<span class="badge-inst">[${escapeHtml(item.instance)}]</span>` +
+        `<span class="${lvlCls}">${escapeHtml(item.level)}</span>` +
+        (taskHtml ? `${taskHtml} ` : "") +
+        `<span class="log-logger">${escapeHtml(item.logger)}:</span>` +
+        `<span class="log-msg">${escapeHtml(item.message)}</span>` +
+      `</div>`;
+    });
+
+    term.innerHTML = htmlParts.join("");
+
+    if (autoscroll) {
+      term.scrollTop = term.scrollHeight;
+    }
+  }
+
+  async function clearLogs() {
+    if (!confirm("Are you sure you want to clear the system log buffer in Redis?")) return;
+    try {
+      const resp = await fetch("?action=clear", { method: "POST", headers: { "X-CSRFToken": "{{ csrf_token }}" } });
+      allLogs = [];
+      lastId = null;
+      renderLogs();
+      fetchLogs();
+    } catch (e) {
+      alert("Failed to clear logs: " + e);
+    }
+  }
+
+  function exportLogs() {
+    const url = `?action=export&component=${encodeURIComponent(activeComponent)}&level=${encodeURIComponent(activeLevel)}&search=${encodeURIComponent(activeSearch)}`;
+    window.location.href = url;
+  }
+
+  // Start streaming on page load
+  document.addEventListener("DOMContentLoaded", () => {
+    fetchLogs();
+  });
+</script>
+{% endblock %}
