@@ -8,8 +8,10 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from html import unescape
-from typing import Any, Dict, List, Optional, Tuple, Union
-from bs4 import BeautifulSoup
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    BeautifulSoup = None
 from django.conf import settings
 
 from .base import BaseScraperProvider
@@ -158,6 +160,17 @@ class GooglePatentPageParser:
 
     @classmethod
     def parse(cls, html: str, source_url: str = "") -> GooglePatentData:
+        if BeautifulSoup is None:
+            logger.warning("beautifulsoup4 is not installed in the current environment; falling back to regex extraction.")
+            pdf_url = None
+            match = re.search(r'href=["\'](https://patentimages\.storage\.googleapis\.com/[^"\']+\.pdf)["\']', html or "", re.IGNORECASE)
+            if match:
+                pdf_url = match.group(1).strip()
+            return GooglePatentData(
+                pdf_url=pdf_url,
+                raw_html=html or "",
+            )
+
         soup = BeautifulSoup(html, "html.parser")
 
         # 1. PDF URL
