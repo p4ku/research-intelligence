@@ -92,6 +92,14 @@ def create_scraper_logic(
     if not search_query or not search_query.strip():
         return "Error: search_query is required and cannot be blank."
 
+    if not api_key:
+        try:
+            resolved_key = Scraper.resolve_api_key_for_provider(provider, workspace=workspace, workspace_id=str(workspace.id))
+            if resolved_key:
+                api_key = resolved_key
+        except Exception:
+            pass
+
     try:
         scraper = Scraper.objects.create(
             workspace=workspace,

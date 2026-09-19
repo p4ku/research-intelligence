@@ -55,23 +55,13 @@ class LensScraperProvider(BaseScraperProvider):
 
         try:
             from research_intelligence.models import Scraper
-            qs = Scraper.objects.filter(provider="lens").exclude(api_key="").exclude(api_key__isnull=True)
-            if workspace:
-                ws_scraper = qs.filter(workspace=workspace, is_active=True).first() or qs.filter(workspace=workspace).first()
-                if ws_scraper and ws_scraper.api_key and ws_scraper.api_key.strip():
-                    return ws_scraper.api_key.strip()
-            elif workspace_id:
-                ws_scraper = qs.filter(workspace_id=workspace_id, is_active=True).first() or qs.filter(workspace_id=workspace_id).first()
-                if ws_scraper and ws_scraper.api_key and ws_scraper.api_key.strip():
-                    return ws_scraper.api_key.strip()
-
-            active_scraper = qs.filter(is_active=True).first()
-            if active_scraper and active_scraper.api_key and active_scraper.api_key.strip():
-                return active_scraper.api_key.strip()
-
-            any_scraper = qs.first()
-            if any_scraper and any_scraper.api_key and any_scraper.api_key.strip():
-                return any_scraper.api_key.strip()
+            model_key = Scraper.resolve_api_key_for_provider(
+                "lens",
+                workspace=workspace,
+                workspace_id=workspace_id,
+            )
+            if model_key:
+                return model_key
         except Exception as exc:
             logger.debug(f"Could not query Scraper model for LENS_API_KEY: {exc}")
 

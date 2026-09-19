@@ -33,6 +33,12 @@ def preview_search_query(
     if not search_query or not search_query.strip():
         raise ValueError("search_query is required.")
 
+    if not api_key:
+        try:
+            api_key = Scraper.resolve_api_key_for_provider(provider, workspace_id=workspace_id)
+        except Exception:
+            pass
+
     effective_n = n_last_days if n_last_days is not None else 7
     prov_kwargs = {"n_last_days": effective_n}
     if api_key:

@@ -85,9 +85,10 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
         except (ValueError, TypeError):
             n_last_days = 7
 
+        effective_key = scraper.get_effective_api_key() if hasattr(scraper, 'get_effective_api_key') else getattr(scraper, 'api_key', "")
         provider_kwargs = {"n_last_days": n_last_days}
-        if getattr(scraper, 'api_key', None):
-            provider_kwargs["api_key"] = scraper.api_key
+        if effective_key:
+            provider_kwargs["api_key"] = effective_key
         elif scraper.provider in ('google_patents', 'google patents', 'google-patents', 'patents', 'lens'):
             provider_kwargs["workspace"] = workspace
             provider_kwargs["workspace_id"] = str(workspace.id) if workspace else None

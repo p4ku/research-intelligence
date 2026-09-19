@@ -419,37 +419,13 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
         # Fallback: Query database Scraper model
         try:
             from research_intelligence.models import Scraper
-            PATENT_PROVIDERS = ["google_patents", "google patents", "google-patents", "patents"]
-            qs = Scraper.objects.filter(provider__in=PATENT_PROVIDERS).exclude(api_key="").exclude(api_key__isnull=True)
-
-            if workspace:
-                ws_scraper = qs.filter(workspace=workspace, is_active=True).first() or qs.filter(workspace=workspace).first()
-                if ws_scraper and ws_scraper.api_key and ws_scraper.api_key.strip():
-                    logger.info(
-                        f"Resolved Google Patents SERPAPI_API_KEY from database Scraper model for workspace '{getattr(workspace, 'name', workspace)}' (scraper {ws_scraper.id})."
-                    )
-                    return ws_scraper.api_key.strip()
-            elif workspace_id:
-                ws_scraper = qs.filter(workspace_id=workspace_id, is_active=True).first() or qs.filter(workspace_id=workspace_id).first()
-                if ws_scraper and ws_scraper.api_key and ws_scraper.api_key.strip():
-                    logger.info(
-                        f"Resolved Google Patents SERPAPI_API_KEY from database Scraper model for workspace_id '{workspace_id}' (scraper {ws_scraper.id})."
-                    )
-                    return ws_scraper.api_key.strip()
-
-            active_scraper = qs.filter(is_active=True).first()
-            if active_scraper and active_scraper.api_key and active_scraper.api_key.strip():
-                logger.info(
-                    f"Resolved Google Patents SERPAPI_API_KEY from database active Scraper model (scraper {active_scraper.id}, workspace '{getattr(active_scraper.workspace, 'name', active_scraper.workspace)}')."
-                )
-                return active_scraper.api_key.strip()
-
-            any_scraper = qs.first()
-            if any_scraper and any_scraper.api_key and any_scraper.api_key.strip():
-                logger.info(
-                    f"Resolved Google Patents SERPAPI_API_KEY from database Scraper model (scraper {any_scraper.id}, workspace '{getattr(any_scraper.workspace, 'name', any_scraper.workspace)}')."
-                )
-                return any_scraper.api_key.strip()
+            model_key = Scraper.resolve_api_key_for_provider(
+                "google_patents",
+                workspace=workspace,
+                workspace_id=workspace_id,
+            )
+            if model_key:
+                return model_key
         except Exception as exc:
             logger.debug(f"Could not query Scraper model for SERPAPI_API_KEY: {exc}")
 

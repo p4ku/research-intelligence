@@ -830,6 +830,89 @@ class Scraper(models.Model):
     def __str__(self):
         return f"{self.workspace.name} - {self.get_provider_display()} ({self.search_query[:30]})"
 
+    @classmethod
+    def resolve_api_key_for_provider(
+        cls,
+        provider: str,
+        workspace: Optional[Any] = None,
+        workspace_id: Optional[Union[str, uuid.UUID]] = None,
+    ) -> str:
+        """
+        Wisely resolves an API key for a scraper provider from the database model, settings, or env:
+        1. Queries Scraper model in the specified workspace for an active scraper with non-empty api_key.
+        2. Queries Scraper model in the specified workspace for any scraper with non-empty api_key.
+        3. Queries Scraper model across the entire database for any active scraper with non-empty api_key.
+        4. Queries Scraper model across the entire database for any scraper with non-empty api_key.
+        5. Falls back to Django settings (SERPAPI_API_KEY, LENS_API_KEY).
+        6. Falls back to environment variables (SERPAPI_API_KEY, LENS_API_KEY).
+        """
+        prov_norm = (provider or "").lower().strip()
+        if prov_norm in ('google_patents', 'google patents', 'google-patents', 'patents'):
+            provider_choices = ['google_patents', 'google patents', 'google-patents', 'patents']
+            settings_var = "SERPAPI_API_KEY"
+        elif prov_norm in ('lens', 'lens.org'):
+            provider_choices = ['lens', 'lens.org']
+            settings_var = "LENS_API_KEY"
+        else:
+            provider_choices = [prov_norm]
+            settings_var = f"{prov_norm.upper()}_API_KEY"
+
+        try:
+            qs = cls.objects.filter(provider__in=provider_choices).exclude(api_key="").exclude(api_key__isnull=True)
+            if workspace:
+                ws_obj = qs.filter(workspace=workspace, is_active=True).first() or qs.filter(workspace=workspace).first()
+                if ws_obj and ws_obj.api_key and ws_obj.api_key.strip():
+                    return ws_obj.api_key.strip()
+            elif workspace_id:
+                ws_obj = qs.filter(workspace_id=workspace_id, is_active=True).first() or qs.filter(workspace_id=workspace_id).first()
+                if ws_obj and ws_obj.api_key and ws_obj.api_key.strip():
+                    return ws_obj.api_key.strip()
+
+            active_obj = qs.filter(is_active=True).first()
+            if active_obj and active_obj.api_key and active_obj.api_key.strip():
+                return active_obj.api_key.strip()
+
+            any_obj = qs.first()
+            if any_obj and any_obj.api_key and any_obj.api_key.strip():
+                return any_obj.api_key.strip()
+        except Exception:
+            pass
+
+        from django.conf import settings
+        set_val = getattr(settings, settings_var, "")
+        if set_val and str(set_val).strip():
+            return str(set_val).strip()
+
+        import os
+        env_val = os.environ.get(settings_var, "")
+        if env_val and str(env_val).strip():
+            return str(env_val).strip()
+
+        return ""
+
+    def get_effective_api_key(self) -> str:
+        """
+        Wisely resolves the API key for this specific Scraper instance:
+        - If self.api_key is set, returns self.api_key.
+        - Otherwise, searches the workspace and database for an existing key,
+          and automatically saves it onto this instance.
+        """
+        if self.api_key and self.api_key.strip():
+            return self.api_key.strip()
+
+        resolved = Scraper.resolve_api_key_for_provider(
+            self.provider,
+            workspace=getattr(self, 'workspace', None),
+            workspace_id=getattr(self, 'workspace_id', None),
+        )
+        if resolved and getattr(self, 'pk', None):
+            try:
+                self.api_key = resolved
+                self.save(update_fields=['api_key'])
+            except Exception:
+                pass
+        return resolved or ""
+
 
 class WorkspaceMember(models.Model):
     """

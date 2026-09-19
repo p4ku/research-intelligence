@@ -718,6 +718,54 @@ class GooglePatentsCeleryTaskIntegrationTests(TestCase):
         # Verify PaperMetric was linked to the pipeline run
         self.assertTrue(PaperMetric.objects.filter(paper=paper, pipeline_run=self.pipeline_run).exists())
 
+    @patch("research_intelligence.scrapers.google_patents.urllib.request.urlopen")
+    def test_execute_scraper_run_job_auto_resolves_key_when_scraper_api_key_empty(self, mock_urlopen):
+        """
+        Verify that if the current scraper instance has api_key="", but another scraper in the
+        workspace has an active api_key, execute_scraper_run_job auto-resolves, populates, and uses the key.
+        """
+        from research_intelligence.tasks.step_1_search.search import execute_scraper_run_job
+
+        # Another scraper in the same workspace has the key
+        Scraper.objects.create(
+            workspace=self.workspace,
+            provider="google_patents",
+            search_query="quantum magnets",
+            api_key="inherited-serpapi-key",
+            is_active=True,
+        )
+
+        # Current scraper has NO key
+        empty_scraper = Scraper.objects.create(
+            workspace=self.workspace,
+            provider="google_patents",
+            search_query="superconducting qubits",
+            api_key="",
+            limit=5,
+            is_active=True,
+        )
+        comp_run = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            scraper=empty_scraper,
+            step_type="search",
+            component_name="Scraper [Google Patents Empty Key]",
+            status="pending",
+        )
+
+        mock_payload = {"organic_results": []}
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_payload).encode("utf-8")
+        mock_resp.__enter__.return_value = mock_resp
+        mock_urlopen.return_value = mock_resp
+
+        execute_scraper_run_job(str(comp_run.id))
+
+        self.assertTrue(mock_urlopen.called)
+        called_req = mock_urlopen.call_args[0][0]
+        self.assertIn("api_key=inherited-serpapi-key", called_req.full_url)
+        empty_scraper.refresh_from_db()
+        self.assertEqual(empty_scraper.api_key, "inherited-serpapi-key")
+
 
 class GooglePatentPageParserAndExtractionTests(TestCase):
     """
