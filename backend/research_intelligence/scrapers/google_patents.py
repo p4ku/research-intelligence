@@ -8,6 +8,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from html import unescape
+from typing import Any, Dict, List, Optional, Tuple, Union
 try:
     from bs4 import BeautifulSoup
 except ImportError:
