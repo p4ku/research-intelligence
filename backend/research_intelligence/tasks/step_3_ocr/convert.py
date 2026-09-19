@@ -24,13 +24,13 @@ def run_ocr_conversion(paper_id, output_format="markdown", paper_obj=None):
     """
     try:
         paper = paper_obj or Paper.objects.get(pk=paper_id)
-        if not paper.original_pdf_path:
-            logger.warning(f"Paper {paper_id} has no source PDF path configured. Cannot run OCR.")
-            return {"success": False, "error": "No original PDF path"}
-
         if paper.converted_md_path and default_storage.exists(paper.converted_md_path):
             logger.info(f"Paper {paper_id} is already converted to {output_format} at {paper.converted_md_path}")
             return {"success": True, "already_exists": True, "storage_path": paper.converted_md_path}
+
+        if not paper.original_pdf_path:
+            logger.warning(f"Paper {paper_id} has no source PDF path configured. Cannot run OCR.")
+            return {"success": False, "error": "No original PDF path"}
 
         # Priority storage path: workspaces/{workspace_id}/runs/{pipeline_run_id}/documents/{hash_id}/ocr.md
         if paper.pipeline_run and paper.hash_id:
@@ -205,8 +205,9 @@ def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers:
         worker_concurrency = 1
 
     try:
+        from django.db.models import Q
         papers_qs = pipeline_run.get_papers().filter(
-            original_pdf_path__isnull=False
+            Q(original_pdf_path__isnull=False) | Q(converted_md_path__isnull=False)
         ).exclude(metrics__pipeline_run=pipeline_run, metrics__screening_status='withdrawn')
 
         papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)

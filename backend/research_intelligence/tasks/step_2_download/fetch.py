@@ -101,6 +101,16 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj, withdrawn_info_
                 "storage_path": paper.original_pdf_path
             }
 
+    if paper.converted_md_path and not (paper.converted_md_path.startswith("http://") or paper.converted_md_path.startswith("https://")):
+        if default_storage.exists(paper.converted_md_path):
+            logger.info(f"⏩ [SKIPPED] Full-text document already stored at: '{paper.converted_md_path}' for paper '{title_snippet}...'")
+            return {
+                "status": "already_stored",
+                "paper_id": str(paper.id),
+                "title": paper.title,
+                "storage_path": paper.converted_md_path
+            }
+
     # If default_storage target_path already exists, link and skip
     if default_storage.exists(target_path):
         paper.original_pdf_path = target_path
@@ -141,32 +151,82 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj, withdrawn_info_
     for attempt in range(1, max_attempts + 1):
         try:
             provider = get_scraper_provider(paper.source_database or "arxiv")
-            file_bytes = provider.download_file(pdf_source_url)
-            if file_bytes and len(file_bytes) > 0:
-                if not is_valid_pdf_binary(file_bytes):
-                    logger.warning(f"⚠️ [NON-PDF CONTENT] Downloaded {len(file_bytes)} bytes from '{pdf_source_url}' for paper '{title_snippet}...' but content is not a valid PDF (HTML landing page or corrupted).")
-                    _mark_download_retrieval_failed(paper, pipeline_run_obj, "Downloaded content is not a valid PDF (HTML/corrupt)")
-                    return {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": "Downloaded content is not a valid PDF (HTML/corrupt)"}
+            patent_meta = None
+            if hasattr(provider, "fetch_patent_document") and (
+                paper.source_database == "google_patents" or "patents.google.com" in pdf_source_url
+            ):
+                file_bytes, doc_format, patent_meta = provider.fetch_patent_document(pdf_source_url)
+            else:
+                file_bytes = provider.download_file(pdf_source_url)
+                doc_format = "pdf" if is_valid_pdf_binary(file_bytes) else "binary"
 
-                if default_storage.exists(target_path):
-                    default_storage.delete(target_path)
-                saved_path = default_storage.save(target_path, ContentFile(file_bytes))
-                paper.original_pdf_path = saved_path
-                paper.save(update_fields=['original_pdf_path'])
-                doc_reg = register_document_pdf(paper, file_bytes)
-                size_bytes = len(file_bytes)
-                del file_bytes
-                size_kb = size_bytes / 1024
-                logger.info(f"✅ [DOWNLOADED] Successfully fetched PDF [{size_kb:.1f} KB] from '{pdf_source_url}' -> saved to: '{saved_path}' (Registered in DocumentRegistry: {doc_reg.id if doc_reg else 'None'})")
-                return {
-                    "status": "downloaded",
-                    "paper_id": str(paper.id),
-                    "title": paper.title,
-                    "size_bytes": size_bytes,
-                    "size_kb": round(size_kb, 1),
-                    "storage_path": saved_path,
-                    "registry_id": str(doc_reg.id) if doc_reg else None
-                }
+            if file_bytes and len(file_bytes) > 0:
+                is_pdf = is_valid_pdf_binary(file_bytes)
+
+                if is_pdf:
+                    if default_storage.exists(target_path):
+                        default_storage.delete(target_path)
+                    saved_path = default_storage.save(target_path, ContentFile(file_bytes))
+                    paper.original_pdf_path = saved_path
+                    update_fields = ['original_pdf_path']
+                    if patent_meta:
+                        meta_dict = dict(paper.meta or {})
+                        meta_dict["google_patents_details"] = patent_meta
+                        paper.meta = meta_dict
+                        update_fields.append('meta')
+                    paper.save(update_fields=update_fields)
+
+                    doc_reg = register_document_pdf(paper, file_bytes)
+                    size_bytes = len(file_bytes)
+                    del file_bytes
+                    size_kb = size_bytes / 1024
+                    logger.info(f"✅ [DOWNLOADED] Successfully fetched PDF [{size_kb:.1f} KB] from '{pdf_source_url}' -> saved to: '{saved_path}' (Registered in DocumentRegistry: {doc_reg.id if doc_reg else 'None'})")
+                    return {
+                        "status": "downloaded",
+                        "paper_id": str(paper.id),
+                        "title": paper.title,
+                        "size_bytes": size_bytes,
+                        "size_kb": round(size_kb, 1),
+                        "storage_path": saved_path,
+                        "registry_id": str(doc_reg.id) if doc_reg else None
+                    }
+
+                # If content is Markdown / structured text (e.g. patent without PDF scan)
+                is_markdown = (doc_format == "markdown") or (
+                    paper.source_database == "google_patents"
+                    or file_bytes.lstrip().startswith(b"# ")
+                )
+                if is_markdown:
+                    target_md_path = f"{doc_folder}/document.md"
+                    if default_storage.exists(target_md_path):
+                        default_storage.delete(target_md_path)
+                    saved_path = default_storage.save(target_md_path, ContentFile(file_bytes))
+                    paper.converted_md_path = saved_path
+                    update_fields = ['converted_md_path']
+                    if patent_meta:
+                        meta_dict = dict(paper.meta or {})
+                        meta_dict["google_patents_details"] = patent_meta
+                        paper.meta = meta_dict
+                        update_fields.append('meta')
+                    paper.save(update_fields=update_fields)
+
+                    size_bytes = len(file_bytes)
+                    del file_bytes
+                    size_kb = size_bytes / 1024
+                    logger.info(f"✅ [DOWNLOADED] Successfully saved full-text Markdown [{size_kb:.1f} KB] from '{pdf_source_url}' -> saved to: '{saved_path}'")
+                    return {
+                        "status": "downloaded",
+                        "paper_id": str(paper.id),
+                        "title": paper.title,
+                        "size_bytes": size_bytes,
+                        "size_kb": round(size_kb, 1),
+                        "storage_path": saved_path,
+                        "format": "markdown",
+                    }
+
+                logger.warning(f"⚠️ [NON-PDF CONTENT] Downloaded {len(file_bytes)} bytes from '{pdf_source_url}' for paper '{title_snippet}...' but content is neither a valid PDF nor recognized Markdown document.")
+                _mark_download_retrieval_failed(paper, pipeline_run_obj, "Downloaded content is not a valid document (corrupt or unparsed HTML)")
+                return {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": "Downloaded content is not a valid document"}
             else:
                 logger.warning(f"⚠️ [EMPTY PDF] Received 0 bytes for paper '{title_snippet}...' from '{pdf_source_url}' (attempt {attempt}/{max_attempts})")
                 if attempt < max_attempts:

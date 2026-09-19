@@ -576,16 +576,24 @@ class RealWorldSerpApiPayloadTests(TestCase):
     @patch("research_intelligence.scrapers.google_patents.is_safe_external_url")
     def test_download_file_landing_page_without_pdf_link(self, mock_is_safe, mock_safe_download):
         """
-        Verify that if the landing page does not contain a PDF link, download_file safely falls back to downloading the URL directly.
+        Verify that if the landing page does not contain a PDF link, download_file parses the page
+        and returns structured Markdown encoded in UTF-8 bytes for downstream screening.
         """
         mock_is_safe.return_value = True
-        mock_safe_download.return_value = b"<html><body>No PDF on this page</body></html>"
+        mock_safe_download.return_value = (
+            b'<html><body>'
+            b'<span itemprop="publicationNumber">US12345</span>'
+            b'<span itemprop="title">No PDF Patent</span>'
+            b'<section itemprop="abstract"><p>Abstract text for no PDF patent.</p></section>'
+            b'</body></html>'
+        )
 
         provider = GooglePatentsScraperProvider(api_key="key")
         content = provider.download_file("https://patents.google.com/patent/US12345/en")
-        self.assertEqual(content, b"<html><body>No PDF on this page</body></html>")
-        # Call 1: HTML inspection to find PDF; Call 2: downloads target document
-        self.assertEqual(mock_safe_download.call_count, 2)
+        self.assertIn(b"# US12345: No PDF Patent", content)
+        self.assertIn(b"## Abstract", content)
+        self.assertIn(b"Abstract text for no PDF patent.", content)
+        self.assertEqual(mock_safe_download.call_count, 1)
 
 
 class GooglePatentsCeleryTaskIntegrationTests(TestCase):
@@ -660,4 +668,296 @@ class GooglePatentsCeleryTaskIntegrationTests(TestCase):
 
         # Verify PaperMetric was linked to the pipeline run
         self.assertTrue(PaperMetric.objects.filter(paper=paper, pipeline_run=self.pipeline_run).exists())
+
+
+class GooglePatentPageParserAndExtractionTests(TestCase):
+    """
+    Tests for extracting PDF URL, structured JSON metadata, and Markdown generation
+    from real Google Patents HTML pages (CN110549905B with PDF and US20260098257A1 without PDF).
+    """
+
+    def setUp(self):
+        import os
+        self.fixtures_dir = os.path.join(os.path.dirname(__file__), "fixtures", "patents")
+
+    def test_parse_cn_patent_with_pdf(self):
+        """
+        Verify CN110549905B: extracts exact PDF URL on Google Storage,
+        Current Assignee (GM Global Technology Operations LLC), 9 inventors,
+        active status, timeline events, and claims.
+        """
+        import os
+        from research_intelligence.scrapers.google_patents import GooglePatentPageParser
+
+        fixture_path = os.path.join(self.fixtures_dir, "CN110549905B.html")
+        with open(fixture_path, "r", encoding="utf-8") as f:
+            html = f.read()
+
+        data = GooglePatentPageParser.parse(html, "https://patents.google.com/patent/CN110549905B/en")
+
+        self.assertEqual(data.publication_number, "CN110549905B")
+        self.assertEqual(data.country_code, "CN")
+        self.assertIn("Energy sharing system and method for vehicle", data.title)
+        self.assertTrue(data.has_pdf)
+        self.assertEqual(
+            data.pdf_url,
+            "https://patentimages.storage.googleapis.com/95/72/73/d47f564213fea2/CN110549905B.pdf",
+        )
+        self.assertEqual(data.current_assignee, "GM Global Technology Operations LLC")
+        self.assertEqual(len(data.inventors), 9)
+        self.assertIn("李伟", data.inventors)
+        self.assertEqual(data.status, "Active")
+        self.assertEqual(data.anticipated_expiration, "2039-05-08")
+        self.assertEqual(len(data.events), 6)
+        self.assertGreater(len(data.claims), 0)
+
+        # JSON dictionary validation
+        meta_dict = data.to_dict()
+        self.assertEqual(meta_dict["current_assignee"], "GM Global Technology Operations LLC")
+        self.assertEqual(meta_dict["pdf_url"], "https://patentimages.storage.googleapis.com/95/72/73/d47f564213fea2/CN110549905B.pdf")
+        self.assertEqual(meta_dict["has_pdf"], True)
+        self.assertEqual(meta_dict["anticipated_expiration"], "2039-05-08")
+
+        # Markdown representation validation
+        md = data.to_markdown()
+        self.assertIn("# CN110549905B: Energy sharing system and method for vehicle", md)
+        self.assertIn("**Current Assignee:** GM Global Technology Operations LLC", md)
+        self.assertIn("**Anticipated Expiration:** 2039-05-08", md)
+        self.assertIn("## Timeline Events", md)
+        self.assertIn("## Claims", md)
+
+    def test_parse_us_patent_without_pdf(self):
+        """
+        Verify US20260098257A1: confirms pdf_url is None, extracts Current Assignee
+        (Bruker Spatial Biology Inc), 5 inventors, Pending status, timeline events,
+        and generates full Markdown text for screening.
+        """
+        import os
+        from research_intelligence.scrapers.google_patents import GooglePatentPageParser
+
+        fixture_path = os.path.join(self.fixtures_dir, "US20260098257A1.html")
+        with open(fixture_path, "r", encoding="utf-8") as f:
+            html = f.read()
+
+        data = GooglePatentPageParser.parse(html, "https://patents.google.com/patent/US20260098257A1/en")
+
+        self.assertEqual(data.publication_number, "US20260098257A1")
+        self.assertFalse(data.has_pdf)
+        self.assertIsNone(data.pdf_url)
+        self.assertEqual(data.current_assignee, "Bruker Spatial Biology Inc")
+        self.assertEqual(len(data.inventors), 5)
+        self.assertIn("Jason M. McEwen", data.inventors)
+        self.assertEqual(data.status, "Pending")
+        self.assertEqual(len(data.events), 8)
+        self.assertEqual(len(data.claims), 87)
+        self.assertGreater(len(data.description), 10000)
+
+        # Markdown text contains all essential screening sections
+        md = data.to_markdown()
+        self.assertIn("# US20260098257A1: Systems and methods for identification of optimized protein production", md)
+        self.assertIn("**Current Assignee:** Bruker Spatial Biology Inc", md)
+        self.assertIn("**Status:** Pending", md)
+        self.assertIn("## Timeline Events", md)
+        self.assertIn("## Claims", md)
+        self.assertIn("## Detailed Description", md)
+
+
+class GooglePatentPipelineDownloadAndScreeningTests(TestCase):
+    """
+    Tests ensuring papers with or without PDF scans seamlessly integrate into
+    the Download step, OCR step, and Full-Text screening step.
+    """
+
+    def setUp(self):
+        self.workspace = Workspace.objects.create(
+            name="Patent Screening Workspace",
+            screening_llm_model="google/gemini-3.8-flash",
+            ocr_provider="pypdf",
+        )
+        self.pipeline_run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="running",
+        )
+
+    @patch("research_intelligence.scrapers.google_patents.safe_download_url")
+    @patch("research_intelligence.scrapers.google_patents.is_safe_external_url")
+    def test_download_patent_without_pdf_saves_markdown_and_metadata(self, mock_is_safe, mock_safe_download):
+        """
+        When downloading a patent that lacks a scanned PDF (e.g. US20260098257A1):
+        - fetch.py saves the structured Markdown to paper.converted_md_path
+        - stores google_patents_details in paper.meta
+        - returns status='downloaded'
+        - allows OCR step to immediately skip (already converted)
+        """
+        import os
+        from django.core.files.storage import default_storage
+        from research_intelligence.tasks.step_2_download.fetch import _download_paper_task
+        from research_intelligence.tasks.step_3_ocr.convert import run_ocr_conversion
+
+        mock_is_safe.return_value = True
+        fixture_path = os.path.join(os.path.dirname(__file__), "fixtures", "patents", "US20260098257A1.html")
+        with open(fixture_path, "rb") as f:
+            html_bytes = f.read()
+        mock_safe_download.return_value = html_bytes
+
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            title="Optimized Protein Production",
+            hash_id="US20260098257A1HASH",
+            source_database="google_patents",
+            original_pdf_path="https://patents.google.com/patent/US20260098257A1/en",
+            meta={"publication_number": "US20260098257A1"},
+        )
+        pm = PaperMetric.objects.create(
+            paper=paper,
+            pipeline_run=self.pipeline_run,
+            screening_status="abstract_passed",
+        )
+
+        res = _download_paper_task(
+            paper=paper,
+            workspace_obj=self.workspace,
+            pipeline_run_obj=self.pipeline_run,
+        )
+
+        self.assertEqual(res["status"], "downloaded")
+        self.assertEqual(res.get("format"), "markdown")
+
+        paper.refresh_from_db()
+        self.assertIsNotNone(paper.converted_md_path)
+        self.assertTrue(default_storage.exists(paper.converted_md_path))
+        with default_storage.open(paper.converted_md_path, "r") as f:
+            md_content = f.read()
+        self.assertIn("# US20260098257A1", md_content)
+        self.assertIn("Bruker Spatial Biology Inc", md_content)
+
+        # Verify paper.meta contains rich Google Patents details
+        details = paper.meta.get("google_patents_details")
+        self.assertIsNotNone(details)
+        self.assertEqual(details.get("current_assignee"), "Bruker Spatial Biology Inc")
+        self.assertEqual(details.get("status"), "Pending")
+        self.assertEqual(details.get("claims_count"), 87)
+
+        # Verify OCR step recognizes that document is already converted and succeeds
+        ocr_res = run_ocr_conversion(paper.id, paper_obj=paper)
+        self.assertTrue(ocr_res["success"])
+        self.assertTrue(ocr_res["already_exists"])
+        self.assertEqual(ocr_res["storage_path"], paper.converted_md_path)
+
+    @patch("research_intelligence.scrapers.google_patents.safe_download_url")
+    @patch("research_intelligence.scrapers.google_patents.is_safe_external_url")
+    def test_download_patent_with_pdf_saves_pdf_and_metadata(self, mock_is_safe, mock_safe_download):
+        """
+        When downloading a patent that has a scanned PDF (e.g. CN110549905B):
+        - fetch.py extracts the PDF URL from the page
+        - downloads the PDF binary and saves to paper.original_pdf_path
+        - stores google_patents_details in paper.meta
+        - returns status='downloaded'
+        """
+        import os
+        from django.core.files.storage import default_storage
+        from research_intelligence.tasks.step_2_download.fetch import _download_paper_task
+
+        mock_is_safe.return_value = True
+        fixture_path = os.path.join(os.path.dirname(__file__), "fixtures", "patents", "CN110549905B.html")
+        with open(fixture_path, "rb") as f:
+            html_bytes = f.read()
+
+        def fake_download(url, **kwargs):
+            if "patentimages.storage.googleapis.com" in url:
+                return b"%PDF-1.5 fake patent binary scan"
+            return html_bytes
+
+        mock_safe_download.side_effect = fake_download
+
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            title="Energy Sharing System",
+            hash_id="CN110549905BHASH",
+            source_database="google_patents",
+            original_pdf_path="https://patents.google.com/patent/CN110549905B/en",
+            meta={"publication_number": "CN110549905B"},
+        )
+        PaperMetric.objects.create(
+            paper=paper,
+            pipeline_run=self.pipeline_run,
+            screening_status="abstract_passed",
+        )
+
+        res = _download_paper_task(
+            paper=paper,
+            workspace_obj=self.workspace,
+            pipeline_run_obj=self.pipeline_run,
+        )
+
+        self.assertEqual(res["status"], "downloaded")
+        paper.refresh_from_db()
+
+        self.assertIsNotNone(paper.original_pdf_path)
+        self.assertTrue(default_storage.exists(paper.original_pdf_path))
+        with default_storage.open(paper.original_pdf_path, "rb") as f:
+            content = f.read()
+        self.assertTrue(content.startswith(b"%PDF-1.5"))
+
+        # Verify metadata
+        details = paper.meta.get("google_patents_details")
+        self.assertIsNotNone(details)
+        self.assertEqual(details.get("current_assignee"), "GM Global Technology Operations LLC")
+        self.assertEqual(details.get("status"), "Active")
+        self.assertEqual(details.get("pdf_url"), "https://patentimages.storage.googleapis.com/95/72/73/d47f564213fea2/CN110549905B.pdf")
+        self.assertTrue(details.get("has_pdf"))
+
+    @patch("research_intelligence.tasks.step_4_screening.full_text.get_llm_provider")
+    def test_screen_full_text_uses_markdown_document_for_patent(self, mock_get_llm):
+        """
+        Verify that full-text screening uses converted_md_path (markdown_ocr)
+        when screening a patent that was stored as Markdown.
+        """
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import default_storage
+        from research_intelligence.tasks.step_4_screening.full_text import screen_full_text
+
+        # Mock LLM provider response
+        mock_provider = MagicMock()
+        mock_provider.generate.return_value = (
+            {
+                "passed": True,
+                "decision_category": "ACCEPTED",
+                "reasoning": "Directly matches quantum computing criteria.",
+                "evidence_quotes": ["Quantum patent claims"],
+            },
+            {"prompt_tokens": 100, "candidates_tokens": 30, "total_tokens": 130},
+        )
+        mock_get_llm.return_value = mock_provider
+
+        md_path = "workspaces/test/runs/test/documents/test_hash/document.md"
+        default_storage.save(md_path, ContentFile("# US20260098257A1\n\n**Claims:** Quantum patent claims...".encode("utf-8")))
+
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            title="Quantum Patent Screening Test",
+            hash_id="SCREENINGPATENTHASH",
+            source_database="google_patents",
+            converted_md_path=md_path,
+        )
+        PaperMetric.objects.create(
+            paper=paper,
+            pipeline_run=self.pipeline_run,
+            screening_status="pending",
+        )
+
+        res = screen_full_text(
+            paper_id=paper.id,
+            workspace_id=self.workspace.id,
+            workspace_obj=self.workspace,
+            paper_obj=paper,
+            pipeline_run_id=str(self.pipeline_run.id),
+        )
+
+        self.assertTrue(res["success"])
+        self.assertEqual(res["input_source"], "markdown_ocr")
+        self.assertEqual(res["decision_category"], "ACCEPTED")
+        self.assertEqual(res["screening_status"], "full_text_passed")
+
+
 
