@@ -189,95 +189,149 @@
 
   .log-line {
     display: flex;
-    align-items: baseline;
-    gap: 8px;
-    white-space: pre-wrap;
-    word-break: break-word;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-    padding: 2px 0;
+    flex-direction: column;
+    padding: 6px 10px;
+    margin-bottom: 3px;
+    border-radius: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.015);
+    transition: background-color 0.15s ease;
   }
 
   .log-line:hover {
-    background-color: rgba(255, 255, 255, 0.04);
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  .log-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 8px;
+    font-size: 11px;
+    line-height: 1.4;
+    overflow-x: auto;
   }
 
   .log-ts {
-    color: #6e7681;
-    font-size: 11.5px;
+    color: #8b949e;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
     flex-shrink: 0;
   }
 
   .badge-comp {
-    font-size: 10.5px;
+    font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
     padding: 1px 6px;
     border-radius: 4px;
+    white-space: nowrap;
     flex-shrink: 0;
+    letter-spacing: 0.5px;
   }
 
   .badge-comp.worker {
-    background-color: rgba(188, 140, 255, 0.2);
+    background-color: rgba(188, 140, 255, 0.18);
     color: #d2a8ff;
-    border: 1px solid rgba(188, 140, 255, 0.3);
+    border: 1px solid rgba(188, 140, 255, 0.35);
   }
 
   .badge-comp.api {
-    background-color: rgba(63, 185, 80, 0.2);
+    background-color: rgba(63, 185, 80, 0.18);
     color: #7ee787;
-    border: 1px solid rgba(63, 185, 80, 0.3);
+    border: 1px solid rgba(63, 185, 80, 0.35);
   }
 
   .badge-comp.beat, .badge-comp.mcp {
-    background-color: rgba(210, 153, 34, 0.2);
+    background-color: rgba(210, 153, 34, 0.18);
     color: #e3b341;
-    border: 1px solid rgba(210, 153, 34, 0.3);
+    border: 1px solid rgba(210, 153, 34, 0.35);
   }
 
   .badge-inst {
-    color: #8b949e;
+    color: #a5d6ff;
     font-size: 11px;
-    padding: 0 4px;
+    white-space: nowrap;
+    font-family: monospace;
     flex-shrink: 0;
   }
 
   .badge-level {
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 10px;
+    font-weight: 800;
     padding: 1px 5px;
     border-radius: 3px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    letter-spacing: 0.3px;
+  }
+
+  .badge-level.INFO {
+    background-color: rgba(56, 139, 253, 0.15);
+    color: #58a6ff;
+    border: 1px solid rgba(56, 139, 253, 0.35);
+  }
+  .badge-level.WARNING {
+    background-color: rgba(210, 153, 34, 0.15);
+    color: #e3b341;
+    border: 1px solid rgba(210, 153, 34, 0.35);
+  }
+  .badge-level.ERROR, .badge-level.CRITICAL {
+    background-color: rgba(248, 81, 73, 0.18);
+    color: #f85149;
+    border: 1px solid rgba(248, 81, 73, 0.4);
+    font-weight: 900;
+  }
+  .badge-level.DEBUG {
+    background-color: rgba(139, 148, 158, 0.15);
+    color: #8b949e;
+    border: 1px solid rgba(139, 148, 158, 0.35);
+  }
+
+  .task-tag {
+    background: rgba(56, 139, 253, 0.18);
+    color: #79c0ff;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    white-space: nowrap;
+    border: 1px solid rgba(56, 139, 253, 0.25);
     flex-shrink: 0;
   }
 
-  .badge-level.INFO { color: #58a6ff; }
-  .badge-level.WARNING { color: #d29922; }
-  .badge-level.ERROR, .badge-level.CRITICAL { color: #f85149; font-weight: 800; }
-  .badge-level.DEBUG { color: #8b949e; }
-
   .log-logger {
     color: #79c0ff;
-    font-size: 11.5px;
+    font-size: 11px;
+    white-space: nowrap;
     flex-shrink: 0;
   }
 
   .log-msg {
+    margin-top: 4px;
+    padding: 3px 0 3px 12px;
+    border-left: 2px solid rgba(110, 118, 129, 0.35);
     color: #e6edf3;
+    font-size: 12.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 
+  .log-line.error-line {
+    background-color: rgba(248, 81, 73, 0.05);
+  }
   .log-line.error-line .log-msg {
     color: #ff7b72;
+    border-left-color: #f85149;
   }
 
+  .log-line.warn-line {
+    background-color: rgba(210, 153, 34, 0.04);
+  }
   .log-line.warn-line .log-msg {
-    color: #e3b341;
-  }
-
-  .task-tag {
-    background: #1f6feb33;
-    color: #79c0ff;
-    padding: 1px 4px;
-    border-radius: 3px;
-    font-size: 11px;
+    color: #f2cc60;
+    border-left-color: #d29922;
   }
 
   .status-dot {
@@ -554,13 +608,15 @@
       const taskHtml = item.task_id ? `<span class="task-tag">task:${escapeHtml(item.task_id.substring(0, 8))}</span>` : "";
 
       return `<div class="${lineCls}">` +
-        `<span class="log-ts">${escapeHtml(item.timestamp)}</span>` +
-        `<span class="${compCls}">${escapeHtml(item.component)}</span>` +
-        `<span class="badge-inst">[${escapeHtml(item.instance)}]</span>` +
-        `<span class="${lvlCls}">${escapeHtml(item.level)}</span>` +
-        (taskHtml ? `${taskHtml} ` : "") +
-        `<span class="log-logger">${escapeHtml(item.logger)}:</span>` +
-        `<span class="log-msg">${escapeHtml(item.message)}</span>` +
+        `<div class="log-meta">` +
+          `<span class="log-ts">${escapeHtml(item.timestamp)}</span>` +
+          `<span class="${compCls}">${escapeHtml(item.component)}</span>` +
+          `<span class="badge-inst">[${escapeHtml(item.instance)}]</span>` +
+          `<span class="${lvlCls}">${escapeHtml(item.level)}</span>` +
+          (taskHtml ? `${taskHtml} ` : "") +
+          `<span class="log-logger">${escapeHtml(item.logger)}:</span>` +
+        `</div>` +
+        `<div class="log-msg">${escapeHtml(item.message)}</div>` +
       `</div>`;
     });
 
