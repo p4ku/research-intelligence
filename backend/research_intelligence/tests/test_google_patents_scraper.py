@@ -921,6 +921,7 @@ class GooglePatentPipelineDownloadAndScreeningTests(TestCase):
 
         self.assertEqual(res["status"], "downloaded")
         self.assertEqual(res.get("format"), "markdown")
+        self.assertIsNotNone(res.get("registry_id"))
 
         paper.refresh_from_db()
         self.assertIsNotNone(paper.converted_md_path)
@@ -929,6 +930,14 @@ class GooglePatentPipelineDownloadAndScreeningTests(TestCase):
             md_content = f.read()
         self.assertIn("# US20260098257A1", md_content)
         self.assertIn("Bruker Spatial Biology Inc", md_content)
+
+        # Verify DocumentRegistry record was created and linked
+        self.assertIsNotNone(paper.document_registry)
+        self.assertEqual(str(paper.document_registry.id), res.get("registry_id"))
+        self.assertEqual(paper.document_registry.primary_source, "google_patents")
+        self.assertEqual(paper.document_registry.ocr_provider, "google_patents_html")
+        self.assertTrue(default_storage.exists(paper.document_registry.canonical_ocr_md_path))
+        self.assertEqual(paper.document_registry.access_count, 1)
 
         # Verify paper.meta contains rich Google Patents details
         details = paper.meta.get("google_patents_details")
