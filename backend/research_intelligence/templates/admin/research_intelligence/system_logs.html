@@ -20,7 +20,7 @@
   }
 
   .logs-container {
-    padding: 16px 20px 40px;
+    padding: 8px 14px 20px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     color: #e6edf3;
   }
@@ -29,40 +29,34 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
+    margin-bottom: 8px;
+    flex-wrap: nowrap;
     gap: 12px;
   }
 
-  .logs-title-group h1 {
-    margin: 0 0 4px 0;
-    font-size: 22px;
+  .logs-title-group h2 {
+    margin: 0;
+    font-size: 16px;
     font-weight: 700;
     color: #f0f6fc;
     display: flex;
     align-items: center;
-    gap: 10px;
-  }
-
-  .logs-title-group p {
-    margin: 0;
-    font-size: 13px;
-    color: var(--log-muted);
+    gap: 8px;
   }
 
   .logs-actions-bar {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
   }
 
   /* Control Panel Toolbar */
   .control-card {
     background-color: var(--log-panel-bg);
     border: 1px solid var(--log-border);
-    border-radius: 8px;
-    padding: 14px 16px;
-    margin-bottom: 14px;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
     display: flex;
     flex-wrap: wrap;
     gap: 16px;
@@ -160,12 +154,12 @@
   }
 
   .terminal-body {
-    height: 65vh;
-    min-height: 400px;
-    max-height: 800px;
+    height: 75vh;
+    min-height: 520px;
+    max-height: 1200px;
     overflow-y: auto;
     overflow-x: auto;
-    padding: 14px 16px;
+    padding: 10px 14px;
     font-family: 'Fira Code', 'JetBrains Mono', 'SFMono-Regular', Consolas, Menlo, Monaco, monospace;
     font-size: 12.5px;
     line-height: 1.6;
@@ -352,24 +346,25 @@
 </style>
 {% endblock %}
 
+{% block content_title %}{% endblock %}
+
 {% block content %}
 <div class="logs-container">
-  <!-- Header -->
+  <!-- Header (Minimalist 1 line) -->
   <div class="logs-header">
     <div class="logs-title-group">
-      <h1>
+      <h2>
         📜 System Live Logs
         <span class="badge-comp worker">Worker</span>
         <span class="badge-comp api">API</span>
-      </h1>
-      <p>Aggregated real-time logs from Celery workers and Django REST API pods via Redis Streams. Restricted to superusers.</p>
+      </h2>
     </div>
     <div class="logs-actions-bar">
       <button id="toggle-stream-btn" class="btn-pill active" onclick="toggleStream()">
         <span id="stream-dot" class="status-dot online"></span>
-        <span id="stream-text">Live Streaming</span>
+        <span id="stream-text">Live</span>
       </button>
-      <button class="btn-pill" onclick="clearLogs()">🧹 Clear Buffer</button>
+      <button class="btn-pill" onclick="clearLogs()">🧹 Clear</button>
       <button class="btn-pill" onclick="exportLogs()">⬇️ Download .txt</button>
     </div>
   </div>
