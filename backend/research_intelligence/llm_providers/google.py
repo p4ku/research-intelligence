@@ -118,7 +118,7 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                     info,
                     scopes=scopes,
                 )
-                logger.info("Loaded credentials from environment variable GOOGLE_SERVICE_ACCOUNT_JSON")
+                logger.debug("Loaded credentials from environment variable GOOGLE_SERVICE_ACCOUNT_JSON")
                 
                 # Workaround for google-genai SDK bug where credentials passed in Client constructor are not utilized.
                 # We write the service account JSON to a temporary file and point GOOGLE_APPLICATION_CREDENTIALS to it.
@@ -129,9 +129,11 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                     with open(sa_path, "w") as f:
                         f.write(google_json_str)
                     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = sa_path
-                    logger.info(f"Set GOOGLE_APPLICATION_CREDENTIALS to temporary file: {sa_path}")
+                    logger.debug(f"Set GOOGLE_APPLICATION_CREDENTIALS to temporary file: {sa_path}")
             except Exception as e:
                 logger.warning(f"Failed to load credentials from GOOGLE_SERVICE_ACCOUNT_JSON env var: {str(e)}")
+        else:
+            logger.warning("GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not configured.")
 
         # If service account credentials are provided, prefer the service account's own project_id
         # to prevent cross-project IAM 403 PERMISSION_DENIED when GOOGLE_CLOUD_PROJECT points to a different project.
