@@ -186,13 +186,18 @@ npm run test:prod                    # Runs against Production
 # 14. Executive Briefing Generation & Structured Sections:
 ./tests_e2e/run_e2e.sh --scenario=briefing
 
+# 15. Paper Comments & Collaboration Area API Lifecycle:
+./tests_e2e/run_e2e.sh --scenario=comments
+# Or shortcut:
+./tests_e2e/run_e2e.sh local comments
+
 # Run ALL Scenarios Sequentially:
 ./tests_e2e/run_e2e.sh --scenario=all
 ```
 
 ### 3. Run on Different Environments:
 ```bash
-# Recommended: Run ALL 23 scenarios on Production with immediate cleanup:
+# Recommended: Run ALL 24 scenarios on Production with immediate cleanup:
 ./tests_e2e/run_e2e.sh prod all --cleanup-after
 
 # Run on Staging or Local dev:

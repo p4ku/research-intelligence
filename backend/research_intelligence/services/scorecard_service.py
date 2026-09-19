@@ -5,6 +5,7 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 
 from api.serializers.papers import PaperSerializer
+from api.serializers.comments import get_paper_messages_payload
 from research_intelligence.models import (
     Extraction,
     ExtractionDefinition,
@@ -453,6 +454,11 @@ def build_single_scored_paper(
     dt = paper.created_at
     created_at_str = dt.isoformat() if (hasattr(dt, 'tzinfo') and dt.tzinfo) else (dt.isoformat() + "Z")
 
+    messages_payload = (
+        get_paper_messages_payload(paper, target_pr_id=target_pr_id, request=request)
+        if is_detail else []
+    )
+
     return {
         'id': str(paper.id),
         'workspace_id': str(paper.workspace_id),
@@ -492,6 +498,8 @@ def build_single_scored_paper(
         'created_at': created_at_str,
         'pipeline_run_name': run_name,
         'risk_and_affiliation': risk_and_affiliation_info,
+        'messages': messages_payload,
+        'comments': messages_payload,
     }
 
 
@@ -713,6 +721,8 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
         'extractions': extractions_data,
         'metric': metric_data,
         'narrative_report': narrative_report_data,
+        'messages': scored_paper.get('messages', []),
+        'comments': scored_paper.get('comments', []),
     }
 
 

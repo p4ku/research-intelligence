@@ -6,6 +6,8 @@
 #   ./tests_e2e/run_e2e.sh                    # Runs against Production (Default)
 #   ./tests_e2e/run_e2e.sh staging            # Runs against Staging
 #   ./tests_e2e/run_e2e.sh local              # Runs against Local development server
+#   ./tests_e2e/run_e2e.sh comments           # Runs Paper Comments & Collaboration API E2E
+#   ./tests_e2e/run_e2e.sh local comments     # Runs Comments API E2E on Local dev server
 #   ./tests_e2e/run_e2e.sh --cleanup-after    # Runs on Prod and deletes workspace at end
 #   ./tests_e2e/run_e2e.sh prod --limit=20    # Custom paper limit
 # ==============================================================================
@@ -47,6 +49,9 @@ for arg in "$@"; do
             ;;
         all)
             EXTRA_ARGS+=("--scenario=all")
+            ;;
+        comments|comment|collaboration|messages)
+            EXTRA_ARGS+=("--scenario=comments")
             ;;
         *)
             EXTRA_ARGS+=("$arg")

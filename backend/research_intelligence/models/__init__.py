@@ -38,6 +38,10 @@ from .schedule import (
 from .star import (
     Star,
 )
+from .comment import (
+    PaperComment,
+    PaperCommentReaction,
+)
 
 # Re-export ejected Chat application models for backwards compatibility
 from chat.models import PaperChatSession, PaperChatMessage
@@ -64,5 +68,7 @@ __all__ = [
     "PaperChatSession",
     "PaperChatMessage",
     "Star",
+    "PaperComment",
+    "PaperCommentReaction",
 ]
 

@@ -10,6 +10,7 @@ from .views.workspaces import WorkspaceViewSet, ExtractionDefinitionViewSet
 from .views.scrapers import ScraperViewSet
 from .views.subscribers import SubscriberViewSet
 from .views.papers import PaperViewSet, PaperMetricViewSet
+from .views.comments import PaperCommentViewSet
 from .views.extractions import ExtractionViewSet
 from .views.hitl import HITLViewSet
 from .views.chat import ChatSubmitView, ChatStreamView, ChatMessageDetailView, PaperChatSessionViewSet
@@ -33,6 +34,7 @@ router.register(r'agents', ResearchAgentViewSet, basename='agent')
 router.register(r'scrapers', ScraperViewSet, basename='scraper')
 router.register(r'subscribers', SubscriberViewSet, basename='subscriber')
 router.register(r'papers', PaperViewSet, basename='paper')
+router.register(r'comments', PaperCommentViewSet, basename='comment')
 router.register(r'paper-metrics', PaperMetricViewSet, basename='paper-metric')
 router.register(r'extractions', ExtractionViewSet, basename='extraction')
 router.register(r'hitl', HITLViewSet, basename='hitl')

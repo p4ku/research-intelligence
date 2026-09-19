@@ -51,6 +51,7 @@ from tests_e2e.scenarios import (
     run_run_admission_guard_scenario,
     run_briefing_filters_and_pagination_scenario,
     run_three_personas_rbac_journey_scenario,
+    run_paper_comments_collaboration_scenario,
 )
 
 # Configure rich colored terminal logging
@@ -85,10 +86,11 @@ def parse_args():
             "paper_page", "paper_scorecard", "scorecard_page",
             "admission", "run_admission",
             "briefing_filters", "editions", "briefing_pagination",
+            "comments", "comment", "collaboration", "messages",
             "all"
         ],
         default="slr",
-        help="Target test scenario to execute (slr, briefing_filters, editions, date_range, all)",
+        help="Target test scenario to execute (slr, comments, briefing_filters, editions, date_range, all)",
     )
     parser.add_argument(
         "--provider",
@@ -524,6 +526,11 @@ def main():
             total_elapsed = time.time() - t0
             print(f"\n✅ THREE PERSONAS RBAC JOURNEY COMPLETED in {total_elapsed:.1f}s (Checks: {res.get('persona_checks')})\n")
 
+        elif args.scenario in ("comments", "comment", "collaboration", "messages"):
+            res = run_paper_comments_collaboration_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ PAPER COMMENTS & COLLABORATION SCENARIO COMPLETED in {total_elapsed:.1f}s (Comments Verified: {res.get('comments_count')})\n")
+
         elif args.scenario == "all":
             logger.info("🧪 Running ALL E2E test scenarios sequentially...")
             suite_results = []
@@ -649,6 +656,13 @@ def main():
             _run_and_track(
                 "Three Personas RBAC Journey",
                 run_three_personas_rbac_journey_scenario,
+                config,
+            )
+
+            # 24. Paper Comments & Collaboration Journey
+            _run_and_track(
+                "Paper Comments & Collaboration",
+                run_paper_comments_collaboration_scenario,
                 config,
             )
 

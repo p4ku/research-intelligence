@@ -111,22 +111,26 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
                 except (ValueError, TypeError):
                     return qs.none()
 
-            filter_kwargs = {'metrics__pipeline_run_id': pr_uuid}
-            if screening_status:
-                if str(screening_status).lower() in ('passed', 'all_passed'):
-                    filter_kwargs['metrics__screening_status__in'] = ['abstract_passed', 'full_text_passed', 'accepted']
-                else:
-                    filter_kwargs['metrics__screening_status'] = screening_status
+            action = getattr(self, 'action', None)
+            if action not in ['comments', 'messages']:
+                filter_kwargs = {'metrics__pipeline_run_id': pr_uuid}
+                if screening_status:
+                    if str(screening_status).lower() in ('passed', 'all_passed'):
+                        filter_kwargs['metrics__screening_status__in'] = ['abstract_passed', 'full_text_passed', 'accepted']
+                    else:
+                        filter_kwargs['metrics__screening_status'] = screening_status
+                qs = qs.filter(**filter_kwargs).distinct()
 
-            qs = qs.filter(**filter_kwargs).distinct().prefetch_related(
+            qs = qs.prefetch_related(
                 Prefetch('metrics', queryset=PaperMetric.objects.filter(pipeline_run_id=pr_uuid).select_related('pipeline_run').order_by('-created_at'))
             )
 
-            from django.db.models import F
-            if ordering in ('signal_score', '+signal_score'):
-                return qs.order_by('metrics__signal_score', '-created_at', '-id')
-            elif ordering == '-signal_score':
-                return qs.order_by(F('metrics__signal_score').desc(nulls_last=True), '-created_at', '-id')
+            if action != 'scorecard':
+                from django.db.models import F
+                if ordering in ('signal_score', '+signal_score'):
+                    return qs.order_by('metrics__signal_score', '-created_at', '-id')
+                elif ordering == '-signal_score':
+                    return qs.order_by(F('metrics__signal_score').desc(nulls_last=True), '-created_at', '-id')
 
             return qs.order_by('-created_at', '-id')
 
@@ -192,6 +196,62 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
         from .scorecard import build_paper_scorecard_response
         paper = self.get_object()
         return build_paper_scorecard_response(paper, request)
+
+    @extend_schema(
+        tags=['Literature & Papers'],
+        parameters=[
+            OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Optional PipelineRun UUID to scope run comments'),
+        ],
+        description="List or create collaboration comments and discussion messages on this paper.",
+    )
+    @action(detail=True, methods=['get', 'post'], url_path='comments')
+    def comments(self, request, pk=None):
+        paper = self.get_object()
+        pr_param = (
+            request.query_params.get('pipeline_run')
+            or request.query_params.get('pipeline_run_id')
+            or request.query_params.get('run_id')
+            or (request.data.get('pipeline_run') if hasattr(request, 'data') and isinstance(request.data, dict) else None)
+        )
+        if request.method == 'GET':
+            from api.serializers.comments import get_paper_messages_payload
+            data = get_paper_messages_payload(paper, target_pr_id=pr_param, request=request)
+            return Response(data, status=status.HTTP_200_OK)
+
+        elif request.method == 'POST':
+            from api.serializers.comments import PaperCommentSerializer
+            from research_intelligence.models import PaperComment
+            import uuid
+
+            content = (request.data.get('content') or '').strip()
+            if not content:
+                return Response({'error': 'Content is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            comment_type = request.data.get('comment_type', PaperComment.TYPE_GENERAL)
+            parent_id = request.data.get('parent_id')
+            pr_uuid = None
+            if pr_param and str(pr_param).lower() not in ('undefined', 'null', ''):
+                try:
+                    pr_uuid = uuid.UUID(str(pr_param))
+                except (ValueError, TypeError):
+                    pr_uuid = None
+
+            comment = PaperComment.objects.create(
+                workspace=paper.workspace,
+                paper=paper,
+                pipeline_run_id=pr_uuid,
+                user=request.user,
+                parent_id=parent_id,
+                content=content,
+                comment_type=comment_type,
+            )
+            serializer = PaperCommentSerializer(comment, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get', 'post'], url_path='messages')
+    def messages(self, request, pk=None):
+        """Alias action for /comments/."""
+        return self.comments(request, pk=pk)
 
 
 

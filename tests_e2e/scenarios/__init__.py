@@ -28,6 +28,7 @@ from .paper_page_scorecard_journey import run_paper_page_scorecard_journey_scena
 from .run_admission_guard import run_run_admission_guard_scenario
 from .briefing_filters_and_pagination import run_briefing_filters_and_pagination_scenario
 from .three_personas_rbac_journey import run_three_personas_rbac_journey_scenario
+from .paper_comments_collaboration import run_paper_comments_collaboration_scenario
 
 __all__ = [
     "run_full_slr_pipeline_scenario",
@@ -57,4 +58,5 @@ __all__ = [
     "run_run_admission_guard_scenario",
     "run_briefing_filters_and_pagination_scenario",
     "run_three_personas_rbac_journey_scenario",
+    "run_paper_comments_collaboration_scenario",
 ]
