@@ -12,7 +12,7 @@ class DocumentRegistry(models.Model):
     OCR layout artifacts, and cross-workspace access metrics.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    sha256_hash = models.CharField(max_length=64, unique=True, db_index=True, help_text="Global SHA-256 hash of PDF binary")
+    sha256_hash = models.CharField(max_length=64, unique=True, db_index=True, help_text="SHA-256 hash of PDF binary or Markdown content (for PDF-less sources such as Google Patents)")
     doi = models.CharField(max_length=255, blank=True, null=True, db_index=True, help_text="Digital Object Identifier (DOI)")
     arxiv_id = models.CharField(max_length=100, blank=True, null=True, db_index=True, help_text="arXiv repository ID")
     title = models.CharField(max_length=512)
@@ -46,6 +46,7 @@ class DocumentRegistry(models.Model):
             models.Index(fields=['doi']),
             models.Index(fields=['arxiv_id']),
             models.Index(fields=['sha256_hash']),
+            models.Index(fields=['source_url'], name='research_in_source__url_idx'),
         ]
 
     def __str__(self):
@@ -167,10 +168,10 @@ class Paper(models.Model):
     title = models.CharField(max_length=512)
     authors = models.TextField()
     abstract = models.TextField()
-    source_database = models.CharField(max_length=50, help_text="arxiv, openalex, or lens")
+    source_database = models.CharField(max_length=50, help_text="arxiv, openalex, lens, or google_patents")
     source_url = models.URLField(max_length=1024, blank=True, null=True, help_text="Original public web URL to article landing page or repository")
-    original_pdf_path = models.CharField(max_length=512, blank=True, null=True, help_text="S3 key of original PDF")
-    converted_md_path = models.CharField(max_length=512, blank=True, null=True, help_text="S3 key of layout Markdown")
+    original_pdf_path = models.CharField(max_length=512, blank=True, null=True, help_text="Storage path to original PDF (S3 / MinIO key or local filesystem path)")
+    converted_md_path = models.CharField(max_length=512, blank=True, null=True, help_text="Storage path to layout Markdown (S3 / MinIO key or local filesystem path)")
     
     # Raw Source Metadata
     meta = models.JSONField(

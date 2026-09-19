@@ -1,6 +1,7 @@
 import os
 import time
 import logging
+import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from celery import shared_task
 from django.utils import timezone
@@ -17,6 +18,7 @@ from .pdf_cache import (
     register_document_markdown,
     try_reuse_cached_markdown,
 )
+from ..constants import SourceDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +51,8 @@ def _mark_download_retrieval_failed(paper, pipeline_run_obj, error_reason: str):
                     'full_text_screening_reasoning': f"Full-text retrieval failed: could not download PDF ({error_reason})."
                 }
             )
-            pm.screening_status = 'rejected'
-            pm.full_text_screening_reasoning = f"Full-text retrieval failed: could not download PDF ({error_reason})."
+            # update_or_create already persisted screening_status and reasoning;
+            # only metrics_data needs an additional targeted save.
             m_data = dict(pm.metrics_data or {})
             m_data["download"] = {
                 "success": False,
@@ -58,7 +60,7 @@ def _mark_download_retrieval_failed(paper, pipeline_run_obj, error_reason: str):
                 "screening_status": "rejected"
             }
             pm.metrics_data = m_data
-            pm.save(update_fields=['screening_status', 'full_text_screening_reasoning', 'metrics_data'])
+            pm.save(update_fields=['metrics_data'])
             logger.info(f"🚫 [RETRIEVAL FAILED] Paper '{paper.id}' marked as rejected (reason: {error_reason})")
         except Exception as me:
             logger.warning(f"Could not mark PaperMetric retrieval failure for paper {paper.id}: {me}")
@@ -116,7 +118,7 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj, withdrawn_info_
                         register_document_markdown(
                             paper,
                             md_bytes,
-                            ocr_provider="google_patents_html" if paper.source_database == "google_patents" else "markdown"
+                            ocr_provider=SourceDatabase.ocr_provider_for(paper)
                         )
                 except Exception as reg_err:
                     logger.warning(f"Could not register existing markdown in DocumentRegistry: {reg_err}")
@@ -237,7 +239,7 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj, withdrawn_info_
                     doc_reg = register_document_markdown(
                         paper,
                         file_bytes,
-                        ocr_provider="google_patents_html" if paper.source_database == "google_patents" else "markdown"
+                        ocr_provider=SourceDatabase.ocr_provider_for(paper)
                     )
 
                     size_bytes = len(file_bytes)
@@ -526,8 +528,17 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
 @shared_task(acks_late=True, reject_on_worker_lost=True)
 def download_pdf_to_s3(paper_id):
     """
-    Downloads paper PDF using the appropriate scraper provider and uploads it to storage.
+    .. deprecated::
+        Use ``execute_pdf_download_job`` via a ``ComponentRun`` instead.
+        This legacy task lacks Markdown support, DocumentRegistry registration,
+        cross-workspace cache reuse, and withdrawn/rejected handling.
+        Retained only for backwards compatibility with ``test_architectural_consistency``.
     """
+    warnings.warn(
+        "download_pdf_to_s3 is deprecated. Use execute_pdf_download_job instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     try:
         paper = Paper.objects.get(pk=paper_id)
         if not paper.original_pdf_path:

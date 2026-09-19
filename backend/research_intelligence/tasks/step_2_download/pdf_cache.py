@@ -5,6 +5,7 @@ from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
 from ...models import Paper, DocumentRegistry
+from ..constants import SourceDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ def register_document_markdown(
             arxiv_id=paper.arxiv_id,
             source_url=paper.source_url,
             title=paper.title,
-            primary_source=paper.source_database or "google_patents",
+            primary_source=SourceDatabase.for_paper(paper),
             canonical_pdf_path="",
             pdf_file_size_bytes=0,
             ocr_provider=ocr_provider,
@@ -130,7 +131,7 @@ def register_document_pdf(paper: Paper, file_bytes: bytes, run_storage_path: str
             "arxiv_id": paper.arxiv_id,
             "source_url": paper.source_url,
             "title": paper.title,
-            "primary_source": paper.source_database or "arxiv",
+            "primary_source": SourceDatabase.for_paper(paper),
             "canonical_pdf_path": canonical_cache_path,
             "pdf_file_size_bytes": len(file_bytes),
             "access_count": 1,
@@ -220,7 +221,6 @@ def try_reuse_cached_pdf(paper: Paper, target_path: str, title_snippet: str = ""
                     "size_bytes": size_bytes,
                     "size_kb": round(size_kb, 1),
                     "storage_path": saved_path,
-                    "cache_hit": True,
                     "from_cache": True,
                     "cached_from": doc_reg.canonical_pdf_path,
                     "registry_id": str(doc_reg.id),
@@ -281,7 +281,6 @@ def try_reuse_cached_pdf(paper: Paper, target_path: str, title_snippet: str = ""
                 "size_bytes": size_bytes,
                 "size_kb": round(size_kb, 1),
                 "storage_path": saved_path,
-                "cache_hit": True,
                 "from_cache": True,
                 "cached_from": cached_paper.original_pdf_path,
                 "registry_id": str(doc_reg.id) if doc_reg else None
@@ -339,7 +338,6 @@ def try_reuse_cached_markdown(paper: Paper, target_path: str, title_snippet: str
                     "size_kb": round(size_kb, 1),
                     "storage_path": saved_path,
                     "format": "markdown",
-                    "cache_hit": True,
                     "from_cache": True,
                     "cached_from": doc_reg.canonical_ocr_md_path,
                     "registry_id": str(doc_reg.id),
@@ -387,7 +385,7 @@ def try_reuse_cached_markdown(paper: Paper, target_path: str, title_snippet: str
             doc_reg = register_document_markdown(
                 paper,
                 file_bytes,
-                ocr_provider="google_patents_html" if paper.source_database == "google_patents" else "markdown"
+                ocr_provider=SourceDatabase.ocr_provider_for(paper)
             )
 
             size_bytes = len(file_bytes)
@@ -404,7 +402,6 @@ def try_reuse_cached_markdown(paper: Paper, target_path: str, title_snippet: str
                 "size_kb": round(size_kb, 1),
                 "storage_path": saved_path,
                 "format": "markdown",
-                "cache_hit": True,
                 "from_cache": True,
                 "cached_from": cached_paper.converted_md_path,
                 "registry_id": str(doc_reg.id) if doc_reg else None

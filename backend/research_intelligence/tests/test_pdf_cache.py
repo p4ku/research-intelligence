@@ -91,7 +91,7 @@ class DocumentRegistryAndCacheTestCase(TestCase):
 
         self.assertIsNotNone(result)
         self.assertEqual(result["status"], "downloaded")
-        self.assertTrue(result["cache_hit"])
+        self.assertTrue(result["from_cache"])
         self.assertTrue(result["from_cache"])
         self.assertEqual(result["cached_from"], doc_reg.canonical_pdf_path)
         self.assertEqual(result["registry_id"], str(doc_reg.id))
@@ -150,7 +150,7 @@ class DocumentRegistryAndCacheTestCase(TestCase):
             res_b = run_ocr_conversion(paper_b.id)
             mock_provider_b.assert_not_called()
             self.assertTrue(res_b["success"])
-            self.assertTrue(res_b.get("cache_hit"))
+            self.assertTrue(res_b.get("from_cache"))
 
         paper_b.refresh_from_db()
         self.assertTrue(default_storage.exists(paper_b.converted_md_path))
@@ -396,7 +396,7 @@ class DocumentRegistryAndCacheTestCase(TestCase):
         self.assertIsNotNone(reuse_res)
         self.assertEqual(reuse_res["status"], "downloaded")
         self.assertEqual(reuse_res["format"], "markdown")
-        self.assertTrue(reuse_res["cache_hit"])
+        self.assertTrue(reuse_res["from_cache"])
         self.assertTrue(reuse_res["from_cache"])
         self.assertEqual(reuse_res["cached_from"], doc_reg.canonical_ocr_md_path)
         self.assertTrue(default_storage.exists(target_md_path))

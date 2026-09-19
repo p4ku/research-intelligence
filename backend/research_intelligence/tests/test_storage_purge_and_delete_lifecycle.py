@@ -186,7 +186,7 @@ class StoragePurgeAndDeleteLifecycleTestCase(TestCase):
         ws2_target_path = f"workspaces/{ws2.id}/runs/{run20.id}/documents/doc_shared_ws2/original.pdf"
         reuse_res = try_reuse_cached_pdf(paper_ws2, ws2_target_path)
         self.assertIsNotNone(reuse_res)
-        self.assertTrue(reuse_res["cache_hit"])
+        self.assertTrue(reuse_res["from_cache"])
         self.assertTrue(default_storage.exists(ws2_target_path))
 
         # 3. Purge Workspace 1's PipelineRun
@@ -225,6 +225,6 @@ class StoragePurgeAndDeleteLifecycleTestCase(TestCase):
         ws3_target_path = f"workspaces/{ws3.id}/runs/{run30.id}/documents/doc_shared_ws3/original.pdf"
         ws3_reuse_res = try_reuse_cached_pdf(paper_ws3, ws3_target_path)
         self.assertIsNotNone(ws3_reuse_res)
-        self.assertTrue(ws3_reuse_res["cache_hit"])
+        self.assertTrue(ws3_reuse_res["from_cache"])
         self.assertTrue(default_storage.exists(ws3_target_path))
 

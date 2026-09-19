@@ -12,6 +12,7 @@ from ...models import Workspace, Paper, PipelineRun, ComponentRun, DocumentRegis
 from ...ocr_providers.factory import get_ocr_provider
 from ...utils.memory_guard import reclaim_ram
 from ..step_2_download.pdf_cache import register_document_markdown
+from ..constants import SourceDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ def run_ocr_conversion(paper_id, output_format="markdown", paper_obj=None):
                         register_document_markdown(
                             paper,
                             md_bytes,
-                            ocr_provider="google_patents_html" if paper.source_database == "google_patents" else "markdown"
+                            ocr_provider=SourceDatabase.ocr_provider_for(paper)
                         )
                 except Exception as reg_err:
                     logger.warning(f"Could not auto-register existing markdown for paper {paper.id} in DocumentRegistry: {reg_err}")
@@ -88,7 +89,7 @@ def run_ocr_conversion(paper_id, output_format="markdown", paper_obj=None):
                     return {
                         "success": True,
                         "already_exists": True,
-                        "cache_hit": True,
+                        "from_cache": True,
                         "storage_path": saved_path,
                         "character_count": len(cached_md_bytes)
                     }

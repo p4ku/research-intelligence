@@ -279,7 +279,7 @@ class DownloadTaskTestCase(TestCase):
             mock_network_download.assert_not_called()
 
         self.assertEqual(result["status"], "downloaded")
-        self.assertTrue(result.get("cache_hit"))
+        self.assertTrue(result.get("from_cache"))
         self.assertTrue(result.get("from_cache"))
         self.assertEqual(result.get("cached_from"), ws1_storage_path)
 

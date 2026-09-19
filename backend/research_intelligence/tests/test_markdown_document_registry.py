@@ -193,7 +193,7 @@ class MarkdownDocumentRegistryCoreTests(TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["status"], "downloaded")
         self.assertEqual(result["format"], "markdown")
-        self.assertTrue(result["cache_hit"])
+        self.assertTrue(result["from_cache"])
         self.assertTrue(result["from_cache"])
         self.assertEqual(result["cached_from"], doc_reg.canonical_ocr_md_path)
         self.assertEqual(result["registry_id"], str(doc_reg.id))
@@ -241,7 +241,7 @@ class MarkdownDocumentRegistryCoreTests(TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["status"], "downloaded")
         self.assertEqual(result["format"], "markdown")
-        self.assertTrue(result["cache_hit"])
+        self.assertTrue(result["from_cache"])
         self.assertTrue(default_storage.exists(target_path))
 
         paper_new.refresh_from_db()
@@ -459,7 +459,7 @@ class FetchStepMarkdownPipelineTests(TestCase):
 
         mock_get_provider.assert_not_called()
         self.assertEqual(res["status"], "downloaded")
-        self.assertTrue(res.get("cache_hit"))
+        self.assertTrue(res.get("from_cache"))
         self.assertEqual(res.get("registry_id"), str(doc_reg.id))
 
 
