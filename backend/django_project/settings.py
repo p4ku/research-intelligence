@@ -427,7 +427,7 @@ STORAGES = {
 
 if STORAGE_BACKEND in ['s3', 'minio']:
     STORAGES["default"] = {
-        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "BACKEND": "research_intelligence.storage.ResilientS3Boto3Storage",
     }
     AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', os.environ.get('MINIO_ACCESS_KEY', 'minio_dev_user'))
     AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', os.environ.get('MINIO_SECRET_KEY', 'minio_dev_password'))

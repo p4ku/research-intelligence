@@ -51,6 +51,60 @@ if db_host:
 EOF
 fi
 
+# Ensure Object Storage (S3 / MinIO) bucket exists if configured
+if [ "$STORAGE_BACKEND" = "s3" ] || [ "$STORAGE_BACKEND" = "minio" ] || [ -n "$AWS_S3_ENDPOINT_URL" ] || [ -n "$MINIO_ENDPOINT" ]; then
+    echo "🪣 [ENTRYPOINT] Ensuring S3 / MinIO storage bucket exists..."
+    python - <<'EOF'
+import os
+import sys
+
+bucket_name = os.environ.get("AWS_STORAGE_BUCKET_NAME", "schwarz-research-intelligence")
+endpoint_url = os.environ.get("AWS_S3_ENDPOINT_URL", os.environ.get("MINIO_ENDPOINT"))
+access_key = os.environ.get("AWS_ACCESS_KEY_ID", os.environ.get("MINIO_ACCESS_KEY", "minio_dev_user"))
+secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY", os.environ.get("MINIO_SECRET_KEY", "minio_dev_password"))
+region = os.environ.get("AWS_S3_REGION_NAME", "eu-central-1")
+
+if endpoint_url and not endpoint_url.startswith("http"):
+    use_ssl = os.environ.get("AWS_S3_USE_SSL", os.environ.get("MINIO_SECURE", "False")).lower() in ["true", "1", "yes"]
+    protocol = "https" if use_ssl else "http"
+    endpoint_url = f"{protocol}://{endpoint_url}"
+
+try:
+    import boto3
+    from botocore.exceptions import ClientError
+
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=endpoint_url,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name=region,
+    )
+    try:
+        s3.head_bucket(Bucket=bucket_name)
+        print(f"✅ [ENTRYPOINT] S3/MinIO bucket '{bucket_name}' verified.")
+    except ClientError as e:
+        code = str(e.response.get("Error", {}).get("Code", ""))
+        if code in ["404", "NoSuchBucket", "NotFound"]:
+            print(f"🪣 [ENTRYPOINT] Bucket '{bucket_name}' not found. Auto-creating...")
+            try:
+                s3.create_bucket(Bucket=bucket_name)
+            except Exception:
+                if region and region != "us-east-1":
+                    s3.create_bucket(
+                        Bucket=bucket_name,
+                        CreateBucketConfiguration={"LocationConstraint": region},
+                    )
+                else:
+                    raise
+            print(f"✅ [ENTRYPOINT] S3/MinIO bucket '{bucket_name}' created successfully.")
+        else:
+            print(f"⚠️ [ENTRYPOINT] S3/MinIO bucket check warning: {e}")
+except Exception as e:
+    print(f"⚠️ [ENTRYPOINT] Could not verify/create S3/MinIO bucket '{bucket_name}': {e}")
+EOF
+fi
+
 
 if [ "$#" -gt 0 ]; then
     echo "⚡ [ENTRYPOINT] Executing custom command: $@"
