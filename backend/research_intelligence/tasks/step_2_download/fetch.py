@@ -11,7 +11,12 @@ from django.core.files.base import ContentFile
 from ...models import Workspace, Paper, PipelineRun, ComponentRun, PaperMetric
 from ...scrapers import get_scraper_provider
 from ...utils.memory_guard import reclaim_ram
-from .pdf_cache import try_reuse_cached_pdf, register_document_pdf
+from .pdf_cache import (
+    try_reuse_cached_pdf,
+    register_document_pdf,
+    register_document_markdown,
+    try_reuse_cached_markdown,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -103,12 +108,26 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj, withdrawn_info_
 
     if paper.converted_md_path and not (paper.converted_md_path.startswith("http://") or paper.converted_md_path.startswith("https://")):
         if default_storage.exists(paper.converted_md_path):
+            if not paper.document_registry:
+                try:
+                    with default_storage.open(paper.converted_md_path, 'rb') as f:
+                        md_bytes = f.read()
+                    if md_bytes:
+                        register_document_markdown(
+                            paper,
+                            md_bytes,
+                            ocr_provider="google_patents_html" if paper.source_database == "google_patents" else "markdown"
+                        )
+                except Exception as reg_err:
+                    logger.warning(f"Could not register existing markdown in DocumentRegistry: {reg_err}")
             logger.info(f"⏩ [SKIPPED] Full-text document already stored at: '{paper.converted_md_path}' for paper '{title_snippet}...'")
             return {
                 "status": "already_stored",
                 "paper_id": str(paper.id),
                 "title": paper.title,
-                "storage_path": paper.converted_md_path
+                "storage_path": paper.converted_md_path,
+                "format": "markdown",
+                "registry_id": str(paper.document_registry_id) if paper.document_registry_id else None
             }
 
     # If default_storage target_path already exists, link and skip
@@ -123,10 +142,15 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj, withdrawn_info_
             "storage_path": target_path
         }
 
-    # Cross-Workspace / Cross-Run PDF Cache Reuse (Zero-Network Fast Path)
+    # Cross-Workspace / Cross-Run Document Cache Reuse (Zero-Network Fast Path)
     cache_result = try_reuse_cached_pdf(paper, target_path, title_snippet)
     if cache_result:
         return cache_result
+
+    target_md_path = f"{doc_folder}/document.md"
+    md_cache_result = try_reuse_cached_markdown(paper, target_md_path, title_snippet)
+    if md_cache_result:
+        return md_cache_result
 
     # Resolve source URL
     pdf_source_url = paper.original_pdf_path
@@ -210,10 +234,16 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj, withdrawn_info_
                         update_fields.append('meta')
                     paper.save(update_fields=update_fields)
 
+                    doc_reg = register_document_markdown(
+                        paper,
+                        file_bytes,
+                        ocr_provider="google_patents_html" if paper.source_database == "google_patents" else "markdown"
+                    )
+
                     size_bytes = len(file_bytes)
                     del file_bytes
                     size_kb = size_bytes / 1024
-                    logger.info(f"✅ [DOWNLOADED] Successfully saved full-text Markdown [{size_kb:.1f} KB] from '{pdf_source_url}' -> saved to: '{saved_path}'")
+                    logger.info(f"✅ [DOWNLOADED] Successfully saved full-text Markdown [{size_kb:.1f} KB] from '{pdf_source_url}' -> saved to: '{saved_path}' (Registered in DocumentRegistry: {doc_reg.id if doc_reg else 'None'})")
                     return {
                         "status": "downloaded",
                         "paper_id": str(paper.id),
@@ -222,6 +252,7 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj, withdrawn_info_
                         "size_kb": round(size_kb, 1),
                         "storage_path": saved_path,
                         "format": "markdown",
+                        "registry_id": str(doc_reg.id) if doc_reg else None
                     }
 
                 logger.warning(f"⚠️ [NON-PDF CONTENT] Downloaded {len(file_bytes)} bytes from '{pdf_source_url}' for paper '{title_snippet}...' but content is neither a valid PDF nor recognized Markdown document.")

@@ -8,6 +8,8 @@ from research_intelligence.models import Workspace, PipelineRun, Paper, Document
 from research_intelligence.tasks.step_2_download.pdf_cache import (
     try_reuse_cached_pdf,
     register_document_pdf,
+    register_document_markdown,
+    try_reuse_cached_markdown,
     find_in_document_registry,
 )
 from research_intelligence.tasks.step_3_ocr.convert import run_ocr_conversion
@@ -334,3 +336,75 @@ class DocumentRegistryAndCacheTestCase(TestCase):
         self.assertIsNotNone(reuse_res)
         paper_b.refresh_from_db()
         self.assertEqual(paper_b.meta, sample_arxiv_meta)
+
+    def test_register_document_markdown_creates_canonical_cache_and_document_registry(self):
+        """Validates that Markdown documents (e.g. Google Patents) are registered in DocumentRegistry."""
+        md_content = b"# Patent US1234567B2: Method for Quantum Qubit Calibration\n\n## Abstract\nA system and method for calibrating superconducting qubits.\n\n## Claims\n1. A method comprising..."
+        md_sha256 = hashlib.sha256(md_content).hexdigest()
+
+        paper = Paper.objects.create(
+            workspace=self.workspace_a,
+            pipeline_run=self.run_a,
+            hash_id="patent_hash_001",
+            source_url="https://patents.google.com/patent/US1234567B2/en",
+            title="Method for Quantum Qubit Calibration",
+            source_database="google_patents",
+            meta={"patent_id": "US1234567B2"}
+        )
+
+        doc_reg = register_document_markdown(paper, md_content, ocr_provider="google_patents_html")
+        self.assertIsNotNone(doc_reg)
+        self.assertEqual(doc_reg.sha256_hash, md_sha256)
+        self.assertEqual(doc_reg.source_url, "https://patents.google.com/patent/US1234567B2/en")
+        self.assertEqual(doc_reg.primary_source, "google_patents")
+        self.assertEqual(doc_reg.ocr_provider, "google_patents_html")
+        self.assertEqual(doc_reg.canonical_ocr_md_path, f"cache/documents/{md_sha256}/document.md")
+        self.assertTrue(default_storage.exists(doc_reg.canonical_ocr_md_path))
+        self.assertEqual(doc_reg.access_count, 1)
+
+        paper.refresh_from_db()
+        self.assertEqual(paper.document_registry, doc_reg)
+
+    def test_try_reuse_cached_markdown_cross_workspace(self):
+        """Validates cross-workspace zero-network reuse of Markdown documents via DocumentRegistry."""
+        md_content = b"# Patent EP9876543A1: Superconducting Circuit\n\nFull-text markdown description."
+        md_sha256 = hashlib.sha256(md_content).hexdigest()
+
+        paper_a = Paper.objects.create(
+            workspace=self.workspace_a,
+            pipeline_run=self.run_a,
+            hash_id="patent_ws_a",
+            source_url="https://patents.google.com/patent/EP9876543A1/en",
+            title="Superconducting Circuit (WS A)",
+            source_database="google_patents"
+        )
+        doc_reg = register_document_markdown(paper_a, md_content, ocr_provider="google_patents_html")
+
+        # Workspace B wants the exact same patent
+        paper_b = Paper.objects.create(
+            workspace=self.workspace_b,
+            pipeline_run=self.run_b,
+            hash_id="patent_ws_b",
+            source_url="https://patents.google.com/patent/EP9876543A1/en",
+            title="Superconducting Circuit (WS B)",
+            source_database="google_patents"
+        )
+
+        target_md_path = f"workspaces/{self.workspace_b.id}/runs/{self.run_b.id}/documents/patent_ws_b/document.md"
+        reuse_res = try_reuse_cached_markdown(paper_b, target_md_path, title_snippet="Superconducting Circuit")
+
+        self.assertIsNotNone(reuse_res)
+        self.assertEqual(reuse_res["status"], "downloaded")
+        self.assertEqual(reuse_res["format"], "markdown")
+        self.assertTrue(reuse_res["cache_hit"])
+        self.assertTrue(reuse_res["from_cache"])
+        self.assertEqual(reuse_res["cached_from"], doc_reg.canonical_ocr_md_path)
+        self.assertTrue(default_storage.exists(target_md_path))
+
+        doc_reg.refresh_from_db()
+        self.assertEqual(doc_reg.access_count, 2)
+
+        paper_b.refresh_from_db()
+        self.assertEqual(paper_b.document_registry, doc_reg)
+        self.assertEqual(paper_b.converted_md_path, target_md_path)
+

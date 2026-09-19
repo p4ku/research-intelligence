@@ -11,6 +11,7 @@ from django.core.files.base import ContentFile
 from ...models import Workspace, Paper, PipelineRun, ComponentRun, DocumentRegistry
 from ...ocr_providers.factory import get_ocr_provider
 from ...utils.memory_guard import reclaim_ram
+from ..step_2_download.pdf_cache import register_document_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,18 @@ def run_ocr_conversion(paper_id, output_format="markdown", paper_obj=None):
     try:
         paper = paper_obj or Paper.objects.get(pk=paper_id)
         if paper.converted_md_path and default_storage.exists(paper.converted_md_path):
+            if not paper.document_registry:
+                try:
+                    with default_storage.open(paper.converted_md_path, 'rb') as f:
+                        md_bytes = f.read()
+                    if md_bytes:
+                        register_document_markdown(
+                            paper,
+                            md_bytes,
+                            ocr_provider="google_patents_html" if paper.source_database == "google_patents" else "markdown"
+                        )
+                except Exception as reg_err:
+                    logger.warning(f"Could not auto-register existing markdown for paper {paper.id} in DocumentRegistry: {reg_err}")
             logger.info(f"Paper {paper_id} is already converted to {output_format} at {paper.converted_md_path}")
             return {"success": True, "already_exists": True, "storage_path": paper.converted_md_path}
 

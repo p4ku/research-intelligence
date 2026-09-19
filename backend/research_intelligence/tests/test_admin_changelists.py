@@ -282,12 +282,87 @@ class AdminChangelistViewsTestCase(TestCase):
         self.assertContains(response, "1 run")
         self.assertNotContains(response, "⚡ 71.20")
 
+    def test_paper_and_documentregistry_markdown_previews(self):
+        """Validates that Markdown files are exposed with preview links in Paper and DocumentRegistry Admin."""
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+
+        md_path = "workspaces/test_ws/documents/test_hash/document.md"
+        default_storage.save(md_path, ContentFile(b"# Test Patent Document\n\nAbstract here."))
+
+        patent_paper = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id="patent_test_md",
+            title="Quantum Patent Document",
+            source_database="google_patents",
+            converted_md_path=md_path,
+            document_registry=self.doc_registry
+        )
+
+        # 1. Paper list_display has clickable MD badge
+        url = reverse('admin:research_intelligence_paper_changelist')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Quantum Patent Document")
+        self.assertContains(response, "📝 MD ↗")
+        self.assertContains(response, "action=preview")
+
+        # 2. Paper changeform has preview & download buttons
+        change_url = reverse('admin:research_intelligence_paper_change', args=[patent_paper.id])
+        change_resp = self.client.get(change_url)
+        self.assertEqual(change_resp.status_code, 200)
+        self.assertContains(change_resp, "👁️ Preview Markdown")
+        self.assertContains(change_resp, "⬇️ Download")
+        self.assertContains(change_resp, "⚡ DocumentRegistry #")
+
+        # 3. DocumentRegistry changeform has preview & download buttons
+        doc_change_url = reverse('admin:research_intelligence_documentregistry_change', args=[self.doc_registry.id])
+        doc_resp = self.client.get(doc_change_url)
+        self.assertEqual(doc_resp.status_code, 200)
+        self.assertContains(doc_resp, "👁️ Preview Markdown")
+        self.assertContains(doc_resp, "⬇️ Download")
+
     def test_paper_changeform_renders_with_metrics_inline(self):
         url = reverse('admin:research_intelligence_paper_change', args=[self.paper.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Quantum Circuit Synthesis")
         self.assertContains(response, "Paper metrics")
+
+    def test_sync_document_registry_admin_action(self):
+        """Validates that sync_document_registry action registers unlinked papers into DocumentRegistry."""
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+
+        md_path = "workspaces/test_ws/documents/unlinked_hash/document.md"
+        default_storage.save(md_path, ContentFile(b"# Unlinked Patent\n\nFull text."))
+
+        unlinked_paper = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id="unlinked_patent_001",
+            title="Unlinked Patent 1",
+            source_database="google_patents",
+            converted_md_path=md_path,
+            source_url="https://patents.google.com/patent/US9999999B1/en"
+        )
+        self.assertIsNone(unlinked_paper.document_registry)
+
+        url = reverse('admin:research_intelligence_paper_changelist')
+        post_data = {
+            'action': 'sync_document_registry',
+            '_selected_action': [str(unlinked_paper.id)],
+        }
+        resp = self.client.post(url, post_data, follow=True)
+        self.assertEqual(resp.status_code, 200)
+
+        unlinked_paper.refresh_from_db()
+        self.assertIsNotNone(unlinked_paper.document_registry)
+        self.assertEqual(unlinked_paper.document_registry.primary_source, "google_patents")
+        self.assertEqual(unlinked_paper.document_registry.ocr_provider, "google_patents_html")
+        self.assertTrue(unlinked_paper.document_registry.canonical_ocr_md_path)
+
 
     def test_papermetric_changelist_renders(self):
         url = reverse('admin:research_intelligence_papermetric_changelist')

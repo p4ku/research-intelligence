@@ -1,7 +1,9 @@
 import json
+from urllib.parse import quote
 from decimal import Decimal
 from django import forms
 from django.db import models
+from django.core.files.storage import default_storage
 from django.db.models import Q
 from django.contrib import admin, messages
 from django.shortcuts import get_object_or_404
@@ -3854,12 +3856,14 @@ class PaperAdmin(admin.ModelAdmin):
         models.JSONField: {'widget': PrettyJSONWidget},
     }
     inlines = [PaperMetricInline]
+    actions = ['sync_document_registry']
     list_display = (
         'title',
         'workspace',
         'runs_count_badge',
         'source_database_badge',
         'source_link_badge',
+        'document_files_badge',
         'created_at'
     )
     ordering = ('-created_at', '-id')
@@ -3867,7 +3871,7 @@ class PaperAdmin(admin.ModelAdmin):
     list_filter = ('source_database', 'workspace')
     search_fields = ('title', 'authors', 'doi', 'arxiv_id', 'source_url', 'hash_id')
     raw_id_fields = ('document_registry', 'workspace')
-    readonly_fields = ('id', 'hash_id', 'created_at')
+    readonly_fields = ('id', 'hash_id', 'created_at', 'document_registry_link', 'original_pdf_display', 'converted_md_display')
 
     fieldsets = (
         ('Paper Metadata', {
@@ -3877,7 +3881,14 @@ class PaperAdmin(admin.ModelAdmin):
             'fields': ('source_database', 'source_url', 'doi', 'arxiv_id', 'hash_id')
         }),
         ('Canonical Document Registry & Local Storage', {
-            'fields': ('document_registry', 'original_pdf_path', 'converted_md_path', 'created_at')
+            'fields': (
+                'document_registry_link',
+                'original_pdf_display',
+                'converted_md_display',
+                'original_pdf_path',
+                'converted_md_path',
+                'created_at'
+            )
         }),
         ('Source Metadata (meta)', {
             'fields': ('meta',),
@@ -3926,7 +3937,8 @@ class PaperAdmin(admin.ModelAdmin):
             'arxiv': '#b31b1b',
             'openalex': '#5c3d99',
             'lens': '#0d6efd',
-            'pubmed': '#198754'
+            'pubmed': '#198754',
+            'google_patents': '#d93025',
         }
         src = (obj.source_database or 'unknown').lower()
         bg = colors.get(src, '#6c757d')
@@ -3949,6 +3961,120 @@ class PaperAdmin(admin.ModelAdmin):
             url
         )
     source_link_badge.short_description = "Source Link"
+
+    def document_files_badge(self, obj):
+        badges = []
+        if obj.converted_md_path:
+            url = reverse('admin:storage-browser') + f"?action=preview&file={quote(obj.converted_md_path)}"
+            badges.append(
+                f'<a href="{url}" target="_blank" title="Preview Markdown in Storage Browser" style="text-decoration: none;">'
+                f'<span style="background-color: #0d6efd; color: #ffffff; padding: 2px 7px; border-radius: 4px; font-weight: 600; font-size: 11px; white-space: nowrap; margin-right: 4px;">📝 MD ↗</span>'
+                f'</a>'
+            )
+        if obj.original_pdf_path and not obj.original_pdf_path.startswith(('http://', 'https://')):
+            url = reverse('admin:storage-browser') + f"?action=preview&file={quote(obj.original_pdf_path)}"
+            badges.append(
+                f'<a href="{url}" target="_blank" title="Preview PDF in Storage Browser" style="text-decoration: none;">'
+                f'<span style="background-color: #dc3545; color: #ffffff; padding: 2px 7px; border-radius: 4px; font-weight: 600; font-size: 11px; white-space: nowrap; margin-right: 4px;">📄 PDF ↗</span>'
+                f'</a>'
+            )
+        elif obj.original_pdf_path and obj.original_pdf_path.startswith(('http://', 'https://')):
+            badges.append(
+                f'<a href="{obj.original_pdf_path}" target="_blank" rel="noopener noreferrer" title="External PDF" style="text-decoration: none;">'
+                f'<span style="background-color: #6c757d; color: #ffffff; padding: 2px 7px; border-radius: 4px; font-weight: 600; font-size: 11px; white-space: nowrap; margin-right: 4px;">📄 Ext PDF ↗</span>'
+                f'</a>'
+            )
+        if not badges:
+            return format_html('<span style="color: #adb5bd; font-size: 11px;">-</span>')
+        return mark_safe(''.join(badges))
+    document_files_badge.short_description = "Files"
+
+    def document_registry_link(self, obj):
+        if not obj.document_registry:
+            return format_html('<span style="color: #6c757d; font-style: italic;">Not linked to Document Registry</span>')
+        url = reverse('admin:research_intelligence_documentregistry_change', args=[obj.document_registry.id])
+        return format_html(
+            '<div style="display: flex; align-items: center; gap: 8px;">'
+            '<a href="{}" style="font-weight: bold; color: #0d6efd; text-decoration: none; font-size: 13px;">'
+            '⚡ DocumentRegistry #{} ↗'
+            '</a>'
+            '<span style="background-color: #17a2b8; color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">Hits: {}</span>'
+            '</div>',
+            url,
+            str(obj.document_registry.id)[:8],
+            obj.document_registry.access_count
+        )
+    document_registry_link.short_description = "Document Registry"
+
+    def converted_md_display(self, obj):
+        if not obj.converted_md_path:
+            return format_html('<span style="color: #adb5bd; font-size: 12px;">No Markdown document</span>')
+        preview_url = reverse('admin:storage-browser') + f"?action=preview&file={quote(obj.converted_md_path)}"
+        download_url = reverse('admin:storage-browser') + f"?action=download&file={quote(obj.converted_md_path)}"
+        return format_html(
+            '<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">'
+            '<code style="background: #f1f3f5; padding: 4px 8px; border-radius: 4px; font-size: 12px; color: #212529;">{}</code>'
+            '<a href="{}" target="_blank" style="display: inline-block; background-color: #0d6efd; color: #ffffff !important; font-weight: 600; padding: 4px 10px; border-radius: 4px; text-decoration: none; font-size: 12px; white-space: nowrap;">👁️ Preview Markdown</a>'
+            '<a href="{}" style="display: inline-block; background-color: #198754; color: #ffffff !important; font-weight: 600; padding: 4px 10px; border-radius: 4px; text-decoration: none; font-size: 12px; white-space: nowrap;">⬇️ Download</a>'
+            '</div>',
+            obj.converted_md_path,
+            preview_url,
+            download_url
+        )
+    converted_md_display.short_description = "Converted / Full-Text Markdown"
+
+    def original_pdf_display(self, obj):
+        if not obj.original_pdf_path:
+            return format_html('<span style="color: #adb5bd; font-size: 12px;">No PDF path</span>')
+        if obj.original_pdf_path.startswith(('http://', 'https://')):
+            return format_html(
+                '<a href="{}" target="_blank" rel="noopener noreferrer" style="font-weight: 600; color: #0d6efd;">🌐 Open Remote PDF ↗</a>',
+                obj.original_pdf_path
+            )
+        preview_url = reverse('admin:storage-browser') + f"?action=preview&file={quote(obj.original_pdf_path)}"
+        download_url = reverse('admin:storage-browser') + f"?action=download&file={quote(obj.original_pdf_path)}"
+        return format_html(
+            '<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">'
+            '<code style="background: #f1f3f5; padding: 4px 8px; border-radius: 4px; font-size: 12px; color: #212529;">{}</code>'
+            '<a href="{}" target="_blank" style="display: inline-block; background-color: #dc3545; color: #ffffff !important; font-weight: 600; padding: 4px 10px; border-radius: 4px; text-decoration: none; font-size: 12px; white-space: nowrap;">👁️ Preview PDF</a>'
+            '<a href="{}" style="display: inline-block; background-color: #198754; color: #ffffff !important; font-weight: 600; padding: 4px 10px; border-radius: 4px; text-decoration: none; font-size: 12px; white-space: nowrap;">⬇️ Download</a>'
+            '</div>',
+            obj.original_pdf_path,
+            preview_url,
+            download_url
+        )
+    original_pdf_display.short_description = "Original PDF"
+
+    @admin.action(description="⚡ Sync / Register selected papers in Document Registry")
+    def sync_document_registry(self, request, queryset):
+        from research_intelligence.tasks.step_2_download.pdf_cache import register_document_pdf, register_document_markdown
+        synced = 0
+        for paper in queryset:
+            if paper.document_registry_id:
+                continue
+            if paper.converted_md_path and default_storage.exists(paper.converted_md_path):
+                try:
+                    with default_storage.open(paper.converted_md_path, 'rb') as f:
+                        content = f.read()
+                    if content:
+                        register_document_markdown(
+                            paper,
+                            content,
+                            ocr_provider="google_patents_html" if paper.source_database == "google_patents" else "markdown"
+                        )
+                        synced += 1
+                except Exception as e:
+                    pass
+            elif paper.original_pdf_path and not paper.original_pdf_path.startswith(('http://', 'https://')) and default_storage.exists(paper.original_pdf_path):
+                try:
+                    with default_storage.open(paper.original_pdf_path, 'rb') as f:
+                        content = f.read()
+                    if content:
+                        register_document_pdf(paper, content)
+                        synced += 1
+                except Exception as e:
+                    pass
+        self.message_user(request, f"Successfully registered {synced} paper(s) into Document Registry.")
 
 
 @admin.register(ExtractionDefinition)
@@ -5617,7 +5743,16 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
     )
     search_fields = ('title', 'doi', 'arxiv_id', 'source_url', 'sha256_hash', 'canonical_pdf_path')
     list_filter = ('primary_source', 'ocr_provider', 'first_ingested_at', 'last_accessed_at')
-    readonly_fields = ('id', 'sha256_hash', 'first_ingested_at', 'last_accessed_at', 'access_count')
+    readonly_fields = (
+        'id',
+        'sha256_hash',
+        'first_ingested_at',
+        'last_accessed_at',
+        'access_count',
+        'canonical_pdf_display',
+        'canonical_ocr_md_display',
+        'linked_papers_display',
+    )
 
     fieldsets = (
         ('Document Identity & Core Hashes', {
@@ -5633,10 +5768,13 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
         }),
         ('Canonical Storage & Layout Cache', {
             'fields': (
-                'canonical_pdf_path',
+                'canonical_pdf_display',
                 'pdf_file_size_bytes',
                 'ocr_provider',
+                'canonical_ocr_md_display',
+                'canonical_pdf_path',
                 'canonical_ocr_md_path',
+                'linked_papers_display',
             )
         }),
         ('Usage & Lifetime Metrics', {
@@ -5741,6 +5879,7 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
             'openalex': '#0d6efd',
             'lens': '#6f42c1',
             'pubmed': '#198754',
+            'google_patents': '#d93025',
         }
         color = color_map.get((obj.primary_source or '').lower(), '#6c757d')
         return render_badge((obj.primary_source or 'source').upper(), color)
@@ -5760,16 +5899,35 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
     source_link_badge.short_description = "Source Link"
 
     def file_size_formatted(self, obj):
-        formatted = format_human_readable_bytes(obj.pdf_file_size_bytes)
-        return format_html('<span style="white-space: nowrap; font-family: monospace;">{}</span>', formatted)
+        if obj.canonical_pdf_path:
+            formatted = format_human_readable_bytes(obj.pdf_file_size_bytes)
+            preview_url = reverse('admin:storage-browser') + f"?action=preview&file={quote(obj.canonical_pdf_path)}"
+            return format_html(
+                '<a href="{}" target="_blank" title="Preview PDF in Storage Browser" style="text-decoration: none;">'
+                '<span style="white-space: nowrap; font-family: monospace; color: #0d6efd; font-weight: 600;">📄 {} ↗</span>'
+                '</a>',
+                preview_url,
+                formatted
+            )
+        if obj.canonical_ocr_md_path:
+            return format_html('<span style="color: #6c757d; font-size: 11px; font-style: italic;">Native MD</span>')
+        return format_html('<span style="color: #adb5bd;">-</span>')
     file_size_formatted.short_description = "PDF Size"
     file_size_formatted.admin_order_field = "pdf_file_size_bytes"
 
     def ocr_status_badge(self, obj):
         if obj.canonical_ocr_md_path:
-            return render_badge(obj.ocr_provider or "OCR OK", "#198754")
+            preview_url = reverse('admin:storage-browser') + f"?action=preview&file={quote(obj.canonical_ocr_md_path)}"
+            label = (obj.ocr_provider or "OCR OK").upper()
+            return format_html(
+                '<a href="{}" target="_blank" title="Preview Markdown in Storage Browser" style="text-decoration: none;">'
+                '{}'
+                '</a>',
+                preview_url,
+                render_badge(f"📝 {label} ↗", "#198754")
+            )
         return format_html('<span style="color: #6c757d; font-size: 11px; white-space: nowrap;">No OCR</span>')
-    ocr_status_badge.short_description = "OCR Layout"
+    ocr_status_badge.short_description = "OCR / MD Layout"
 
     def access_count_badge(self, obj):
         color = "#17a2b8" if obj.access_count > 1 else ("#6c757d" if obj.access_count == 1 else "#dc3545")
@@ -5783,6 +5941,54 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
         return format_html('<span style="white-space: nowrap; font-size: 11px;">{}</span>', obj.last_accessed_at.strftime("%Y-%m-%d %H:%M"))
     last_accessed_at_display.short_description = "Last Accessed"
     last_accessed_at_display.admin_order_field = "last_accessed_at"
+
+    def canonical_ocr_md_display(self, obj):
+        if not obj.canonical_ocr_md_path:
+            return format_html('<span style="color: #adb5bd; font-size: 12px;">No Markdown document</span>')
+        preview_url = reverse('admin:storage-browser') + f"?action=preview&file={quote(obj.canonical_ocr_md_path)}"
+        download_url = reverse('admin:storage-browser') + f"?action=download&file={quote(obj.canonical_ocr_md_path)}"
+        return format_html(
+            '<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">'
+            '<code style="background: #f1f3f5; padding: 4px 8px; border-radius: 4px; font-size: 12px; color: #212529;">{}</code>'
+            '<a href="{}" target="_blank" style="display: inline-block; background-color: #0d6efd; color: #ffffff !important; font-weight: 600; padding: 4px 10px; border-radius: 4px; text-decoration: none; font-size: 12px; white-space: nowrap;">👁️ Preview Markdown</a>'
+            '<a href="{}" style="display: inline-block; background-color: #198754; color: #ffffff !important; font-weight: 600; padding: 4px 10px; border-radius: 4px; text-decoration: none; font-size: 12px; white-space: nowrap;">⬇️ Download</a>'
+            '</div>',
+            obj.canonical_ocr_md_path,
+            preview_url,
+            download_url
+        )
+    canonical_ocr_md_display.short_description = "Canonical Markdown"
+
+    def canonical_pdf_display(self, obj):
+        if not obj.canonical_pdf_path:
+            return format_html('<span style="color: #adb5bd; font-size: 12px;">No Canonical PDF</span>')
+        preview_url = reverse('admin:storage-browser') + f"?action=preview&file={quote(obj.canonical_pdf_path)}"
+        download_url = reverse('admin:storage-browser') + f"?action=download&file={quote(obj.canonical_pdf_path)}"
+        return format_html(
+            '<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">'
+            '<code style="background: #f1f3f5; padding: 4px 8px; border-radius: 4px; font-size: 12px; color: #212529;">{}</code>'
+            '<a href="{}" target="_blank" style="display: inline-block; background-color: #dc3545; color: #ffffff !important; font-weight: 600; padding: 4px 10px; border-radius: 4px; text-decoration: none; font-size: 12px; white-space: nowrap;">👁️ Preview PDF</a>'
+            '<a href="{}" style="display: inline-block; background-color: #198754; color: #ffffff !important; font-weight: 600; padding: 4px 10px; border-radius: 4px; text-decoration: none; font-size: 12px; white-space: nowrap;">⬇️ Download</a>'
+            '</div>',
+            obj.canonical_pdf_path,
+            preview_url,
+            download_url
+        )
+    canonical_pdf_display.short_description = "Canonical PDF"
+
+    def linked_papers_display(self, obj):
+        count = obj.paper_instances.count()
+        if count == 0:
+            return format_html('<span style="color: #adb5bd; font-size: 12px;">0 linked papers</span>')
+        url = reverse("admin:research_intelligence_paper_changelist") + f"?document_registry__id__exact={obj.id}"
+        return format_html(
+            '<a href="{}" style="font-weight: 600; color: #0d6efd; text-decoration: none;">'
+            '📄 View {} linked paper(s) in Workspace ↗'
+            '</a>',
+            url,
+            count
+        )
+    linked_papers_display.short_description = "Linked Papers"
 
 
 # Customize Admin Portal Branding Header & Titles

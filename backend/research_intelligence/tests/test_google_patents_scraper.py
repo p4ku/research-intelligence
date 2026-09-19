@@ -726,6 +726,8 @@ class GooglePatentsCeleryTaskIntegrationTests(TestCase):
         """
         from research_intelligence.tasks.step_1_search.search import execute_scraper_run_job
 
+        self.scraper.delete()
+
         # Another scraper in the same workspace has the key
         Scraper.objects.create(
             workspace=self.workspace,

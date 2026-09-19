@@ -564,4 +564,36 @@ class PaperSourceUrlTestCase(TestCase):
         doc_no_url = DocumentRegistry(source_url=None)
         self.assertIn("-", str(doc_admin.source_link_badge(doc_no_url)))
 
+    def test_backfill_markdown_document_registry_migration(self):
+        """Verify migration 0078 backfills unlinked Markdown papers into DocumentRegistry."""
+        import importlib
+        from django.apps import apps
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+
+        mig_module = importlib.import_module("research_intelligence.migrations.0078_backfill_markdown_document_registry")
+        backfill_fn = getattr(mig_module, "backfill_markdown_document_registry")
+
+        md_path = "workspaces/test_mig/documents/mig_test/document.md"
+        default_storage.save(md_path, ContentFile(b"# Migration Test Patent\n\nFull text."))
+
+        p = Paper.objects.create(
+            workspace=self.workspace,
+            hash_id="mig_test_hash",
+            title="Migration Test Patent",
+            source_database="google_patents",
+            converted_md_path=md_path,
+            source_url="https://patents.google.com/patent/US7777777B1/en"
+        )
+        self.assertIsNone(p.document_registry)
+
+        backfill_fn(apps, None)
+
+        p.refresh_from_db()
+        self.assertIsNotNone(p.document_registry)
+        self.assertEqual(p.document_registry.primary_source, "google_patents")
+        self.assertEqual(p.document_registry.ocr_provider, "google_patents_html")
+        self.assertTrue(default_storage.exists(p.document_registry.canonical_ocr_md_path))
+
+
 
