@@ -13,6 +13,10 @@ try:
     from bs4 import BeautifulSoup
 except ImportError:
     BeautifulSoup = None
+try:
+    import serpapi
+except ImportError:
+    serpapi = None
 from django.conf import settings
 
 from .base import BaseScraperProvider
@@ -151,12 +155,27 @@ class GooglePatentData:
         return "\n".join(lines).strip()
 
 
+# ------------------------------------------------------------------------------
+# TECHNICAL DEBT: Fragile HTML Web Scraping Fallback
+# ------------------------------------------------------------------------------
 class GooglePatentPageParser:
     """
-    Parser for Google Patents HTML pages (patents.google.com).
-    Extracts direct PDF URLs, bibliographic data, inventors, current assignee,
-    timeline events, abstract, claims, and detailed description using Schema.org
-    microdata and Dublin Core metadata tags.
+    [TECHNICAL DEBT - LEGACY HTML SCRAPING FALLBACK]
+    Parser for Google Patents HTML pages (patents.google.com) using BeautifulSoup / regex.
+    
+    This parser extracts metadata and full-text directly from Google Patents web pages.
+    It is maintained strictly as an offline/resilience fallback when:
+    1. Direct PDF scans are not available on Google Cloud Storage.
+    2. SerpApi `google_patents_details` API credit limit is exceeded or offline.
+    
+    Technical Debt Warning:
+    Scraping `patents.google.com` HTML directly is fragile, prone to breaking on
+    Google DOM/microdata changes, and risks IP rate limits or CAPTCHAs in high-throughput pipelines.
+    
+    Long-term migration path:
+    - Primary: SerpApi `google_patents_details` API with structured JSON output.
+    - Long-term: Direct official patent office REST APIs (EPO Open Patent Services OPS,
+      USPTO Open Data Portal, WIPO PATENTSCOPE, or Google Patents public BigQuery tables).
     """
 
     @classmethod
@@ -376,6 +395,7 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
         api_key: Optional[str] = None,
         workspace: Optional[Any] = None,
         workspace_id: Optional[Union[str, Any]] = None,
+        use_serpapi_client: Optional[bool] = None,
         **kwargs,
     ):
         super().__init__(n_last_days=n_last_days)
@@ -386,6 +406,10 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
             workspace=self.workspace,
             workspace_id=self.workspace_id,
         )
+        if use_serpapi_client is not None:
+            self.use_serpapi_client = use_serpapi_client
+        else:
+            self.use_serpapi_client = getattr(settings, "SERPAPI_USE_SDK", True)
 
     @classmethod
     def _resolve_api_key(
@@ -431,8 +455,22 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
 
         return ""
 
+    # --------------------------------------------------------------------------
+    # TECHNICAL DEBT: Raw urllib HTTP Caller Fallback
+    # --------------------------------------------------------------------------
     def _request_json(self, params: Dict[str, str], timeout: int = 30) -> Dict[str, Any]:
-        """Calls SerpApi with retries for transient HTTP failures."""
+        """
+        [TECHNICAL DEBT - LEGACY HTTP FALLBACK]
+        Calls SerpApi directly using urllib.request with retries for transient HTTP failures.
+
+        Why this is Technical Debt:
+        - Bypasses official SDKs (`serpapi` / `requests`) and standard connection pooling.
+        - Requires manual query string formatting, header injection, and retry/backoff logic.
+        
+        Why it is retained:
+        - Acts as a zero-dependency fallback if the `serpapi` library is missing,
+          fails, or encounters environment-specific client library issues.
+        """
         url = f"{SERPAPI_ENDPOINT}?{urllib.parse.urlencode(params)}"
         last_error = None
         for attempt in range(1, 4):
@@ -464,6 +502,123 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
             time.sleep(2 ** (attempt - 1))
         raise RuntimeError(f"SerpApi request failed after 3 attempts: {last_error}")
 
+    def _request_serpapi_client(self, params: Dict[str, str], timeout: int = 30) -> Dict[str, Any]:
+        """
+        Executes query via official SerpApi SDK (serpapi.Client).
+        """
+        if serpapi is None:
+            raise RuntimeError("serpapi package is not installed in the current environment.")
+        api_key = params.get("api_key", "")
+        client = serpapi.Client(api_key=api_key)
+        search_params = {k: v for k, v in params.items() if k != "api_key"}
+        response = client.search(search_params, timeout=timeout)
+        if hasattr(response, "as_dict"):
+            return response.as_dict()
+        if isinstance(response, dict):
+            return response
+        raise ValueError(f"Unexpected response type from SerpApi client: {type(response)}")
+
+    def _fetch_search_payload(self, params: Dict[str, str], timeout: int = 30) -> Dict[str, Any]:
+        """
+        Fetches search results from SerpApi.
+        Attempts official serpapi SDK first (if enabled and installed).
+        Falls back to legacy urllib _request_json (technical debt fallback) on any failure.
+        """
+        if serpapi is not None and getattr(self, "use_serpapi_client", True):
+            try:
+                return self._request_serpapi_client(params, timeout=timeout)
+            except Exception as exc:
+                logger.warning(
+                    f"SerpApi SDK client call failed ({exc}); falling back to legacy urllib request (Tech Debt fallback)."
+                )
+        return self._request_json(params, timeout=timeout)
+
+    def fetch_patent_details_via_serpapi(
+        self,
+        patent_id: str,
+        api_key: Optional[str] = None,
+        timeout: int = 30,
+    ) -> Optional[GooglePatentData]:
+        """
+        Fetches structured patent details (title, abstract, claims, description, pdf)
+        using SerpApi's `google_patents_details` engine.
+        Returns GooglePatentData instance if successful, or None to trigger fallback.
+        """
+        effective_key = api_key or self.api_key
+        if not effective_key:
+            return None
+
+        clean_id = patent_id.strip()
+        if "patents.google.com/patent/" in clean_id:
+            m = re.search(r"patents\.google\.com/patent/([^/?#]+)", clean_id)
+            if m:
+                clean_id = m.group(1)
+        detail_id = f"patent/{clean_id}/en" if not clean_id.startswith("patent/") else clean_id
+
+        params: Dict[str, str] = {
+            "engine": "google_patents_details",
+            "patent_id": detail_id,
+            "api_key": effective_key,
+        }
+
+        try:
+            payload = self._fetch_search_payload(params, timeout=timeout)
+            patent_res = payload.get("patent_results")
+            if not isinstance(patent_res, dict) or not patent_res:
+                return None
+
+            pub_num = clean_text(patent_res.get("publication_number") or clean_id)
+            title = clean_text(patent_res.get("title"))
+            pdf_url = clean_text(patent_res.get("pdf"))
+            abstract = clean_text(patent_res.get("abstract"))
+
+            # Parse claims
+            raw_claims = patent_res.get("claims")
+            claims: List[str] = []
+            if isinstance(raw_claims, list):
+                for c in raw_claims:
+                    if isinstance(c, dict):
+                        claims.append(clean_text(c.get("text") or c.get("claim")))
+                    elif isinstance(c, str):
+                        claims.append(clean_text(c))
+            elif isinstance(raw_claims, str):
+                claims = [clean_text(c) for c in raw_claims.split("\n") if clean_text(c)]
+
+            description = clean_text(patent_res.get("description"))
+
+            # Parse inventors & assignee
+            inventors = []
+            raw_inv = patent_res.get("inventors") or patent_res.get("inventor")
+            if isinstance(raw_inv, list):
+                inventors = [clean_text(i.get("name") if isinstance(i, dict) else i) for i in raw_inv]
+            elif isinstance(raw_inv, str) and raw_inv:
+                inventors = [clean_text(raw_inv)]
+
+            assignee = clean_text(patent_res.get("assignee") or patent_res.get("current_assignee"))
+
+            return GooglePatentData(
+                publication_number=pub_num,
+                country_code=patent_country(clean_id, pub_num) or "",
+                title=title,
+                pdf_url=pdf_url or None,
+                has_pdf=bool(pdf_url),
+                current_assignee=assignee or None,
+                inventors=inventors,
+                filing_date=clean_text(patent_res.get("filing_date")),
+                publication_date=clean_text(patent_res.get("publication_date")),
+                priority_date=clean_text(patent_res.get("priority_date")),
+                grant_date=clean_text(patent_res.get("grant_date")),
+                abstract=abstract,
+                claims=claims,
+                description=description,
+            )
+        except Exception as exc:
+            logger.warning(
+                f"Failed fetching patent details via SerpApi for '{detail_id}' ({exc}). "
+                f"Falling back to HTML page parsing (Tech Debt)."
+            )
+            return None
+
     def search(
         self,
         query: str,
@@ -491,25 +646,26 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
             )
             return []
 
-        start_dt, end_dt = self.resolve_date_range(start_date, end_date, n_last_days)
         target_limit = int(limit) if limit else 10
         page_size = min(max(10, target_limit), 100)
-
-        # SerpApi after/before syntax: publication:YYYYMMDD
-        after_val = f"{date_type}:{start_dt.strftime('%Y%m%d')}"
-        before_val = f"{date_type}:{end_dt.strftime('%Y%m%d')}"
 
         params: Dict[str, str] = {
             "engine": "google_patents",
             "q": query,
-            "after": after_val,
-            "before": before_val,
             "dups": "language",
             "patents": "true",
             "scholar": "false",
+            "pdf": "true",  # SerpApi parameter to return direct PDF download links
             "num": str(page_size),
             "api_key": effective_key,
         }
+
+        # SerpApi after/before syntax: publication:YYYYMMDD
+        if not (kwargs.get("ignore_date_range") or n_last_days == 0):
+            start_dt, end_dt = self.resolve_date_range(start_date, end_date, n_last_days)
+            params["after"] = f"{date_type}:{start_dt.strftime('%Y%m%d')}"
+            params["before"] = f"{date_type}:{end_dt.strftime('%Y%m%d')}"
+
 
         # SerpApi Google Patents only supports 'new' or 'old' for sort.
         # Relevance sort is Google Patents default and must NOT be explicitly passed as 'relevance'.
@@ -522,7 +678,7 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
 
         while pages_fetched < MAX_SERPAPI_PAGES and len(results) < target_limit:
             try:
-                payload = self._request_json(params)
+                payload = self._fetch_search_payload(params)
             except Exception as exc:
                 logger.error(f"Error querying SerpApi Google Patents API: {exc}")
                 break
@@ -619,7 +775,8 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
     def download_file(self, url: str) -> bytes:
         """Downloads patent document safely with size limits and SSRF guard.
         If URL points to a Google Patents landing page (e.g. patents.google.com/patent):
-          - Parses page metadata using GooglePatentPageParser.
+          - First attempts SerpApi google_patents_details API to fetch structured metadata/PDF.
+          - If unavailable, falls back to parsing page HTML using GooglePatentPageParser (Tech Debt).
           - If a direct PDF URL exists on Google Storage, downloads and returns the PDF binary.
           - If no PDF scan exists (e.g. US20260098257A1), returns the complete patent text
             rendered as structured Markdown (.md) encoded in UTF-8 bytes.
@@ -632,18 +789,27 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
             raise ValueError(f"Disallowed private/internal IP URL: '{url}'")
 
         target_url = url
-        # If the URL is a landing page rather than a direct PDF, parse the page
+        # If the URL is a landing page rather than a direct PDF, fetch patent data
         if "patents.google.com/patent" in target_url and not target_url.lower().endswith(".pdf"):
-            try:
-                patent_data = GooglePatentPageParser.fetch_and_parse(target_url, timeout=20.0)
+            patent_data = None
+            if self.api_key:
+                try:
+                    patent_data = self.fetch_patent_details_via_serpapi(target_url)
+                except Exception as e:
+                    logger.debug(f"SerpApi details fetch error: {e}")
+
+            if patent_data is None:
+                try:
+                    patent_data = GooglePatentPageParser.fetch_and_parse(target_url, timeout=20.0)
+                except Exception as e:
+                    logger.warning(f"Could not parse patent landing page {target_url}: {e}")
+
+            if patent_data is not None:
                 if patent_data.pdf_url and is_safe_external_url(patent_data.pdf_url):
                     target_url = patent_data.pdf_url
                 else:
-                    # Patent has no scanned PDF; return full-text Markdown for downstream screening
                     logger.info(f"Patent at {target_url} has no PDF scan. Returning structured Markdown document.")
                     return patent_data.to_markdown().encode("utf-8")
-            except Exception as e:
-                logger.warning(f"Could not parse patent landing page {target_url}: {e}")
 
         try:
             return safe_download_url(
@@ -672,7 +838,16 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
             raise ValueError(f"Disallowed private/internal IP URL: '{url}'")
 
         if "patents.google.com/patent" in url and not url.lower().endswith(".pdf"):
-            patent_data = GooglePatentPageParser.fetch_and_parse(url, timeout=20.0)
+            patent_data = None
+            if self.api_key:
+                try:
+                    patent_data = self.fetch_patent_details_via_serpapi(url)
+                except Exception as e:
+                    logger.debug(f"SerpApi details fetch error: {e}")
+
+            if patent_data is None:
+                patent_data = GooglePatentPageParser.fetch_and_parse(url, timeout=20.0)
+
             meta_dict = patent_data.to_dict()
             if patent_data.pdf_url and is_safe_external_url(patent_data.pdf_url):
                 pdf_bytes = safe_download_url(

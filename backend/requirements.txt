@@ -26,3 +26,4 @@ tblib>=3.2.2
 croniter>=6.2.0
 django-admin-sortable2>=2.3.1
 beautifulsoup4>=4.12.0
+serpapi>=0.1.5

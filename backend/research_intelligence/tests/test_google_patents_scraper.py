@@ -19,6 +19,7 @@ from research_intelligence.tasks.step_2_download.node import DownloadNode
 from api.serializers.workspaces import ScraperSerializer
 
 
+@override_settings(SERPAPI_USE_SDK=False)
 class GooglePatentsScraperUnitTests(TestCase):
     def setUp(self):
         self.workspace = Workspace.objects.create(name="Patent Scouting Workspace")
@@ -406,6 +407,7 @@ class ScraperModelAndSerializerTests(TestCase):
         self.assertIn("ENV DEFAULT", badge_no_key)
 
 
+@override_settings(SERPAPI_USE_SDK=False)
 class RealWorldSerpApiPayloadTests(TestCase):
     @patch("research_intelligence.scrapers.google_patents.urllib.request.urlopen")
     def test_real_world_serpapi_payload_parsing(self, mock_urlopen):
@@ -645,6 +647,7 @@ class RealWorldSerpApiPayloadTests(TestCase):
         self.assertEqual(mock_safe_download.call_count, 1)
 
 
+@override_settings(SERPAPI_USE_SDK=False)
 class GooglePatentsCeleryTaskIntegrationTests(TestCase):
     def setUp(self):
         self.workspace = Workspace.objects.create(name="Integration Workspace")
@@ -1066,6 +1069,201 @@ class GooglePatentPipelineDownloadAndScreeningTests(TestCase):
         self.assertEqual(res["input_source"], "markdown_ocr")
         self.assertEqual(res["decision_category"], "ACCEPTED")
         self.assertEqual(res["screening_status"], "full_text_passed")
+
+
+@override_settings(SERPAPI_USE_SDK=True)
+class GooglePatentsSerpApiSDKUnitTests(TestCase):
+    """
+    Unit tests specifically validating the official SerpApi SDK integration:
+    - Verifies serpapi.Client is instantiated with the resolved API key
+    - Verifies 'pdf': 'true' query parameter is passed (punkt 1 requirement)
+    - Verifies results extraction and normalization from SDK payload
+    - Verifies pagination via SerpApi SDK
+    - Verifies graceful fallback to legacy urllib request upon SDK failure (tech debt fallback)
+    - Verifies google_patents_details engine retrieval and markdown generation
+    - Verifies details fallback to GooglePatentPageParser HTML scraping when details fails
+    """
+
+    def setUp(self):
+        self.workspace = Workspace.objects.create(name="SerpApi SDK Test Workspace")
+
+    @patch("research_intelligence.scrapers.google_patents.serpapi.Client")
+    def test_sdk_search_passes_pdf_param_and_resolves_results(self, mock_client_cls):
+        mock_client = MagicMock()
+        mock_client_cls.return_value = mock_client
+
+        mock_payload = {
+            "organic_results": [
+                {
+                    "title": "Solid State Battery with Sulfide Electrolyte",
+                    "patent_id": "US-11998877-B2",
+                    "publication_number": "US11998877B2",
+                    "pdf": "https://patentimages.storage.googleapis.com/pdfs/US11998877B2.pdf",
+                    "patent_link": "https://patents.google.com/patent/US11998877B2/en",
+                    "snippet": "Solid state electrolyte with improved ionic conductivity.",
+                    "inventor": "Dr. Marie Curie",
+                    "assignee": "Energy Innovations Inc",
+                    "publication_date": "2026-04-15",
+                }
+            ]
+        }
+        mock_client.search.return_value = mock_payload
+
+        provider = GooglePatentsScraperProvider(
+            api_key="valid-serpapi-sdk-key",
+            workspace=self.workspace,
+            use_serpapi_client=True,
+        )
+
+        results = provider.search("solid state battery", limit=5)
+
+        # 1. Verify Client initialized with key
+        mock_client_cls.assert_called_once_with(api_key="valid-serpapi-sdk-key")
+
+        # 2. Verify search called with required parameters
+        self.assertTrue(mock_client.search.called)
+        call_kwargs = mock_client.search.call_args[0][0]
+        self.assertEqual(call_kwargs["engine"], "google_patents")
+        self.assertEqual(call_kwargs["q"], "solid state battery")
+        self.assertEqual(call_kwargs["pdf"], "true")  # Punkt 1: 'pdf': 'true' parameter
+        self.assertEqual(call_kwargs["patents"], "true")
+        self.assertEqual(call_kwargs["scholar"], "false")
+        self.assertNotIn("api_key", call_kwargs)  # Client handles api_key separately
+
+        # 3. Verify results format
+        self.assertEqual(len(results), 1)
+        r = results[0]
+        self.assertEqual(r["title"], "Solid State Battery with Sulfide Electrolyte")
+        self.assertEqual(r["pdf_url"], "https://patentimages.storage.googleapis.com/pdfs/US11998877B2.pdf")
+        self.assertEqual(r["meta"]["pdf_url"], "https://patentimages.storage.googleapis.com/pdfs/US11998877B2.pdf")
+        self.assertEqual(r["meta"]["patent_id"], "US-11998877-B2")
+        self.assertIn("Marie Curie", r["authors"])
+
+    @patch("research_intelligence.scrapers.google_patents.serpapi.Client")
+    def test_sdk_search_pagination_using_next_cursor(self, mock_client_cls):
+        mock_client = MagicMock()
+        mock_client_cls.return_value = mock_client
+
+        page1 = {
+            "organic_results": [{"title": "Patent 1", "patent_id": "US1", "pdf": "https://example.com/1.pdf"}],
+            "serpapi_pagination": {"next": "https://serpapi.com/search.json?engine=google_patents&page=2&q=battery"},
+        }
+        page2 = {
+            "organic_results": [{"title": "Patent 2", "patent_id": "US2", "pdf": "https://example.com/2.pdf"}],
+            "serpapi_pagination": {},
+        }
+        mock_client.search.side_effect = [page1, page2]
+
+        provider = GooglePatentsScraperProvider(api_key="sdk-key", use_serpapi_client=True)
+        results = provider.search("battery", limit=2)
+
+        self.assertEqual(mock_client.search.call_count, 2)
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0]["title"], "Patent 1")
+        self.assertEqual(results[1]["title"], "Patent 2")
+
+    @patch("research_intelligence.scrapers.google_patents.urllib.request.urlopen")
+    @patch("research_intelligence.scrapers.google_patents.serpapi.Client")
+    def test_sdk_search_graceful_fallback_to_legacy_urllib_when_sdk_fails(
+        self, mock_client_cls, mock_urlopen
+    ):
+        # Configure SDK client to simulate unexpected network failure / exception
+        mock_client = MagicMock()
+        mock_client.search.side_effect = RuntimeError("SDK Network Timeout or API error")
+        mock_client_cls.return_value = mock_client
+
+        # Configure legacy fallback response (urllib.request.urlopen)
+        fallback_payload = {
+            "organic_results": [
+                {
+                    "title": "Fallback Recovered Patent",
+                    "patent_id": "EP332211A1",
+                    "patent_link": "https://patents.google.com/patent/EP332211A1/en",
+                }
+            ]
+        }
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps(fallback_payload).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+
+        provider = GooglePatentsScraperProvider(api_key="fallback-test-key", use_serpapi_client=True)
+        results = provider.search("error recovery", limit=5)
+
+        # 1. Verify SDK was attempted
+        self.assertTrue(mock_client.search.called)
+
+        # 2. Verify fallback to legacy urllib occurred seamlessly
+        self.assertTrue(mock_urlopen.called)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["title"], "Fallback Recovered Patent")
+        self.assertEqual(results[0]["meta"]["patent_id"], "EP332211A1")
+
+    @patch("research_intelligence.scrapers.google_patents.serpapi.Client")
+    def test_fetch_patent_details_via_serpapi_success(self, mock_client_cls):
+        mock_client = MagicMock()
+        mock_client_cls.return_value = mock_client
+
+        details_payload = {
+            "patent_results": {
+                "title": "Superconducting Transmon Qubit Controller",
+                "publication_number": "US20260123456A1",
+                "pdf": "https://patentimages.storage.googleapis.com/pdfs/US20260123456A1.pdf",
+                "abstract": "A microwave control circuit for transmon qubits.",
+                "claims": [
+                    {"text": "1. A transmon qubit control system comprising a flux bias line."},
+                    {"text": "2. The control system of claim 1, further comprising a readout resonator."},
+                ],
+                "description": "Superconducting circuits require low-noise microwave lines operating at 15 mK.",
+                "inventor": "John Bardeen",
+                "assignee": "Quantum Labs LLC",
+                "filing_date": "2024-05-10",
+                "publication_date": "2026-05-01",
+            }
+        }
+        mock_client.search.return_value = details_payload
+
+        provider = GooglePatentsScraperProvider(api_key="details-key", use_serpapi_client=True)
+        patent_data = provider.fetch_patent_details_via_serpapi("US20260123456A1")
+
+        self.assertIsNotNone(patent_data)
+        self.assertEqual(patent_data.publication_number, "US20260123456A1")
+        self.assertEqual(patent_data.title, "Superconducting Transmon Qubit Controller")
+        self.assertEqual(len(patent_data.claims), 2)
+        self.assertTrue(patent_data.has_pdf)
+        self.assertEqual(patent_data.pdf_url, "https://patentimages.storage.googleapis.com/pdfs/US20260123456A1.pdf")
+
+        # Verify Markdown generation
+        md = patent_data.to_markdown()
+        self.assertIn("# US20260123456A1: Superconducting Transmon Qubit Controller", md)
+        self.assertIn("## Claims", md)
+        self.assertIn("1. A transmon qubit control system", md)
+        self.assertIn("## Detailed Description", md)
+
+    @patch("research_intelligence.scrapers.google_patents.GooglePatentPageParser.fetch_and_parse")
+    @patch("research_intelligence.scrapers.google_patents.serpapi.Client")
+    def test_details_api_failure_falls_back_to_page_parser(
+        self, mock_client_cls, mock_page_parser
+    ):
+        mock_client = MagicMock()
+        # Details call fails / returns empty
+        mock_client.search.return_value = {"error": "Patent not found or credit limit exceeded"}
+        mock_client_cls.return_value = mock_client
+
+        # Mock fallback page parser
+        from research_intelligence.scrapers.google_patents import GooglePatentData
+        mock_page_parser.return_value = GooglePatentData(
+            publication_number="US9999999",
+            title="HTML Fallback Patent",
+            abstract="Abstract parsed from HTML fallback.",
+        )
+
+        provider = GooglePatentsScraperProvider(api_key="key", use_serpapi_client=True)
+        content, fmt, meta = provider.fetch_patent_document("https://patents.google.com/patent/US9999999/en")
+
+        self.assertEqual(fmt, "markdown")
+        self.assertIn(b"HTML Fallback Patent", content)
+        self.assertTrue(mock_page_parser.called)
+
 
 
 

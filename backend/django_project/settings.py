@@ -266,6 +266,7 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # External scraper API keys configuration
 LENS_API_KEY = os.environ.get("LENS_API_KEY", "")
 SERPAPI_API_KEY = os.environ.get("SERPAPI_API_KEY", "")
+SERPAPI_USE_SDK = os.environ.get("SERPAPI_USE_SDK", "True").lower() in ("true", "1", "yes")
 
 # Django REST Framework configuration
 REST_FRAMEWORK = {
