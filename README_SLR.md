@@ -15,7 +15,11 @@
 6. [Audit Checkpoint 2: Extraction Gate (Parameters & Evidences)](#6-audit-checkpoint-2-extraction-gate-parameters--evidences)
 7. [Methodological Quality & Risk of Bias (RoB) Assessment](#7-methodological-quality--risk-of-bias-rob-assessment)
 8. [Consensus, Quorum & Dispute Resolution (Adjudication)](#8-consensus-quorum--dispute-resolution-adjudication)
-9. [Scientific Rigor & PRISMA 2020 Reporting](#9-scientific-rigor--prisma-2020-reporting)
+9. [Telemetry, Evidence Logging & Standards Compliance (PRISMA & Cochrane)](#9-telemetry-evidence-logging--standards-compliance-prisma--cochrane)
+   - [9.1 The "What Lives Where" Architecture (Zero Duplication)](#91-the-what-lives-where-architecture-zero-duplication)
+   - [9.2 Provenance & Audit Trail Mapping](#92-provenance--audit-trail-mapping)
+   - [9.3 PRISMA 2020 & Cochrane Item Compliance Matrix](#93-prisma-2020--cochrane-item-compliance-matrix)
+   - [9.4 Statistical Reliability Metrics (Cohen's Kappa & Confusion Matrix)](#94-statistical-reliability-metrics-cohens-kappa--confusion-matrix)
 10. [Data Models Specification (`README_SLR_MODELS.md`)](#10-data-models-specification)
 11. [API & FastMCP Tool Interface](#11-api--fastmcp-tool-interface)
 12. [Implementation Roadmap](#12-implementation-roadmap)
@@ -441,23 +445,105 @@ Reviewers strictly mandate visual summary plots:
 
 ---
 
-## 9. Scientific Rigor & PRISMA 2020 Reporting
+## 9. Telemetry, Evidence Logging & Standards Compliance (PRISMA & Cochrane)
 
-The extension produces quantitative metrics directly suitable for academic publication:
+A critical requirement of academic peer review (e.g. The Cochrane Handbook for Systematic Reviews of Interventions, PRISMA 2020 Statement) is **complete reproducibility and verifiable provenance**:
+1. What exact boolean query was sent to which database and on what date?
+2. Exactly why was paper $X$ excluded during abstract or full-text screening?
+3. Where in the PDF is the verbatim evidence quote for each extracted parameter?
+4. Did independent human reviewers agree, and how was consensus reached?
 
-### 1. PRISMA 2020 Flow Metrics
-* **Identification:** Total records identified per source (arXiv, OpenAlex, PubMed, manual upload).
-* **Deduplication:** Number of duplicates removed by DOI / SHA-256 hash.
-* **Screening (Abstract):** Records screened, records excluded with breakdown of exclusion reasons.
-* **Eligibility (Full-Text):** Full-text articles assessed, excluded with specific justifications.
-* **Included:** Final number of studies included in review, quantitative synthesis, and RoB matrix.
+### 9.1 The "What Lives Where" Architecture (Zero Duplication)
 
-### 2. Inter-Rater Reliability (Cohen's Kappa $\kappa$)
-Calculated automatically:
+To avoid database bloat and sync bugs, the platform enforces a **Zero Duplication Principle**:
+* **Core Platform Engine (`research_intelligence`)** logs **everything executed by AI & background workers** (API queries, search hits, raw scraping payloads, LLM prompts/responses, and AI-extracted parameters with source quotes).
+* **SLR Extension App (`slr_review`)** logs **exclusively human actions and academic consensus** (blind reviewer votes, evidence justifications, senior arbiter dispute rulings, RoB appraisals, and PRISMA flow totals).
+
+Neither app duplicates the other's state; instead, the SLR reporting services (`export_service.py`, `metrics_service.py`) query both layers in tandem.
+
+```mermaid
+graph LR
+    subgraph CoreEngineLogs ["Core Engine: research_intelligence (AI & Task Provenance)"]
+        CR["ComponentRun<br/>(step_type='search')<br/>API Query, Date, Hits"]
+        PM["PaperMetric<br/>AI Screening Verdict,<br/>Reasoning & Token Costs"]
+        EXT["Extraction<br/>30 Parameters, AI Evidence<br/>Quotes & Confidence Scores"]
+    end
+
+    subgraph SLRReviewLogs ["SLR Extension: slr_review (Human Oversight & Rigor)"]
+        SR["ScreeningReview<br/>Dual Blind Votes, Exclusions,<br/>Human Quotes & Page Nums"]
+        ER["ExtractionReview<br/>Human Verify / Modify / Reject<br/>Corrections & Quote Validation"]
+        AD["AdjudicationDispute<br/>Split Votes, Arbiter Ruling,<br/>Resolution Rationale"]
+        ROB["RiskOfBiasAssessment<br/>5 RoB Domains, Evidence Quotes<br/>Overall Bias Judgment"]
+    end
+
+    subgraph SynthesisLayer ["PRISMA & Publication Synthesis"]
+        PRISMA["SLRPRISMAMetrics<br/>PRISMA 2020 Flow Counts"]
+        KAPPA["Cohen's Kappa & Confusion Matrix<br/>(AI vs Human & Human vs Human)"]
+        APPENDIX["Cochrane Appendix 1<br/>Search Strategy & Provenance Table"]
+    end
+
+    CR --> APPENDIX
+    PM --> KAPPA
+    EXT --> ER
+    SR --> KAPPA
+    SR --> PRISMA
+    ER --> PRISMA
+    AD --> PRISMA
+    ROB --> PRISMA
+```
+
+---
+
+### 9.2 Provenance & Audit Trail Mapping
+
+| PRISMA / Cochrane Dimension | Audited Information | Model & File Location | Exact Database Fields |
+| :--- | :--- | :--- | :--- |
+| **Search Strategy (PRISMA Item 6, 7)** | Verbatim search syntax, boolean operators, date filters, hits count per database | `research_intelligence.ComponentRun`<br/>*(backend/research_intelligence/models/pipeline.py)* | `step_type='search'`, `component_name` (e.g. `'pubmed_scraper'`), `input_params['query']`, `metrics['total_fetched']`, `started_at` |
+| **AI Screening Rationale (PRISMA Item 8)** | Why AI passed, rejected, or flagged a paper as borderline | `research_intelligence.PaperMetric`<br/>*(backend/research_intelligence/models/paper.py)* | `screening_status`, `abstract_screening_reasoning`, `full_text_screening_reasoning`, `metrics_data` |
+| **AI Data Extraction & Quotes (PRISMA Item 10)** | 30 study parameters, statistical effect values, verbatim text quotes | `research_intelligence.Extraction`<br/>*(backend/research_intelligence/models/extraction.py)* | `category`, `fields_data` (`value`, `evidence` quotes, `rationale`), `confidence_score`, `validation_status` |
+| **Protocol & PICO Criteria (PRISMA Item 5)** | Pre-registered inclusion criteria, PICO, PROSPERO ID, version history | `slr_review.SLRProtocol`<br/>*(backend/slr_review/models/protocol.py)* | `pico_population`, `pico_intervention`, `pico_comparison`, `pico_outcome`, `prospero_registration_id`, `version` |
+| **Human Blind Screening (Cochrane Dual Review)** | Independent human votes, exclusion category, highlighted quotes | `slr_review.ScreeningReview`<br/>*(backend/slr_review/models/screening_review.py)* | `stage`, `decision`, `exclusion_reason`, `evidence_quotes` (`quote`, `page_number`, `section`), `reviewer_notes` |
+| **Human Extraction Audit (Data Verification)** | Human sign-off, modified values, rejected AI hallucinations | `slr_review.ExtractionReview`<br/>*(backend/slr_review/models/extraction_review.py)* | `action` (`verify`, `modify`, `reject`), `original_fields`, `corrected_fields`, `verified_evidence_quotes` |
+| **Dispute Adjudication (Arbiter Audit)** | Split vote records, side-by-side evidence comparison, final PI ruling | `slr_review.AdjudicationDispute`<br/>*(backend/slr_review/models/dispute.py)* | `status`, `final_decision`, `resolution_rationale`, `resolved_by`, `resolved_at` |
+| **Risk of Bias Appraisal (PRISMA Item 12)** | Cochrane RoB 2 / ROBINS-I domain ratings, justifications, traffic light scores | `slr_review.RiskOfBiasAssessment`<br/>*(backend/slr_review/models/risk_of_bias.py)* | `framework`, `domain_scores` (D1–D5 ratings + quotes), `overall_bias`, `verified_by` |
+| **PRISMA Flow Diagram (PRISMA Item 16)** | Aggregated study flow counts from initial search to final synthesis | `slr_review.SLRPRISMAMetrics`<br/>*(backend/slr_review/models/prisma.py)* | `records_identified_total`, `duplicates_removed`, `records_screened_abstract`, `records_excluded_abstract`, `full_text_assessed`, `full_text_excluded`, `studies_included_synthesis` |
+
+---
+
+### 9.3 PRISMA 2020 & Cochrane Item Compliance Matrix
+
+How the system directly satisfies standard academic publication requirements:
+
+1. **PRISMA Item 5 (Protocol and registration):**  
+   Every workspace links to a versioned `SLRProtocol` tracking PICO criteria and optional PROSPERO registration token (`CRD42026...`). Protocol changes increment `version` and create immutable audit logs.
+2. **PRISMA Item 6 & 7 (Eligibility criteria & Information sources):**  
+   Eligibility rules are codified in `SLRProtocol`. All searched databases (PubMed, arXiv, OpenAlex, manual RIS uploads) are tracked per record in `Paper.source` and aggregated in `SLRPRISMAMetrics.records_by_source`.
+3. **PRISMA Item 8 (Search strategy):**  
+   `export_service.py` extracts the exact queries and filters from `ComponentRun.input_params` and compiles them into **Cochrane Appendix 1 (Search Strategy)** ready for copy-paste into journal submissions.
+4. **PRISMA Item 9 (Selection process):**  
+   Dual blinded review is enforced via `ScreeningReview`. Disagreements are handled through formal arbitration (`AdjudicationDispute`). Quorum parameters (1–4 reviewers) and sampling rates are transparently logged in `SLRWorkspaceConfig`.
+5. **PRISMA Item 10 & 11 (Data collection process & Data items):**  
+   Parameters extracted by Gemini Multimodal are stored in `Extraction.fields_data` with sentence-level provenance. Human verification or modification is recorded in `ExtractionReview`.
+6. **PRISMA Item 12 & 13 (Study risk of bias assessment):**  
+   Evaluated using Cochrane RoB 2 (RCTs) or ROBINS-I (observational studies) via `RiskOfBiasAssessment`. Domain ratings and justifications generate standard Cochrane Traffic Light Plots.
+7. **PRISMA Item 16 (Study selection flow):**  
+   Maintained in real-time in `SLRPRISMAMetrics` and exported as PRISMA 2020 flow diagrams (JSON / SVG / CSV).
+
+---
+
+### 9.4 Statistical Reliability Metrics (Cohen's Kappa & Confusion Matrix)
+
+To substantiate methodological rigor in academic papers, `metrics_service.py` computes statistical inter-rater agreement:
+
+#### 1. Cohen's Kappa ($\kappa$)
 $$\kappa = \frac{p_o - p_e}{1 - p_e}$$
-* $\kappa$ between Human Reviewer 1 and Human Reviewer 2 (measures clarity of review criteria).
-* $\kappa$ between AI and Human Consensus (measures AI screening reliability and safety).
-* Full Confusion Matrix: Sensitivity (Recall), Specificity, False Discovery Rate (FDR).
+* **Human Inter-Rater Reliability ($\kappa_{human}$):** Agreement between Reviewer 1 and Reviewer 2. Demonstrates whether the inclusion criteria were clear and unambiguous ($\kappa > 0.80$ denotes near-perfect agreement).
+* **AI vs. Human Reliability ($\kappa_{ai}$):** Agreement between AI screening and human consensus. Validates whether the LLM is dependable and safe for triage.
+
+#### 2. Diagnostic Performance vs. Human Ground Truth
+* **Sensitivity (Recall):** $\frac{TP}{TP + FN}$ — Critical metric for SLR; verifies that the AI did not drop eligible papers (aiming for $\ge 98\%$).
+* **Specificity:** $\frac{TN}{TN + FP}$ — Verifies that the AI effectively filtered irrelevant noise.
+* **False Discovery Rate (FDR):** $\frac{FP}{FP + TP}$ — Percentage of AI-passed papers excluded upon human audit.
 
 ---
 
