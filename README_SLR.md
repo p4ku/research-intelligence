@@ -243,59 +243,59 @@ The execution flow adapts dynamically to the workspace's configured `checkpoint_
 ```mermaid
 graph TD
     subgraph Ingestion ["Stage I: Ingestion & Metadata Normalization"]
-        A[Start SLR Run] --> B[Multi-Source Ingestion<br/>arXiv / OpenAlex / PubMed / RIS Upload]
+        A["Start SLR Run"] --> B["Multi-Source Ingestion<br/>arXiv / OpenAlex / PubMed / RIS Upload"]
     end
 
     subgraph ScreeningAI ["Stage II: AI Abstract Screening Triage"]
-        B --> D[Abstract AI Screening<br/>High-Throughput Title & Abstract Triage]
+        B --> D["Abstract AI Screening<br/>High-Throughput Title & Abstract Triage"]
     end
 
     subgraph Gate1A ["🛑 Gate 1A: Abstract Audit Gate (If two_stage_split)"]
-        D --> E{Gate 1A Active?<br/>two_stage_split}
-        E -->|"Yes"| F[Halt DAG: Sample Cohort (e.g. 10%)<br/>Blind Dual-Review Queue]
-        F --> G{Quorum & Consensus?}
-        G -->|"Agreement"| H[Approved Abstract Pool]
-        G -->|"Split Vote"| G_Adj[Escalate to Senior Arbiter<br/>AdjudicationDispute Ruling]
+        D --> E{"Gate 1A Active?<br/>two_stage_split"}
+        E -->|"Yes"| F["Halt DAG: Sample Cohort (10% Sample)<br/>Blind Dual-Review Queue"]
+        F --> G{"Quorum & Consensus?"}
+        G -->|"Agreement"| H["Approved Abstract Pool"]
+        G -->|"Split Vote"| G_Adj["Escalate to Senior Arbiter<br/>AdjudicationDispute Ruling"]
         G_Adj --> H
         E -->|"No / Fast-Track"| H
     end
 
     subgraph FullTextRetrieval ["Stage III: Targeted PDF Retrieval & Full-Text AI Screening"]
-        H --> C[Parallel PDF Harvesting & Layout OCR<br/>Only for Abstract-Approved Candidates]
-        C --> I[Full-Text Multimodal AI Screening<br/>PICO Criteria & Exclusion Reason Assignment]
+        H --> C["Parallel PDF Harvesting & Layout OCR<br/>Only for Abstract-Approved Candidates"]
+        C --> I["Full-Text Multimodal AI Screening<br/>PICO Criteria & Exclusion Reason Assignment"]
     end
 
     subgraph Gate1B ["🛑 Gate 1B: Full-Text Audit Gate (Split or Combined)"]
-        I --> J{Gate 1B Active?<br/>Split or Combined}
-        J -->|"Yes"| K[Halt DAG: Sample Candidates<br/>Review Eligibility & Evidence Quotes]
-        K --> L{Quorum & Consensus?}
-        L -->|"Agreement"| M[Included Study Cohort]
-        L -->|"Split Vote"| L_Adj[Escalate to Senior Arbiter<br/>AdjudicationDispute Ruling]
+        I --> J{"Gate 1B Active?<br/>Split or Combined"}
+        J -->|"Yes"| K["Halt DAG: Sample Candidates<br/>Review Eligibility & Evidence Quotes"]
+        K --> L{"Quorum & Consensus?"}
+        L -->|"Agreement"| M["Included Study Cohort"]
+        L -->|"Split Vote"| L_Adj["Escalate to Senior Arbiter<br/>AdjudicationDispute Ruling"]
         L_Adj --> M
         J -->|"No"| M
     end
 
     subgraph ExtractionAndRoB ["Stage IV: Parameter Extraction & Risk of Bias"]
-        M --> N[AI Parameter Extraction<br/>30-Field Schema & Verbatim Provenance]
-        N --> RoB[Cochrane RoB 2 / ROBINS-I Appraisal<br/>5 Bias Domains, Quotes & Justifications]
+        M --> N["AI Parameter Extraction<br/>30-Field Schema & Verbatim Provenance"]
+        N --> RoB["Cochrane RoB 2 / ROBINS-I Appraisal<br/>5 Bias Domains, Quotes & Justifications"]
     end
 
     subgraph Gate2 ["🛑 Gate 2: Extraction & Quality Audit Gate"]
-        RoB --> O{Gate 2 Active?<br/>Extraction Audit Gate}
-        O -->|"Yes"| P[Halt DAG: Sampled Extract Cohort<br/>ExtractionReview Queue]
-        P --> Q[Reviewers: Verify / Modify / Reject<br/>Validate Values, Quotes & RoB Concerns]
-        Q --> Q_Adj{Extraction Consensus?}
-        Q_Adj -->|"Verified"| R[Final Validated Matrix]
-        Q_Adj -->|"Dispute"| Q_Dis[Senior Arbiter Dispute Ruling]
+        RoB --> O{"Gate 2 Active?<br/>Extraction Audit Gate"}
+        O -->|"Yes"| P["Halt DAG: Sampled Extract Cohort<br/>ExtractionReview Queue"]
+        P --> Q["Reviewers: Verify / Modify / Reject<br/>Validate Values, Quotes & RoB Concerns"]
+        Q --> Q_Adj{"Extraction Consensus?"}
+        Q_Adj -->|"Verified"| R["Final Validated Matrix"]
+        Q_Adj -->|"Dispute"| Q_Dis["Senior Arbiter Dispute Ruling"]
         Q_Dis --> R
         O -->|"No"| R
     end
 
     subgraph Synthesis ["Stage V: PRISMA 2020 Reporting & Deliverables"]
-        R --> S[Inter-Rater Reliability<br/>Cohen's Kappa & Agreement %]
-        S --> T[Generate PRISMA 2020 Flow Diagram<br/>Identified -> Screened -> Excluded -> Included]
-        T --> U[Render Cochrane Traffic Light Plot<br/>Domain Circles & Summary Bar Chart]
-        U --> V[Export Scientific Deliverables<br/>Excel Matrix, CSV, RIS, BibTeX, PRISMA JSON]
+        R --> S["Inter-Rater Reliability<br/>Cohen's Kappa & Agreement %"]
+        S --> T["Generate PRISMA 2020 Flow Diagram<br/>Identified -> Screened -> Excluded -> Included"]
+        T --> U["Render Cochrane Traffic Light Plot<br/>Domain Circles & Summary Bar Chart"]
+        U --> V["Export Scientific Deliverables<br/>Excel Matrix, CSV, RIS, BibTeX, PRISMA JSON"]
     end
 ```
 
