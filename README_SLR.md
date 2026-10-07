@@ -130,6 +130,23 @@ Customizable checklist of disqualification reasons rendered in the reviewer UI a
 * **`notify_reviewers_on_pause` (Boolean):** Sends an email digest or webhook when a pipeline run halts at an audit gate and papers are waiting in the queue.
 * **`stale_queue_reminder_days` (Integer, Default: `3`):** Automatic reminder if audit items remain unreviewed.
 
+### 7. Evidence Grounding & Quote Policy (`evidence_quotes`)
+In rigorous systematic reviews, recusal or exclusion cannot rely on unsupported intuition. Each workspace can enforce verifiable textual grounding:
+* **`require_evidence_on_exclusion` (Boolean, Default: `True`):** When a reviewer selects an exclusion reason (e.g., *Animal Study* or *No Control Group*), they **must highlight or paste a verbatim excerpt from the paper** with its page number.
+* **`require_evidence_on_override` (Boolean, Default: `True`):** If a reviewer overturns an AI decision (e.g., AI said `rejected`, human marks `include`), the human must supply the passage proving AI's error.
+* **Structured Evidence Schema:**
+  ```json
+  [
+    {
+      "quote": "Patients who received prior systemic chemotherapy were excluded from the final study cohort.",
+      "page_number": 4,
+      "section": "Methods / Patient Eligibility",
+      "annotation_type": "exclusion_justification"
+    }
+  ]
+  ```
+* **Arbiter Acceleration:** When votes split into dispute, the Senior Arbiter does not need to re-read the entire paper; they immediately compare **Reviewer A's quote vs. Reviewer B's quote vs. AI's quote** side-by-side.
+
 ---
 
 ## 4. Phased Pipeline with Staged HITL Audit Checkpoints
@@ -205,6 +222,7 @@ The sampling service draws an `AuditSampleCohort` based on the workspace policy:
 * Review submission:
   - `decision`: `Include` | `Exclude` | `Uncertain`
   - `exclusion_reason`: Selected from workspace taxonomy (mandatory if `Exclude`).
+  - `evidence_quotes`: List of verbatim evidence passages with page numbers supporting the decision (mandatory if `require_evidence_on_exclusion` or `require_evidence_on_override` is enabled).
   - `reviewer_notes`: Qualitative context.
 
 ---
@@ -308,6 +326,10 @@ class SLRWorkspaceConfig(models.Model):
     # Taxonomy of Exclusion Reasons
     exclusion_reasons = models.JSONField(default=list, help_text="List of allowed rejection reasons for PRISMA reporting")
 
+    # Evidence Grounding Policy
+    require_evidence_on_exclusion = models.BooleanField(default=True, help_text="Require verbatim quotes with page numbers when excluding")
+    require_evidence_on_override = models.BooleanField(default=True, help_text="Require evidence quotes when overturning an AI screening decision")
+
     # Alerts
     notify_reviewers_on_pause = models.BooleanField(default=True)
     stale_queue_reminder_days = models.PositiveIntegerField(default=3)
@@ -338,6 +360,7 @@ Individual blind assessment by a reviewer.
 * `stage`: `abstract` | `full_text`
 * `decision`: `include` | `exclude` | `uncertain`
 * `exclusion_reason`: Varchar (from predefined protocol taxonomy)
+* `evidence_quotes`: JSONField (list of objects: `[{"quote": str, "page_number": int, "section": str, "annotation_type": str}]`)
 * `notes`: TextField
 * `submitted_at`: DateTime
 
@@ -349,6 +372,7 @@ Tracks conflicts requiring senior tie-breaking.
 * `arbiter`: FK $\rightarrow$ `auth.User` (nullable)
 * `final_decision`: `include` | `exclude`
 * `resolution_rationale`: TextField
+* `evidence_synthesis`: JSONField (side-by-side compilation of Reviewer A, Reviewer B, and AI evidence quotes)
 * `resolved_at`: DateTime
 
 ---
@@ -360,19 +384,19 @@ Tracks conflicts requiring senior tie-breaking.
 * `GET /api/slr/protocols/`: Manage and version SLR review protocols (PICO).
 * `POST /api/slr/runs/{id}/create-audit-cohort/`: Triggers sampling and pauses pipeline.
 * `GET /api/slr/reviews/my-queue/`: Fetches pending blind review assignments for current user.
-* `POST /api/slr/reviews/submit/`: Submits blind vote (`decision`, `exclusion_reason`, `notes`).
-* `GET /api/slr/adjudications/pending/`: Fetches split-vote items for senior arbiters.
-* `POST /api/slr/adjudications/{id}/resolve/`: Submits arbiter binding decision.
+* `POST /api/slr/reviews/submit/`: Submits blind vote (`decision`, `exclusion_reason`, `evidence_quotes`, `notes`).
+* `GET /api/slr/adjudications/pending/`: Fetches split-vote items with side-by-side evidence quotes for senior arbiters.
+* `POST /api/slr/adjudications/{id}/resolve/`: Submits arbiter binding decision with resolution rationale.
 * `POST /api/slr/runs/{id}/resume/`: Validates quorum completion and resumes downstream AI tasks.
 * `GET /api/slr/reports/prisma-flow/`: Generates PRISMA 2020 diagram counts and JSON.
 * `GET /api/slr/reports/inter-rater-reliability/`: Computes Cohen's Kappa & confusion matrices.
 
 ### FastMCP Tools (`backend/mcp_server/tools/slr/`)
-* `slr_configure_workspace`: Configure gate mode, quorum count (1–4), sampling % (0–100%), and exclusion reasons.
+* `slr_configure_workspace`: Configure gate mode, quorum count (1–4), sampling % (0–100%), exclusion reasons, and evidence grounding requirements.
 * `slr_create_protocol`: Set up PICO criteria and protocol metadata.
 * `slr_get_review_queue`: Retrieve unreviewed papers for a designated annotator.
-* `slr_submit_blind_review`: Cast a blind vote from agent/client without leaking peer opinions.
-* `slr_resolve_dispute`: Cast arbiter decision on a conflicting paper.
+* `slr_submit_blind_review`: Cast a blind vote with decision, reason, and evidence quotes from agent/client without leaking peer opinions.
+* `slr_resolve_dispute`: Cast arbiter decision on a conflicting paper by reviewing contradictory evidence quotes.
 * `slr_check_audit_status`: Query whether current checkpoint has satisfied quorum.
 * `slr_resume_pipeline`: Resume execution after audit approval.
 
