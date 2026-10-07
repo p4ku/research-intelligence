@@ -43,9 +43,27 @@ erDiagram
 
 ---
 
-## 2. `SLRWorkspaceConfig` (Per-Workspace Policies & Gates)
+## 2. `SLRWorkspaceConfig`
 
-File location: `backend/slr_review/models/workspace_config.py`
+Defines project-level review rules: determines where the AI pipeline halts for human audit, how many researchers must independently vote (quorum), what percentage of papers get sampled, and whether Cochrane Risk of Bias is evaluated.
+
+### 📋 Non-Technical Field Summary
+* `workspace`: FK $\rightarrow$ `research_intelligence.Workspace` — The research project this policy governs.
+* `checkpoint_gate_mode`: `two_stage_split` | `single_combined_post_fulltext` | `abstract_only_gate` | `autonomous_benchmark` — Defines where the automated pipeline pauses for human review.
+* `enable_extraction_gate`: Boolean — Whether humans must audit extracted parameters before final synthesis.
+* `screening_quorum_size`: Integer (1 to 6) — Number of independent human reviewers required per paper (e.g. 2 for dual review).
+* `require_blind_review`: Boolean — When enabled, reviewers cannot see peer votes or AI predictions until after voting.
+* `sampling_mode`: `uncertainty_stratified` | `pure_random` | `full_audit` — Strategy for selecting papers for human audit.
+* `abstract_sample_percentage`: Float (0–100%) — Percentage of abstracts sampled for human audit.
+* `full_text_sample_percentage`: Float (0–100%) — Percentage of full-text papers sampled for human audit.
+* `negative_control_percentage`: Float — Percentage of AI-rejected papers checked to catch False Negatives.
+* `enable_rob_assessment`: Boolean — Enables automated Cochrane Risk of Bias (RoB 2 / ROBINS-I) scoring.
+* `designated_arbiter`: FK $\rightarrow$ `auth.User` — Lead supervisor / PI assigned to break tie votes.
+* `exclusion_reasons`: JSON List — Predefined checklist of rejection reasons for PRISMA reporting.
+* `require_evidence_on_exclusion`: Boolean — Mandates highlighting a verbatim quote and page number when excluding a paper.
+
+### 🐍 Python Django Implementation
+*File location: `backend/slr_review/models/workspace_config.py`*
 
 ```python
 import uuid
@@ -215,9 +233,21 @@ class SLRWorkspaceConfig(models.Model):
 
 ---
 
-## 3. `SLRProtocol` (PICO Criteria & Versioning)
+## 3. `SLRProtocol`
 
-File location: `backend/slr_review/models/protocol.py`
+The official scientific protocol describing research hypotheses and PICO inclusion/exclusion boundaries. Supports registry tracking (e.g. PROSPERO) and cryptographic locking to prevent post-hoc bias.
+
+### 📋 Non-Technical Field Summary
+* `workspace`: FK $\rightarrow$ `research_intelligence.Workspace` — Associated project workspace.
+* `title`: String — Formal scientific review title.
+* `pico_population`, `pico_intervention`, `pico_comparison`, `pico_outcome`: Structured text — Explicit clinical / study eligibility criteria.
+* `study_design_criteria`: Text — Acceptable study designs (e.g. RCTs only, prospective cohorts).
+* `prospero_registration_id`: String (Optional) — Official PROSPERO registry token (e.g. `CRD42026123456`).
+* `is_locked`: Boolean — When True, criteria are frozen to guarantee methodological transparency.
+* `version`: Integer — Version counter tracking formal protocol amendments.
+
+### 🐍 Python Django Implementation
+*File location: `backend/slr_review/models/protocol.py`*
 
 ```python
 import uuid
@@ -276,9 +306,22 @@ class SLRProtocol(models.Model):
 
 ---
 
-## 4. `AuditSampleCohort` (Sampling Batches & Quorum Tracking)
+## 4. `AuditSampleCohort`
 
-File location: `backend/slr_review/models/sample_cohort.py`
+Represents a discrete batch of papers selected for human audit at a specific pipeline checkpoint (Abstract, Full-Text, or Extraction). Tracks review progress until every sampled paper reaches quorum.
+
+### 📋 Non-Technical Field Summary
+* `config`: FK $\rightarrow$ `slr_review.SLRWorkspaceConfig` — Policy configuration governing this sample.
+* `pipeline_run`: FK $\rightarrow$ `research_intelligence.PipelineRun` — Specific pipeline execution that produced this cohort.
+* `stage`: `abstract_screening` | `full_text_screening` | `parameter_extraction` — Pipeline stage where the audit occurred.
+* `total_pool_count`: Integer — Total candidate papers eligible at this stage.
+* `sampled_count`: Integer — Number of papers drawn for human review.
+* `sampling_strategy`: JSON — Detailed configuration of sampling criteria applied.
+* `sampled_papers`: M2M $\rightarrow$ `Paper` — The exact papers selected for audit.
+* `is_audit_complete`: Boolean — Automatically flips to True once all sampled papers satisfy quorum and conflict resolution.
+
+### 🐍 Python Django Implementation
+*File location: `backend/slr_review/models/sample_cohort.py`*
 
 ```python
 import uuid
@@ -340,9 +383,22 @@ class AuditSampleCohort(models.Model):
 
 ---
 
-## 5. `ScreeningReview` (Blind Human Reviews & Evidence Quotes)
+## 5. `ScreeningReview`
 
-File location: `backend/slr_review/models/review.py`
+Records an individual blind evaluation submitted by a human reviewer for a sampled paper. Reviewers assess papers independently without peer influence.
+
+### 📋 Non-Technical Field Summary
+* `sample_cohort`: FK $\rightarrow$ `AuditSampleCohort` — The audit batch this review belongs to.
+* `paper`: FK $\rightarrow$ `research_intelligence.Paper` — The research article being evaluated.
+* `reviewer`: FK $\rightarrow$ `auth.User` — The researcher / student who submitted the assessment.
+* `stage`: `abstract` | `full_text` — Screening phase.
+* `decision`: `include` | `exclude` | `uncertain` — Primary review verdict.
+* `exclusion_reason`: String (Optional) — Standardized rejection category selected from workspace checklist.
+* `evidence_quotes`: JSON List — Verbatim quotes with page numbers and section headers proving the decision.
+* `reviewer_notes`: Text (Optional) — Qualitative notes or remarks.
+
+### 🐍 Python Django Implementation
+*File location: `backend/slr_review/models/review.py`*
 
 ```python
 import uuid
@@ -432,9 +488,22 @@ class ScreeningReview(models.Model):
 
 ---
 
-## 6. `AdjudicationDispute` (Conflict Resolution & Arbiter Tie-Breaking)
+## 6. `AdjudicationDispute`
 
-File location: `backend/slr_review/models/dispute.py`
+Formed automatically whenever independent human reviews split on a paper (e.g. Reviewer 1 votes Include, Reviewer 2 votes Exclude). Escalates to the Senior Arbiter with side-by-side evidence quotes for fast tie-breaking.
+
+### 📋 Non-Technical Field Summary
+* `sample_cohort`: FK $\rightarrow$ `AuditSampleCohort` — Associated audit batch.
+* `paper`: FK $\rightarrow$ `research_intelligence.Paper` — The contested research article.
+* `stage`: `abstract` | `full_text` — Screening phase where the conflict arose.
+* `status`: `pending` | `resolved` — Current resolution state.
+* `arbiter`: FK $\rightarrow$ `auth.User` — Lead researcher or supervisor resolving the dispute.
+* `final_decision`: `include` | `exclude` — Binding ruling.
+* `resolution_rationale`: Text — Written explanation of why the final ruling was made.
+* `evidence_synthesis`: JSON Dictionary — Side-by-side comparison of Reviewer A's quotes, Reviewer B's quotes, and AI reasoning.
+
+### 🐍 Python Django Implementation
+*File location: `backend/slr_review/models/dispute.py`*
 
 ```python
 import uuid
@@ -513,9 +582,22 @@ class AdjudicationDispute(models.Model):
 
 ---
 
-## 7. `RiskOfBiasAssessment` (Cochrane RoB 2 / ROBINS-I Appraisal)
+## 7. `RiskOfBiasAssessment`
 
-File location: `backend/slr_review/models/risk_of_bias.py`
+Evaluates the methodological quality and risk of bias for each included study using standard Cochrane RoB 2 (RCTs) or ROBINS-I frameworks. Provides data to render publication-ready Traffic Light Plots.
+
+### 📋 Non-Technical Field Summary
+* `paper`: FK $\rightarrow$ `research_intelligence.Paper` — Study being assessed.
+* `pipeline_run`: FK $\rightarrow$ `research_intelligence.PipelineRun` — Associated pipeline run.
+* `framework`: `rob2` | `robins_i` | `nos` — Methodological quality tool used.
+* `domain_scores`: JSON Dictionary — Individual scores and quotes for each of the 5 bias domains.
+* `overall_bias`: `low_risk` | `some_concerns` | `high_risk` | `critical_risk` — Consolidated study rating.
+* `traffic_light_color`: `green` | `yellow` | `red` — Color assigned for visual matrix charts.
+* `is_human_verified`: Boolean — Whether a human expert verified the AI's bias assessment.
+* `human_override_scores`: JSON Dictionary — Adjusted scores if human disagreed with AI.
+
+### 🐍 Python Django Implementation
+*File location: `backend/slr_review/models/risk_of_bias.py`*
 
 ```python
 import uuid
@@ -613,9 +695,26 @@ class RiskOfBiasAssessment(models.Model):
 
 ---
 
-## 8. `SLRPRISMAMetrics` (PRISMA 2020 Counts & Cohen's Kappa)
+## 8. `SLRPRISMAMetrics`
 
-File location: `backend/slr_review/models/prisma.py`
+Maintains official PRISMA 2020 flow counts (records identified, duplicates removed, screened, excluded with reasons, included) and calculates scientific reliability metrics like Cohen's Kappa ($\kappa$).
+
+### 📋 Non-Technical Field Summary
+* `pipeline_run`: OneToOne $\rightarrow$ `research_intelligence.PipelineRun` — The pipeline execution tracked.
+* `records_identified_total`: Integer — Total records retrieved across all literature databases.
+* `records_by_source`: JSON Dictionary — Breakdown of counts per database (PubMed, OpenAlex, arXiv, etc.).
+* `duplicates_removed`: Integer — Duplicate count removed by deduplication.
+* `records_screened_abstract` & `records_excluded_abstract`: Integers — Abstract stage screening counts.
+* `abstract_exclusion_reasons`: JSON Dictionary — Breakdown of reasons for abstract exclusion.
+* `full_text_assessed` & `full_text_excluded`: Integers — Full-text candidate counts.
+* `full_text_exclusion_reasons`: JSON Dictionary — Breakdown of reasons for full-text exclusion.
+* `studies_included_synthesis`: Integer — Final number of studies included in review.
+* `human_inter_rater_kappa`: Float — Cohen's Kappa ($\kappa$) measuring agreement between human reviewers (0.0–1.0).
+* `ai_vs_human_kappa`: Float — Cohen's Kappa ($\kappa$) measuring agreement between AI and human consensus.
+* `ai_sensitivity` & `ai_specificity`: Floats — AI Recall and Specificity metrics.
+
+### 🐍 Python Django Implementation
+*File location: `backend/slr_review/models/prisma.py`*
 
 ```python
 import uuid

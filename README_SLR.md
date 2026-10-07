@@ -14,7 +14,7 @@
 7. [Methodological Quality & Risk of Bias (RoB) Assessment](#7-methodological-quality--risk-of-bias-rob-assessment)
 8. [Consensus, Quorum & Dispute Resolution (Adjudication)](#8-consensus-quorum--dispute-resolution-adjudication)
 9. [Scientific Rigor & PRISMA 2020 Reporting](#9-scientific-rigor--prisma-2020-reporting)
-10. [Data Models & Schema Specifications](#10-data-models--schema-specifications)
+10. [Data Models Specification (`README_SLR_MODELS.md`)](#10-data-models-specification)
 11. [API & FastMCP Tool Interface](#11-api--fastmcp-tool-interface)
 12. [Implementation Roadmap](#12-implementation-roadmap)
 
@@ -322,140 +322,13 @@ $$\kappa = \frac{p_o - p_e}{1 - p_e}$$
 
 ---
 
-## 10. Data Models & Schema Specifications
+## 10. Data Models Specification
 
-The `slr_review` application introduces the following core models:
-
-### 1. `SLRWorkspaceConfig` (🌟 Per-Workspace Policies)
-```python
-class SLRWorkspaceConfig(models.Model):
-    workspace = models.OneToOneField('research_intelligence.Workspace', on_delete=models.CASCADE, related_name='slr_config')
-    
-    # Checkpoint Gate Placement
-    GATE_MODES = [
-        ('two_stage_split', 'Two-Stage Split (Abstract Gate + Full-Text Gate)'),
-        ('single_combined_post_fulltext', 'Single Combined Gate (After Full-Text)'),
-        ('abstract_only_gate', 'Abstract Gate Only'),
-        ('autonomous_benchmark', 'Autonomous (No Gates)')
-    ]
-    checkpoint_gate_mode = models.CharField(max_length=40, choices=GATE_MODES, default='two_stage_split')
-    enable_extraction_gate = models.BooleanField(default=True, help_text="Pause for audit after 30-parameter extraction")
-
-    # Quorum & Blind Review
-    screening_quorum_size = models.PositiveSmallIntegerField(default=2, help_text="Required independent reviews (1-4)")
-    extraction_quorum_size = models.PositiveSmallIntegerField(default=1, help_text="Required validators per extracted paper")
-    require_blind_review = models.BooleanField(default=True, help_text="Hide peer votes & AI reasoning prior to voting")
-
-    # Sampling Policy (0.0% to 100.0%)
-    abstract_sample_percentage = models.FloatField(default=10.0, help_text="Sample % for abstract audit")
-    full_text_sample_percentage = models.FloatField(default=20.0, help_text="Sample % for full-text audit")
-    extraction_sample_percentage = models.FloatField(default=10.0, help_text="Sample % for extraction audit")
-    
-    SAMPLING_MODES = [
-        ('uncertainty_stratified', 'Uncertainty-Stratified (100% Borderline + Random Controls)'),
-        ('pure_random', 'Pure Random Sampling'),
-        ('full_audit', '100% Full Manual Audit')
-    ]
-    sampling_mode = models.CharField(max_length=30, choices=SAMPLING_MODES, default='uncertainty_stratified')
-    negative_control_percentage = models.FloatField(default=5.0, help_text="% of AI-rejected papers to audit for False Negatives")
-
-    # Methodological Quality (Risk of Bias)
-    enable_rob_assessment = models.BooleanField(default=True, help_text="Run automated Cochrane RoB 2 / ROBINS-I appraisal")
-    ROB_FRAMEWORKS = [
-        ('auto_detect', 'Auto-detect Study Design (RCT vs Non-Randomized)'),
-        ('rob2', 'Cochrane RoB 2 (Randomized Controlled Trials)'),
-        ('robins_i', 'ROBINS-I (Non-Randomized Studies of Interventions)'),
-        ('nos', 'Newcastle-Ottawa Scale (Observational Cohort/Case-Control)')
-    ]
-    rob_framework = models.CharField(max_length=30, choices=ROB_FRAMEWORKS, default='auto_detect')
-    require_human_rob_validation = models.BooleanField(default=True, help_text="Require human sign-off on High Risk RoB domains")
-
-    # Dispute Adjudication
-    designated_arbiter = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, help_text="Lead PI / Arbiter")
-    TIE_STRATEGIES = [
-        ('arbiter_ruling', 'Senior Arbiter Ruling'),
-        ('conservative_include', 'Conservative Include (When in doubt, pass)'),
-        ('discussion_meeting', 'Flag for Consensus Discussion')
-    ]
-    tie_breaker_strategy = models.CharField(max_length=30, choices=TIE_STRATEGIES, default='arbiter_ruling')
-
-    # Taxonomy of Exclusion Reasons
-    exclusion_reasons = models.JSONField(default=list, help_text="List of allowed rejection reasons for PRISMA reporting")
-
-    # Evidence Grounding Policy
-    require_evidence_on_exclusion = models.BooleanField(default=True, help_text="Require verbatim quotes with page numbers when excluding")
-    require_evidence_on_override = models.BooleanField(default=True, help_text="Require evidence quotes when overturning an AI screening decision")
-
-    # Alerts
-    notify_reviewers_on_pause = models.BooleanField(default=True)
-    stale_queue_reminder_days = models.PositiveIntegerField(default=3)
-```
-
-### 2. `SLRProtocol`
-Defines project-level systematic review criteria and PICO definitions.
-* `workspace`: FK $\rightarrow$ `research_intelligence.Workspace`
-* `title`: Protocol title (e.g., "AI in Clinical Oncology SLR 2026")
-* `pico_population`, `pico_intervention`, `pico_comparison`, `pico_outcome`: Structured criteria.
-* `version`: Integer (for protocol amendment tracking).
-
-### 3. `AuditSampleCohort`
-Maintains sampling batches generated at pipeline checkpoints.
-* `config`: FK $\rightarrow$ `SLRWorkspaceConfig`
-* `pipeline_run`: FK $\rightarrow$ `research_intelligence.PipelineRun`
-* `stage`: `abstract_screening` | `full_text_screening` | `parameter_extraction`
-* `total_pool_count`: Integer
-* `sampled_count`: Integer
-* `sampling_strategy`: JSON configuration of sampling parameters.
-* `is_audit_complete`: Boolean (flips to True when all items reach quorum & resolution).
-
-### 4. `ScreeningReview`
-Individual blind assessment by a reviewer.
-* `sample_cohort`: FK $\rightarrow$ `AuditSampleCohort`
-* `paper`: FK $\rightarrow$ `research_intelligence.Paper`
-* `reviewer`: FK $\rightarrow$ `auth.User`
-* `stage`: `abstract` | `full_text`
-* `decision`: `include` | `exclude` | `uncertain`
-* `exclusion_reason`: Varchar (from predefined protocol taxonomy)
-* `evidence_quotes`: JSONField (list of objects: `[{"quote": str, "page_number": int, "section": str, "annotation_type": str}]`)
-* `notes`: TextField
-* `submitted_at`: DateTime
-
-### 5. `RiskOfBiasAssessment` (🌟 Cochrane Quality Appraisal)
-```python
-class RiskOfBiasAssessment(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    paper = models.ForeignKey('research_intelligence.Paper', on_delete=models.CASCADE, related_name='rob_assessments')
-    pipeline_run = models.ForeignKey('research_intelligence.PipelineRun', on_delete=models.CASCADE)
-    framework = models.CharField(max_length=30, choices=[('rob2', 'RoB 2'), ('robins_i', 'ROBINS-I'), ('nos', 'NOS')])
-    
-    # Domain Judgments: low_risk, some_concerns, high_risk, critical_risk
-    domain_scores = models.JSONField(
-        default=dict,
-        help_text="Scores per domain (e.g. {'D1_randomization': 'low_risk', 'D2_deviations': 'some_concerns', ...})"
-    )
-    overall_bias = models.CharField(max_length=30, choices=[('low_risk', 'Low Risk'), ('some_concerns', 'Some Concerns'), ('high_risk', 'High Risk')])
-    
-    # Grounding & Provenance
-    evidence_quotes = models.JSONField(default=list, help_text="Verbatim quotes and page citations per domain")
-    
-    # Human-in-the-Loop Validation
-    is_human_verified = models.BooleanField(default=False)
-    verified_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL)
-    human_notes = models.TextField(blank=True, null=True)
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-```
-
-### 6. `AdjudicationDispute`
-Tracks conflicts requiring senior tie-breaking.
-* `paper`: FK $\rightarrow$ `research_intelligence.Paper`
-* `sample_cohort`: FK $\rightarrow$ `AuditSampleCohort`
-* `status`: `pending` | `resolved`
-* `arbiter`: FK $\rightarrow$ `auth.User` (nullable)
-* `final_decision`: `include` | `exclude`
-* `resolution_rationale`: TextField
-* `evidence_synthesis`: JSONField (side-by-side compilation of Reviewer A, Reviewer B, and AI evidence quotes)
-* `resolved_at`: DateTime
+> **Full Blueprint:** The complete Python / Django ORM data models, field definitions, and Entity-Relationship Diagram (ERD) have been separated into a dedicated blueprint:
+> 
+> 👉 **[README_SLR_MODELS.md](README_SLR_MODELS.md)**
+> 
+> It provides production-ready implementations for `SLRWorkspaceConfig`, `SLRProtocol`, `AuditSampleCohort`, `ScreeningReview`, `RiskOfBiasAssessment`, `AdjudicationDispute`, and `SLRPRISMAMetrics`.
 
 ---
 
