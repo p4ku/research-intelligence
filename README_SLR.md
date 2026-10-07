@@ -7,14 +7,15 @@
 ## 📑 Table of Contents
 1. [Executive Overview & Objectives](#1-executive-overview--objectives)
 2. [Architectural Separation (`slr_review` Django App)](#2-architectural-separation-slr_review-django-app)
-3. [Phased Pipeline with Staged HITL Audit Checkpoints](#3-phased-pipeline-with-staged-hitl-audit-checkpoints)
-4. [Audit Checkpoint 1: Screening Gate (Abstract & Full-Text)](#4-audit-checkpoint-1-screening-gate-abstract--full-text)
-5. [Audit Checkpoint 2: Extraction Gate (Parameters & Evidences)](#5-audit-checkpoint-2-extraction-gate-parameters--evidences)
-6. [Consensus, Quorum & Dispute Resolution (Adjudication)](#6-consensus-quorum--dispute-resolution-adjudication)
-7. [Scientific Rigor & PRISMA 2020 Reporting](#7-scientific-rigor--prisma-2020-reporting)
-8. [Data Models & Schema Specifications](#8-data-models--schema-specifications)
-9. [API & FastMCP Tool Interface](#9-api--fastmcp-tool-interface)
-10. [Implementation Roadmap](#10-implementation-roadmap)
+3. [Per-Workspace SLR Configuration & Policy Matrix](#3-per-workspace-slr-configuration--policy-matrix)
+4. [Phased Pipeline with Staged HITL Audit Checkpoints](#4-phased-pipeline-with-staged-hitl-audit-checkpoints)
+5. [Audit Checkpoint 1: Screening Gate (Abstract & Full-Text)](#5-audit-checkpoint-1-screening-gate-abstract--full-text)
+6. [Audit Checkpoint 2: Extraction Gate (Parameters & Evidences)](#6-audit-checkpoint-2-extraction-gate-parameters--evidences)
+7. [Consensus, Quorum & Dispute Resolution (Adjudication)](#7-consensus-quorum--dispute-resolution-adjudication)
+8. [Scientific Rigor & PRISMA 2020 Reporting](#8-scientific-rigor--prisma-2020-reporting)
+9. [Data Models & Schema Specifications](#9-data-models--schema-specifications)
+10. [API & FastMCP Tool Interface](#10-api--fastmcp-tool-interface)
+11. [Implementation Roadmap](#11-implementation-roadmap)
 
 ---
 
@@ -26,6 +27,7 @@ While the core platform automates continuous literature ingestion, automated scr
 
 ### Core Enhancements
 - **Pausable Staged DAG Orchestration:** Breaking the continuous automated pipeline into distinct lifecycle stages with automatic pause checkpoints for human validation.
+- **Granular Per-Workspace Policy Configuration:** Full control over when the pipeline halts (split vs combined checkpoints), sampling percentages (0–100%), and quorum sizing (1–4 annotators).
 - **Configurable Stratified & Random Sampling:** Eliminates the burden of reading 1,000+ papers manually while maintaining academic validity (e.g., audit 10% sample: 100 out of 1,000 papers).
 - **Blind Dual-Review & Quorum:** Ensures at least $N \ge 2$ human annotators independently evaluate sampled candidates without anchoring bias (neither annotator sees the other's vote or AI output prior to voting).
 - **Conflict Adjudication Workflow:** Automated detection of split votes with escalation to a Senior Arbiter (Principal Investigator / Supervisor).
@@ -35,7 +37,7 @@ While the core platform automates continuous literature ingestion, automated scr
 
 ## 2. Architectural Separation (`slr_review` Django App)
 
-To keep the existing core codebase (`research_intelligence`) stable and decoupled from specific academic review workflows, all SLR-specific models, services, review queues, and metrics will reside in a new dedicated Django app:
+To keep the existing core codebase (`research_intelligence`) stable and decoupled from specific academic review workflows, all SLR-specific models, services, review queues, and metrics reside in a new dedicated Django app:
 
 ```
 backend/
@@ -44,7 +46,8 @@ backend/
 ├── mcp_server/                     # Core FastMCP tools
 └── slr_review/                     # 🌟 NEW ISOLATED APP
     ├── models/
-    │   ├── protocol.py             # SLR Protocol & Criteria Versioning
+    │   ├── workspace_config.py     # Per-Workspace SLR Policies & Checkpoint Rules
+    │   ├── protocol.py             # SLR Protocol & Criteria Versioning (PICO)
     │   ├── sample_cohort.py        # Audit cohorts & sampling rules
     │   ├── review.py               # Blind reviews & votes (Screening & Extraction)
     │   ├── dispute.py              # Conflict tracking & arbiter resolutions
@@ -65,90 +68,163 @@ backend/
 
 ---
 
-## 3. Phased Pipeline with Staged HITL Audit Checkpoints
+## 3. Per-Workspace SLR Configuration & Policy Matrix
 
-Instead of running from ingestion to report synthesis uninterrupted, the SLR execution follows a **Checkpoint State Machine**:
+Systematic reviews differ dramatically depending on the project: a rapid student scoping review may only need 1 annotator and a single audit gate, whereas a Cochrane-grade medical review requires strict 2-stage split gates and 2 independent blinded reviewers.
+
+Each Workspace configures its review policies via `SLRWorkspaceConfig`:
+
+### 1. Checkpoint Gate Placement (`checkpoint_gate_mode`)
+Controls *where* the automated pipeline halts for human intervention:
+* **`two_stage_split` (Default / Cochrane Gold Standard):**  
+  - 🛑 Gate 1A: Halts after **Abstract Screening** $\rightarrow$ Humans audit sampled abstracts $\rightarrow$ Pipeline downloads PDFs only for approved papers.  
+  - 🛑 Gate 1B: Halts after **Full-Text Screening** $\rightarrow$ Humans audit sampled full-text candidates $\rightarrow$ Pipeline proceeds to parameter extraction.
+* **`single_combined_post_fulltext` (Fast-Track Mode):**  
+  - AI runs through both Abstract and Full-Text screening continuously.  
+  - 🛑 Halts only **ONCE** after Full-Text screening is complete $\rightarrow$ Humans audit the combined results in one pass before parameter extraction begins.
+* **`abstract_only_gate` (Scoping Review Mode):**  
+  - Halts only after Abstract Screening; Full-Text screening and extraction continue autonomously.
+* **`autonomous_benchmark`:**  
+  - No gates; 100% continuous AI run (used for synthetic benchmarking).
+
+### 2. Quorum Headcount (`quorum_size`: 1, 2, 3, or 4)
+* **`1 Reviewer` (Solo Academic Work):** The student or lead researcher alone audits the sample.
+* **`2 Reviewers` (Dual Blind Review - Standard):** Student + Supervisor (e.g. Adam) independently vote.
+* **`3 Reviewers` (Majority Panel):** Three independent reviewers; consensus is established by majority ($2/3$) or unanimity.
+* **`4+ Reviewers` (Large Consortium):** Custom quorum thresholds.
+* **`require_blind_review` (Boolean, Default: `True`):** Reviewers cannot view other reviewers' votes or AI reasoning until their own vote is submitted.
+
+### 3. Sampling Engine Policy (0% to 100%)
+* **Sample Scope:** Configurable per stage:
+  - `abstract_sample_rate`: e.g. `10.0%` (or fixed count `100`).
+  - `full_text_sample_rate`: e.g. `20.0%` (or fixed count `50`).
+  - `extraction_sample_rate`: e.g. `10.0%` (or fixed count `10`).
+* **Sampling Modes:**
+  - **`uncertainty_stratified` (Recommended):** Automatically captures **100% of `borderline` and low-confidence papers**, plus a configurable random sample of `passed` and `rejected` papers.
+  - **`pure_random`:** Uniform pseudo-random draw ($k\%$ or $N$ items).
+  - **`full_audit` (`100%`):** Every single paper must be audited by humans.
+* **`negative_control_rate` (0% to 20%):** Explicit percentage of AI-rejected papers included in the audit pool to verify that AI did not discard false negatives.
+
+### 4. Dispute & Adjudication Rules
+* **`designated_arbiter`:** Specific User (e.g. Supervisor/Adam) or Role (`admin` / `manager`) assigned to break ties.
+* **`tie_breaker_strategy`:**
+  - `arbiter_ruling`: Arbiter makes the binding final choice with written rationale.
+  - `conservative_include` ("When in doubt, include"): If split ($1$ Include vs $1$ Exclude), the paper automatically passes to the next stage for safety.
+  - `discussion_meeting`: Marked for collaborative in-person resolution.
+
+### 5. Exclusion Reasons Taxonomy (Per-Workspace Checklist)
+Customizable checklist of disqualification reasons rendered in the reviewer UI and calculated in PRISMA flow:
+```json
+[
+  "Wrong Study Population",
+  "No Control / Comparator Group",
+  "Off-Target Intervention / Method",
+  "Animal / In-Vitro Model (Non-Human)",
+  "Non-English Publication",
+  "Duplicate / Retracted Article",
+  "Insufficient Quantitative Data Reported"
+]
+```
+
+### 6. Notifications & Stale Review Alerts
+* **`notify_reviewers_on_pause` (Boolean):** Sends an email digest or webhook when a pipeline run halts at an audit gate and papers are waiting in the queue.
+* **`stale_queue_reminder_days` (Integer, Default: `3`):** Automatic reminder if audit items remain unreviewed.
+
+---
+
+## 4. Phased Pipeline with Staged HITL Audit Checkpoints
+
+The execution flow adapts dynamically to the workspace's configured `checkpoint_gate_mode`:
 
 ```mermaid
 graph TD
-    subgraph Phase1 ["Stage I: Ingestion & Digestion"]
+    subgraph Ingestion ["Stage I: Ingestion & Digestion"]
         A[Start SLR Run] --> B[Multi-Source Ingestion<br/>arXiv / OpenAlex / PubMed / RIS Upload]
         B --> C[PDF Harvesting & Layout OCR]
     end
 
-    subgraph Phase2 ["Stage II: AI Screening Triage"]
-        C --> D[Abstract AI Screening<br/>PICO & Inclusion/Exclusion Criteria]
-        D --> E[Full-Text Multimodal AI Screening<br/>Candidate Verification]
+    subgraph ScreeningAI ["Stage II: AI Screening Triage"]
+        C --> D[Abstract AI Screening]
     end
 
-    subgraph Gate1 ["🛑 CHECKPOINT 1: Screening Audit Gate"]
-        E --> F{Halt Pipeline:<br/>Generate Audit Cohort}
-        F -->|Sample 100 of 1000| G[Blind Dual-Review Queue<br/>Annotator A & Annotator B]
-        G --> H{Quorum & Consensus Check}
-        H -->|Agreement| I[Approved Candidate Pool]
-        H -->|Dispute| J[Senior Arbiter Adjudication]
-        J --> I
+    subgraph Gate1A ["🛑 Gate 1A: Abstract Audit (If two_stage_split)"]
+        D --> E{Config: Abstract Gate Enabled?}
+        E -->|Yes| F[Halt: Sample 100 Abstracts<br/>Blind Dual-Review Queue]
+        F --> G[Quorum & Adjudication]
+        E -->|No / Combined| H[Auto-Pass to Full Text]
+        G --> H
     end
 
-    subgraph Phase3 ["Stage III: Parameter Extraction"]
-        I -->|Resume Pipeline| K[AI 30-Parameter Extraction<br/>Schema-constrained JSON & Quotes]
+    subgraph FullTextAI ["Stage III: Full-Text AI Screening"]
+        H --> I[Full-Text Multimodal AI Screening]
     end
 
-    subgraph Gate2 ["🛑 CHECKPOINT 2: Extraction Audit Gate"]
-        K --> L{Halt Pipeline:<br/>Generate Extraction Cohort}
-        L -->|Sample 10 of 50 Papers| M[Extract Quality Audit<br/>Validate Values & Evidence Quotes]
-        M --> N{Verify or Correct}
-        N -->|Validated| O[Consolidated Synthesis Matrix]
+    subgraph Gate1B ["🛑 Gate 1B: Full-Text Audit (Combined or Split)"]
+        I --> J{Config: Full-Text Gate Enabled?}
+        J -->|Yes| K[Halt: Sample Candidates<br/>Review Eligibility & Exclusion Reasons]
+        K --> L[Quorum & Adjudication]
+        J -->|No| M[Approved Candidate Pool]
+        L --> M
     end
 
-    subgraph Phase4 ["Stage IV: Reporting & PRISMA Export"]
-        O -->|Resume Pipeline| P[Compute Inter-Rater Reliability: Cohen's Kappa]
-        P --> Q[Generate PRISMA 2020 Flow Diagram]
-        Q --> R[Export Excel Matrix & RIS/BibTeX Archive]
+    subgraph ExtractionAI ["Stage IV: Parameter Extraction"]
+        M -->|Resume Pipeline| N[AI 30-Parameter Extraction<br/>Schema JSON & Evidence Quotes]
+    end
+
+    subgraph Gate2 ["🛑 Gate 2: Extraction Audit Gate"]
+        N --> O{Config: Extraction Gate Enabled?}
+        O -->|Yes (e.g. 10% sample)| P[Halt: Verify Field Values & Quotes]
+        P --> Q[Reviewers Verify / Modify / Reject]
+        O -->|No| R[Final Matrix Synthesis]
+        Q --> R
+    end
+
+    subgraph Synthesis ["Stage V: Reporting & PRISMA Export"]
+        R --> S[Compute Cohen's Kappa & Confusion Matrix]
+        S --> T[Generate PRISMA 2020 Flow Diagram]
+        T --> U[Export Excel Matrix & RIS/BibTeX Citations]
     end
 ```
 
 ---
 
-## 4. Audit Checkpoint 1: Screening Gate (Abstract & Full-Text)
+## 5. Audit Checkpoint 1: Screening Gate (Abstract & Full-Text)
 
-Once AI completes automated screening, the pipeline enters state `AWAITING_SCREENING_AUDIT`.
+Once the AI completes the screening phase, the pipeline transitions to `AWAITING_SCREENING_AUDIT` (or `AWAITING_ABSTRACT_AUDIT` / `AWAITING_FULL_TEXT_AUDIT`).
 
-### 1. Sampling Strategy
-For high-volume reviews (e.g., 1,000–5,000 candidates), the sampling engine builds an `AuditSampleCohort`:
-* **Uncertainty / Borderline Sampling (100%):** All papers flagged by AI as `borderline` or where prediction confidence score is low ($< 0.75$).
-* **False Positive Check (e.g., 5% random of `passed`):** Validates that AI is not letting irrelevant papers pass.
-* **False Negative Check (e.g., 5% random of `rejected`):** **Critical for PRISMA compliance.** Proves to reviewers that AI did not discard crucial evidence.
-* **Pure Random Sampling (User-Defined $N$ or $\%$):** e.g., precisely 100 papers selected at random across all ingested documents.
+### 1. Sampling Workflow
+The sampling service draws an `AuditSampleCohort` based on the workspace policy:
+1. All `borderline` and low-confidence items ($< 0.75$) are automatically added.
+2. Random sample of `passed` candidates is drawn.
+3. Random negative control sample of `rejected` candidates is drawn.
+4. Total sample count matches configured target (e.g., 100 papers).
 
 ### 2. Blind Review Queue
-* Assigned annotators (e.g., Student Researcher & Second Reviewer) access a streamlined Web UI or MCP tool.
-* **Blind Protocol:** Annotators review papers without seeing:
-  1. The other annotator's votes or notes.
-  2. The AI's decisions or reasoning.
-* Review fields per paper:
+* Assigned annotators access `/api/slr/reviews/my-queue/`.
+* **Blind Protocol:** Annotators vote without seeing other reviewers' votes or AI reasoning.
+* Review submission:
   - `decision`: `Include` | `Exclude` | `Uncertain`
-  - `exclusion_reason`: Predefined checklist (e.g., *Wrong Population*, *No Control Group*, *Animal Study*, *Insufficient Follow-up*)
-  - `reviewer_notes`: Free text comments.
+  - `exclusion_reason`: Selected from workspace taxonomy (mandatory if `Exclude`).
+  - `reviewer_notes`: Qualitative context.
 
 ---
 
-## 5. Audit Checkpoint 2: Extraction Gate (Parameters & Evidences)
+## 6. Audit Checkpoint 2: Extraction Gate (Parameters & Evidences)
 
-Once screening candidates are confirmed by consensus, the AI runs dynamic parameter extraction (e.g., the 30 target parameters with evidence quotes). The pipeline enters state `AWAITING_EXTRACTION_AUDIT`.
+Once screening candidates are confirmed, the AI extracts the schema-constrained 30 parameters with verbatim quotes and page references. The pipeline enters state `AWAITING_EXTRACTION_AUDIT`.
 
 ### Extraction Audit Capabilities:
-* **Cohort Selection:** Audits a configurable sample (e.g., 10–20% of accepted papers, or all papers with complex multi-arm trials).
+* **Cohort Selection:** Audits a configurable sample (e.g., 10–20% of accepted papers).
 * **Grounding & Quote Verification:** Reviewers verify whether the extracted numeric value aligns with the verbatim quote and page citation (`evidence_quote`, `page_number`).
 * **In-place Correction:** Reviewers can mark fields as `Verified`, `Modified` (updating the value and logging previous vs new values), or `Rejected`.
 * Integrates directly with the existing `HITLCorrection` audit model.
 
 ---
 
-## 6. Consensus, Quorum & Dispute Resolution (Adjudication)
+## 7. Consensus, Quorum & Dispute Resolution (Adjudication)
 
 ### Quorum Rules
-* Default configuration: **2 independent human reviews** per sampled article (`min_quorum = 2`).
+* Default configuration: **2 independent human reviews** per sampled article (`quorum_size = 2`).
 * A paper cannot proceed past the checkpoint until all sampled items meet quorum.
 
 ### Resolution Logic:
@@ -163,7 +239,7 @@ Once screening candidates are confirmed by consensus, the AI runs dynamic parame
 
 ---
 
-## 7. Scientific Rigor & PRISMA 2020 Reporting
+## 8. Scientific Rigor & PRISMA 2020 Reporting
 
 The extension produces quantitative metrics directly suitable for academic publication:
 
@@ -183,24 +259,70 @@ $$\kappa = \frac{p_o - p_e}{1 - p_e}$$
 
 ---
 
-## 8. Data Models & Schema Specifications
+## 9. Data Models & Schema Specifications
 
 The `slr_review` application introduces the following core models:
 
-### 1. `SLRProtocol`
-Defines project-level systematic review criteria and quorum settings.
+### 1. `SLRWorkspaceConfig` (🌟 Per-Workspace Policies)
+```python
+class SLRWorkspaceConfig(models.Model):
+    workspace = models.OneToOneField('research_intelligence.Workspace', on_delete=models.CASCADE, related_name='slr_config')
+    
+    # Checkpoint Gate Placement
+    GATE_MODES = [
+        ('two_stage_split', 'Two-Stage Split (Abstract Gate + Full-Text Gate)'),
+        ('single_combined_post_fulltext', 'Single Combined Gate (After Full-Text)'),
+        ('abstract_only_gate', 'Abstract Gate Only'),
+        ('autonomous_benchmark', 'Autonomous (No Gates)')
+    ]
+    checkpoint_gate_mode = models.CharField(max_length=40, choices=GATE_MODES, default='two_stage_split')
+    enable_extraction_gate = models.BooleanField(default=True, help_text="Pause for audit after 30-parameter extraction")
+
+    # Quorum & Blind Review
+    screening_quorum_size = models.PositiveSmallIntegerField(default=2, help_text="Required independent reviews (1-4)")
+    extraction_quorum_size = models.PositiveSmallIntegerField(default=1, help_text="Required validators per extracted paper")
+    require_blind_review = models.BooleanField(default=True, help_text="Hide peer votes & AI reasoning prior to voting")
+
+    # Sampling Policy (0.0% to 100.0%)
+    abstract_sample_percentage = models.FloatField(default=10.0, help_text="Sample % for abstract audit")
+    full_text_sample_percentage = models.FloatField(default=20.0, help_text="Sample % for full-text audit")
+    extraction_sample_percentage = models.FloatField(default=10.0, help_text="Sample % for extraction audit")
+    
+    SAMPLING_MODES = [
+        ('uncertainty_stratified', 'Uncertainty-Stratified (100% Borderline + Random Controls)'),
+        ('pure_random', 'Pure Random Sampling'),
+        ('full_audit', '100% Full Manual Audit')
+    ]
+    sampling_mode = models.CharField(max_length=30, choices=SAMPLING_MODES, default='uncertainty_stratified')
+    negative_control_percentage = models.FloatField(default=5.0, help_text="% of AI-rejected papers to audit for False Negatives")
+
+    # Dispute Adjudication
+    designated_arbiter = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, help_text="Lead PI / Arbiter")
+    TIE_STRATEGIES = [
+        ('arbiter_ruling', 'Senior Arbiter Ruling'),
+        ('conservative_include', 'Conservative Include (When in doubt, pass)'),
+        ('discussion_meeting', 'Flag for Consensus Discussion')
+    ]
+    tie_breaker_strategy = models.CharField(max_length=30, choices=TIE_STRATEGIES, default='arbiter_ruling')
+
+    # Taxonomy of Exclusion Reasons
+    exclusion_reasons = models.JSONField(default=list, help_text="List of allowed rejection reasons for PRISMA reporting")
+
+    # Alerts
+    notify_reviewers_on_pause = models.BooleanField(default=True)
+    stale_queue_reminder_days = models.PositiveIntegerField(default=3)
+```
+
+### 2. `SLRProtocol`
+Defines project-level systematic review criteria and PICO definitions.
 * `workspace`: FK $\rightarrow$ `research_intelligence.Workspace`
 * `title`: Protocol title (e.g., "AI in Clinical Oncology SLR 2026")
 * `pico_population`, `pico_intervention`, `pico_comparison`, `pico_outcome`: Structured criteria.
-* `screening_quorum`: Integer (default: `2`).
-* `screening_sample_mode`: Choice (`all`, `percentage`, `fixed_count`, `uncertainty_stratified`).
-* `screening_sample_size`: Float/Int (e.g. `10.0` for 10%, or `100` for fixed 100 papers).
-* `extraction_sample_size`: Float/Int (e.g. `10` papers).
 * `version`: Integer (for protocol amendment tracking).
 
-### 2. `AuditSampleCohort`
+### 3. `AuditSampleCohort`
 Maintains sampling batches generated at pipeline checkpoints.
-* `protocol`: FK $\rightarrow$ `SLRProtocol`
+* `config`: FK $\rightarrow$ `SLRWorkspaceConfig`
 * `pipeline_run`: FK $\rightarrow$ `research_intelligence.PipelineRun`
 * `stage`: `abstract_screening` | `full_text_screening` | `parameter_extraction`
 * `total_pool_count`: Integer
@@ -208,7 +330,7 @@ Maintains sampling batches generated at pipeline checkpoints.
 * `sampling_strategy`: JSON configuration of sampling parameters.
 * `is_audit_complete`: Boolean (flips to True when all items reach quorum & resolution).
 
-### 3. `ScreeningReview`
+### 4. `ScreeningReview`
 Individual blind assessment by a reviewer.
 * `sample_cohort`: FK $\rightarrow$ `AuditSampleCohort`
 * `paper`: FK $\rightarrow$ `research_intelligence.Paper`
@@ -219,7 +341,7 @@ Individual blind assessment by a reviewer.
 * `notes`: TextField
 * `submitted_at`: DateTime
 
-### 4. `AdjudicationDispute`
+### 5. `AdjudicationDispute`
 Tracks conflicts requiring senior tie-breaking.
 * `paper`: FK $\rightarrow$ `research_intelligence.Paper`
 * `sample_cohort`: FK $\rightarrow$ `AuditSampleCohort`
@@ -231,10 +353,11 @@ Tracks conflicts requiring senior tie-breaking.
 
 ---
 
-## 9. API & FastMCP Tool Interface
+## 10. API & FastMCP Tool Interface
 
 ### REST API Endpoints (`/api/slr/`)
-* `GET /api/slr/protocols/`: Manage and version SLR review protocols.
+* `GET /api/slr/config/`: Get or update workspace SLR policies (quorum, sampling %, gate modes, exclusion reasons).
+* `GET /api/slr/protocols/`: Manage and version SLR review protocols (PICO).
 * `POST /api/slr/runs/{id}/create-audit-cohort/`: Triggers sampling and pauses pipeline.
 * `GET /api/slr/reviews/my-queue/`: Fetches pending blind review assignments for current user.
 * `POST /api/slr/reviews/submit/`: Submits blind vote (`decision`, `exclusion_reason`, `notes`).
@@ -245,7 +368,8 @@ Tracks conflicts requiring senior tie-breaking.
 * `GET /api/slr/reports/inter-rater-reliability/`: Computes Cohen's Kappa & confusion matrices.
 
 ### FastMCP Tools (`backend/mcp_server/tools/slr/`)
-* `slr_create_protocol`: Set up PICO criteria, quorum counts, and sampling rules.
+* `slr_configure_workspace`: Configure gate mode, quorum count (1–4), sampling % (0–100%), and exclusion reasons.
+* `slr_create_protocol`: Set up PICO criteria and protocol metadata.
 * `slr_get_review_queue`: Retrieve unreviewed papers for a designated annotator.
 * `slr_submit_blind_review`: Cast a blind vote from agent/client without leaking peer opinions.
 * `slr_resolve_dispute`: Cast arbiter decision on a conflicting paper.
@@ -254,19 +378,19 @@ Tracks conflicts requiring senior tie-breaking.
 
 ---
 
-## 10. Implementation Roadmap
+## 11. Implementation Roadmap
 
 1. **Sprint 1: App Setup & Data Architecture**
    - Create `backend/slr_review` Django app and register in `INSTALLED_APPS`.
-   - Implement `SLRProtocol`, `AuditSampleCohort`, `ScreeningReview`, and `AdjudicationDispute` models with migrations.
+   - Implement `SLRWorkspaceConfig`, `SLRProtocol`, `AuditSampleCohort`, `ScreeningReview`, and `AdjudicationDispute` models with migrations.
 2. **Sprint 2: Sampling & Consensus Engine**
    - Implement `sampling_service.py` (Random, Uncertainty/Borderline, False Positive/Negative cohorts).
    - Implement `consensus_service.py` (Quorum verification, auto-consensus vs dispute assignment).
 3. **Sprint 3: Pipeline Checkpoint Hooks**
-   - Add stage-pause interceptors to `tasks/orchestrator/agent_engine.py`.
+   - Add stage-pause interceptors to `tasks/orchestrator/agent_engine.py` governed by `SLRWorkspaceConfig.checkpoint_gate_mode`.
    - Add `resume_slr_run` Celery task that triggers downstream extraction only after audit sign-off.
 4. **Sprint 4: REST API & Reviewer UI / FastMCP Tools**
-   - Build REST endpoints for blind review queue and arbiter resolution.
+   - Build REST endpoints for policy management, blind review queue, and arbiter resolution.
    - Expose FastMCP tools for CLI / agent operation.
 5. **Sprint 5: Scientific Reporting & Export**
    - PRISMA 2020 calculation & flow chart generator.
