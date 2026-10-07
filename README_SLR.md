@@ -110,7 +110,7 @@ graph TB
         subgraph SLRModels ["SLR Database Models"]
             cfg["SLRWorkspaceConfig & SLRProtocol"]
             cohort["AuditSampleCohort (Sample Batches)"]
-            reviews["ScreeningReview & ExtractionAuditReview"]
+            reviews["ScreeningReview & ExtractionReview"]
             disputes["AdjudicationDispute (Split Votes)"]
             rob_models["RiskOfBiasAssessment"]
             prisma_models["SLRPRISMAMetrics"]
@@ -278,7 +278,7 @@ graph TD
 
     subgraph Gate2 ["🛑 Gate 2: Extraction & Quality Audit Gate"]
         RoB --> O{Gate 2 Active?<br/>Extraction Audit Gate}
-        O -->|"Yes"| P[Halt DAG: Sampled Extract Cohort<br/>ExtractionAuditReview Queue]
+        O -->|"Yes"| P[Halt DAG: Sampled Extract Cohort<br/>ExtractionReview Queue]
         P --> Q[Reviewers: Verify / Modify / Reject<br/>Validate Values, Quotes & RoB Concerns]
         Q --> Q_Adj{Extraction Consensus?}
         Q_Adj -->|"Verified"| R[Final Validated Matrix]
@@ -467,7 +467,7 @@ $$\kappa = \frac{p_o - p_e}{1 - p_e}$$
 > 
 > 👉 **[README_SLR_MODELS.md](README_SLR_MODELS.md)**
 > 
-> It provides production-ready implementations for `SLRWorkspaceConfig`, `SLRProtocol`, `AuditSampleCohort`, `ScreeningReview`, `RiskOfBiasAssessment`, `AdjudicationDispute`, and `SLRPRISMAMetrics`.
+> It provides production-ready implementations for `SLRWorkspaceConfig`, `SLRProtocol`, `AuditSampleCohort`, `ScreeningReview`, `ExtractionReview`, `RiskOfBiasAssessment`, `AdjudicationDispute`, and `SLRPRISMAMetrics`.
 
 ---
 
@@ -504,7 +504,7 @@ $$\kappa = \frac{p_o - p_e}{1 - p_e}$$
 
 1. **Sprint 1: App Setup & Data Architecture**
    - Create `backend/slr_review` Django app and register in `INSTALLED_APPS`.
-   - Implement `SLRWorkspaceConfig`, `SLRProtocol`, `AuditSampleCohort`, `ScreeningReview`, `RiskOfBiasAssessment`, and `AdjudicationDispute` models with migrations.
+   - Implement `SLRWorkspaceConfig`, `SLRProtocol`, `AuditSampleCohort`, `ScreeningReview`, `ExtractionReview`, `RiskOfBiasAssessment`, and `AdjudicationDispute` models with migrations.
 2. **Sprint 2: Sampling & Consensus Engine**
    - Implement `sampling_service.py` (Random, Uncertainty/Borderline, False Positive/Negative cohorts).
    - Implement `consensus_service.py` (Quorum verification, auto-consensus vs dispute assignment).

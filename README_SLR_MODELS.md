@@ -11,7 +11,7 @@
 3. [`SLRProtocol` (PICO Criteria & Versioning)](#3-slrprotocol-pico-criteria--versioning)
 4. [`AuditSampleCohort` (Sampling Batches & Quorum Tracking)](#4-auditsamplecohort-sampling-batches--quorum-tracking)
 5. [`ScreeningReview` (Blind Human Reviews & Evidence Quotes)](#5-screeningreview-blind-human-reviews--evidence-quotes)
-6. [`ExtractionAuditReview` (Parameter & Evidence Validation)](#6-extractionauditreview-parameter--evidence-validation)
+6. [`ExtractionReview` (Parameter & Evidence Validation)](#6-extractionreview-parameter--evidence-validation)
 7. [`AdjudicationDispute` (Conflict Resolution & Arbiter Tie-Breaking)](#7-adjudicationdispute-conflict-resolution--arbiter-tie-breaking)
 8. [`RiskOfBiasAssessment` (Cochrane RoB 2 / ROBINS-I Appraisal)](#8-riskofbiasassessment-cochrane-rob-2--robins-i-appraisal)
 9. [`SLRPRISMAMetrics` (PRISMA 2020 Counts & Cohen's Kappa)](#9-slrprismametrics-prisma-2020-counts--cohens-kappa)
@@ -31,20 +31,20 @@ erDiagram
     PipelineRun ||--o{ RiskOfBiasAssessment : "evaluates RoB in"
     
     AuditSampleCohort ||--o{ ScreeningReview : "collects screening votes"
-    AuditSampleCohort ||--o{ ExtractionAuditReview : "collects extraction audits"
+    AuditSampleCohort ||--o{ ExtractionReview : "collects extraction reviews"
     AuditSampleCohort ||--o{ AdjudicationDispute : "flags split votes"
     AuditSampleCohort }o--o{ Paper : "samples"
     
     Paper ||--o{ ScreeningReview : "reviewed in"
     Paper ||--o{ Extraction : "has extracted parameters"
-    Paper ||--o{ ExtractionAuditReview : "audited in"
+    Paper ||--o{ ExtractionReview : "audited in"
     Paper ||--o{ AdjudicationDispute : "adjudicated in"
     Paper ||--o{ RiskOfBiasAssessment : "evaluated for RoB"
     
-    Extraction ||--o{ ExtractionAuditReview : "validated by"
+    Extraction ||--o{ ExtractionReview : "validated by"
     
     User ||--o{ ScreeningReview : "reviews"
-    User ||--o{ ExtractionAuditReview : "validates"
+    User ||--o{ ExtractionReview : "validates"
     User ||--o{ AdjudicationDispute : "arbitrates"
     User ||--o{ RiskOfBiasAssessment : "verifies"
 ```
@@ -496,7 +496,7 @@ class ScreeningReview(models.Model):
 
 ---
 
-## 6. `ExtractionAuditReview`
+## 6. `ExtractionReview`
 
 Audits and validates AI-extracted parameters and evidence quotes during Gate 2 (Extraction Audit Gate). When a sample of papers is drawn (e.g. 10 of 50 papers), reviewers verify each parameter value, correct any inaccuracies, and confirm textual provenance.
 
@@ -523,7 +523,7 @@ from django.db import models
 from django.conf import settings
 
 
-class ExtractionAuditReview(models.Model):
+class ExtractionReview(models.Model):
     """
     Audits and validates AI-extracted parameters and evidence quotes
     during Gate 2 (Extraction Audit Gate).
