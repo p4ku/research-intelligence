@@ -43,13 +43,13 @@ An intelligent, multi-pass fuzzy deduplication pipeline integrated into `slr_rev
 ```mermaid
 graph TD
     A[Aggregated Ingested Records<br/>PubMed + Embase + Scopus + RIS] --> B{Pass 1: Exact Identifiers}
-    B -->|Match on DOI, PMID, PMCID, or arXiv ID| Dup1[Mark Duplicate & Merge Metadata]
-    B -->|No Exact Match| C{Pass 2: Title Normalization}
+    B -->|"Match on DOI / PMID / PMCID / arXiv"| Dup1[Mark Duplicate & Merge Metadata]
+    B -->|"No Exact Match"| C{Pass 2: Title Normalization}
     C -->|Strip punctuation, lower-case, remove stop-words| D[Normalized Levenshtein / Jaro-Winkler]
-    D -->|Similarity >= 92%| E{Pass 3: Author & Year Constraint}
-    E -->|First Author Last Name Match AND Year +/- 1| Dup2[Mark Duplicate & Link Sources]
-    E -->|Mismatch| F[Unique Study Record]
-    D -->|Similarity < 92%| F
+    D -->|"Similarity >= 92%"| E{Pass 3: Author & Year Constraint}
+    E -->|"First Author Match & Year +/- 1"| Dup2[Mark Duplicate & Link Sources]
+    E -->|"Mismatch"| F[Unique Study Record]
+    D -->|"Similarity < 92%"| F
 ```
 
 #### Key Capabilities:

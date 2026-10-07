@@ -179,9 +179,9 @@ graph TD
 
     subgraph Gate1A ["🛑 Gate 1A: Abstract Audit (If two_stage_split)"]
         D --> E{Config: Abstract Gate Enabled?}
-        E -->|Yes| F[Halt: Sample 100 Abstracts<br/>Blind Dual-Review Queue]
+        E -->|"Yes"| F[Halt: Sample 100 Abstracts<br/>Blind Dual-Review Queue]
         F --> G[Quorum & Adjudication]
-        E -->|No / Combined| H[Auto-Pass to Full Text]
+        E -->|"No / Combined"| H[Auto-Pass to Full Text]
         G --> H
     end
 
@@ -191,22 +191,22 @@ graph TD
 
     subgraph Gate1B ["🛑 Gate 1B: Full-Text Audit (Combined or Split)"]
         I --> J{Config: Full-Text Gate Enabled?}
-        J -->|Yes| K[Halt: Sample Candidates<br/>Review Eligibility & Exclusion Reasons]
+        J -->|"Yes"| K[Halt: Sample Candidates<br/>Review Eligibility & Exclusion Reasons]
         K --> L[Quorum & Adjudication]
-        J -->|No| M[Approved Candidate Pool]
+        J -->|"No"| M[Approved Candidate Pool]
         L --> M
     end
 
     subgraph ExtractionAndRoB ["Stage IV: Parameter Extraction & Risk of Bias"]
-        M -->|Resume Pipeline| N[AI 30-Parameter Extraction<br/>Schema JSON & Evidence Quotes]
+        M -->|"Resume Pipeline"| N[AI 30-Parameter Extraction<br/>Schema JSON & Evidence Quotes]
         N --> RoB[Automated Cochrane RoB 2 / ROBINS-I<br/>Domain Evaluation & Traffic Light Matrix]
     end
 
     subgraph Gate2 ["🛑 Gate 2: Extraction & Quality Audit Gate"]
         RoB --> O{Config: Extraction Gate Enabled?}
-        O -->|Yes (e.g. 10% sample)| P[Halt: Verify Field Values & Quotes<br/>Validate RoB Concerns]
+        O -->|"Yes (Sampled for Audit)"| P[Halt: Verify Field Values & Quotes<br/>Validate RoB Concerns]
         P --> Q[Reviewers Verify / Modify / Reject]
-        O -->|No| R[Final Synthesis & Matrix]
+        O -->|"No"| R[Final Synthesis & Matrix]
         Q --> R
     end
 
