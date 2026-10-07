@@ -9,6 +9,7 @@
 2. [Architectural Separation (`slr_review` Django App)](#2-architectural-separation-slr_review-django-app)
 3. [Per-Workspace SLR Configuration & Policy Matrix](#3-per-workspace-slr-configuration--policy-matrix)
 4. [Phased Pipeline with Staged HITL Audit Checkpoints](#4-phased-pipeline-with-staged-hitl-audit-checkpoints)
+   - [4.1 Orchestrator Hooks Architecture (`tasks/orchestrator_hooks.py`)](#41-orchestrator-hooks-architecture-tasksorchestrator_hookspy)
 5. [Audit Checkpoint 1: Screening Gate (Abstract & Full-Text)](#5-audit-checkpoint-1-screening-gate-abstract--full-text)
 6. [Audit Checkpoint 2: Extraction Gate (Parameters & Evidences)](#6-audit-checkpoint-2-extraction-gate-parameters--evidences)
 7. [Methodological Quality & Risk of Bias (RoB) Assessment](#7-methodological-quality--risk-of-bias-rob-assessment)
@@ -216,6 +217,68 @@ graph TD
         T --> U[Render Cochrane Traffic Light Plot]
         U --> V[Export Excel Matrix & RIS/BibTeX Citations]
     end
+```
+
+### 4.1 Orchestrator Hooks Architecture (`tasks/orchestrator_hooks.py`)
+
+A critical technical question is: **How does an automated background Celery pipeline safely halt for days while humans review papers, and then resume without losing DAG state or crashing workers?**
+
+`slr_review.tasks.orchestrator_hooks.py` acts as the **State Interceptor & Lifecycle Bridge** between the core Celery DAG runner (`research_intelligence.tasks.orchestrator.runner.PipelineRunner`) and the SLR Human-in-the-Loop review queues.
+
+#### 1. Signal Interception (`on_component_completed`)
+Whenever any Celery component finishes (e.g., Abstract Screening or Full-Text Screening), the runner calls `handle_component_completion()`. The hook intercepts this event before the next DAG step is dispatched:
+1. **Config Inspection:** Checks if the parent `Workspace` has an active `SLRWorkspaceConfig`.
+2. **Gate Evaluation:** Determines if the current stage is configured as an audit gate (e.g. `two_stage_split` or `single_combined_post_fulltext`).
+3. **Audit Cohort Generation:** Calls `sampling_service.generate_sample_cohort()`, creating an `AuditSampleCohort` with sampled papers (borderline, uncertainty, and random controls).
+
+#### 2. Graceful Pause (`status = 'paused'`)
+* The hook sets `pipeline_run.status = 'paused'` and records `current_stage = 'awaiting_screening_audit'`.
+* **Zero Worker Blocking:** In `PipelineRunner.tick()`, the engine explicitly guards:
+  ```python
+  if pipeline_run.status in ['paused', 'aborted', 'failed', 'completed']:
+      return {"message": "PipelineRun is paused. No state transition taken."}
+  ```
+  This means Celery workers are immediately released back to the task pool. There are **no polling while-loops, no sleeping threads, and no memory leaks**. The pipeline state is safely persisted in PostgreSQL.
+* **Notification Dispatch:** Fires email / Slack / webhook alerts to assigned reviewers: *"Audit Batch ready: 100 papers waiting in your review queue."*
+
+#### 3. Quorum Listening During Pause
+* While paused, reviewers submit blind votes via `/api/slr/reviews/submit/`.
+* When all papers reach quorum (e.g. 2 votes) and all split votes are settled in `AdjudicationDispute`, `AuditSampleCohort.is_audit_complete` is marked `True`.
+
+#### 4. Safe Resume & DAG Wakeup (`resume_slr_pipeline_run`)
+Triggered automatically upon final dispute resolution OR manually via `POST /api/slr/runs/{id}/resume/` or FastMCP tool `slr_resume_pipeline`:
+1. **Quorum Security Check:** Verifies that `sample_cohort.is_audit_complete == True` (prevents premature resumption).
+2. **Decision Application:** Discards papers rejected during human audit and marks approved candidates.
+3. **State Unlocking:** Flips `pipeline_run.status = 'running'`.
+4. **Celery Wakeup:** Dispatches `run_pipeline_tick.delay(str(pipeline_run.id))` to enqueue the next DAG stage (e.g., PDF Download or Parameter Extraction).
+
+```mermaid
+sequenceDiagram
+    participant DAG as Celery DAG Runner
+    participant Hook as orchestrator_hooks.py
+    participant DB as PostgreSQL DB
+    participant Rev as Human Reviewers
+    participant Arb as Senior Arbiter
+
+    DAG->>Hook: Component Finished (e.g. Abstract Screening)
+    Hook->>DB: Check SLRWorkspaceConfig (Gate active?)
+    Hook->>DB: Generate AuditSampleCohort (100 papers)
+    Hook->>DB: Set pipeline_run.status = 'paused'
+    Hook-->>DAG: Halt DAG progression (release worker)
+    Hook->>Rev: Send notification (Batch ready)
+
+    loop Blind Dual-Review
+        Rev->>DB: Submit blind votes (2 per paper)
+    end
+
+    opt Split Vote Detected
+        DB->>Arb: Escalate to Adjudication Queue
+        Arb->>DB: Arbiter submits binding ruling
+    end
+
+    DB->>Hook: Audit complete (is_audit_complete = True)
+    Hook->>DB: Set pipeline_run.status = 'running'
+    Hook->>DAG: Enqueue run_pipeline_tick.delay() (Resume next stage)
 ```
 
 ---
