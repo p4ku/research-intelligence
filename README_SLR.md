@@ -7,6 +7,7 @@
 ## 📑 Table of Contents
 1. [Executive Overview & Objectives](#1-executive-overview--objectives)
 2. [Architectural Separation (`slr_review` Django App)](#2-architectural-separation-slr_review-django-app)
+   - [2.1 Component Interaction & System Architecture](#21-component-interaction--system-architecture)
 3. [Per-Workspace SLR Configuration & Policy Matrix](#3-per-workspace-slr-configuration--policy-matrix)
 4. [Phased Pipeline with Staged HITL Audit Checkpoints](#4-phased-pipeline-with-staged-hitl-audit-checkpoints)
    - [4.1 Orchestrator Hooks Architecture (`tasks/orchestrator_hooks.py`)](#41-orchestrator-hooks-architecture-tasksorchestrator_hookspy)
@@ -69,6 +70,74 @@ backend/
     │   └── serializers.py
     └── mcp/
         └── slr_tools.py            # MCP tools for SLR agent interaction
+```
+
+### 2.1 Component Interaction & System Architecture
+
+The following diagram illustrates how the modular `slr_review` application interfaces with the core platform (`research_intelligence`), Celery asynchronous workers, PostgreSQL persistence, and human reviewers:
+
+```mermaid
+graph TB
+    subgraph Clients ["Academic Personas & Clients"]
+        rev["👩‍🔬 Human Reviewers<br/>(Blind Dual-Review Queue)"]
+        arb["👨‍🏫 Senior Arbiter / PI<br/>(Adjudication Dashboard)"]
+        agent["⚡ AI Agent / Client<br/>(FastMCP Client)"]
+    end
+
+    subgraph Ingress ["API & Protocol Gateways"]
+        rest_api["Django REST API<br/>/api/slr/ (Queues, Votes, Rulings)"]
+        mcp_srv["FastMCP Server<br/>slr_tools.py (Queue, Vote, Resume)"]
+    end
+
+    rev -->|"Submit Votes & Quotes"| rest_api
+    arb -->|"Binding Dispute Rulings"| rest_api
+    agent -->|"Autonomous Tool Calls"| mcp_srv
+
+    subgraph CoreEngine ["Core Engine: research_intelligence"]
+        runner["PipelineRunner (Celery DAG)<br/>8-Stage Automated Execution"]
+        scrapers["Harvesting & OCR<br/>arXiv, OpenAlex, PubMed, PyPDF"]
+        gemini["Multimodal LLM Engine<br/>Gemini 3.7 Flash Triage & Extraction"]
+        core_models["Core Models<br/>Workspace, Paper, PipelineRun, Extraction"]
+    end
+
+    subgraph SLRExtension ["SLR Modular Extension: slr_review"]
+        hooks["orchestrator_hooks.py<br/>Checkpoint Interceptor & Pause/Resume Bridge"]
+        sampling["sampling_service.py<br/>Uncertainty & Stratified Sampling"]
+        consensus["consensus_service.py<br/>Quorum Tracker & Conflict Detection"]
+        rob_srv["rob_service.py<br/>RoB 2 & ROBINS-I Traffic Light Engine"]
+        metrics["metrics_service.py & export_service.py<br/>Cohen's Kappa & PRISMA Exporter"]
+        
+        subgraph SLRModels ["SLR Database Models"]
+            cfg["SLRWorkspaceConfig & SLRProtocol"]
+            cohort["AuditSampleCohort (Sample Batches)"]
+            reviews["ScreeningReview & ExtractionAuditReview"]
+            disputes["AdjudicationDispute (Split Votes)"]
+            rob_models["RiskOfBiasAssessment"]
+            prisma_models["SLRPRISMAMetrics"]
+        end
+    end
+
+    subgraph Storage ["Persistence & Task Broker"]
+        db[("PostgreSQL Database")]
+        redis[("Redis Task Broker & Queue")]
+    end
+
+    rest_api --> SLRExtension
+    mcp_srv --> SLRExtension
+
+    runner <-->|"Gate Interception & Resume Signals"| hooks
+    hooks --> sampling
+    hooks --> cohort
+    sampling --> cohort
+
+    rest_api --> consensus
+    consensus --> disputes
+    consensus --> reviews
+
+    SLRExtension --> core_models
+    SLRExtension --> db
+    CoreEngine --> db
+    runner <--> redis
 ```
 
 ---
@@ -169,53 +238,60 @@ The execution flow adapts dynamically to the workspace's configured `checkpoint_
 
 ```mermaid
 graph TD
-    subgraph Ingestion ["Stage I: Ingestion & Digestion"]
+    subgraph Ingestion ["Stage I: Ingestion & Metadata Normalization"]
         A[Start SLR Run] --> B[Multi-Source Ingestion<br/>arXiv / OpenAlex / PubMed / RIS Upload]
-        B --> C[PDF Harvesting & Layout OCR]
     end
 
-    subgraph ScreeningAI ["Stage II: AI Screening Triage"]
-        C --> D[Abstract AI Screening]
+    subgraph ScreeningAI ["Stage II: AI Abstract Screening Triage"]
+        B --> D[Abstract AI Screening<br/>High-Throughput Title & Abstract Triage]
     end
 
-    subgraph Gate1A ["🛑 Gate 1A: Abstract Audit (If two_stage_split)"]
-        D --> E{Config: Abstract Gate Enabled?}
-        E -->|"Yes"| F[Halt: Sample 100 Abstracts<br/>Blind Dual-Review Queue]
-        F --> G[Quorum & Adjudication]
-        E -->|"No / Combined"| H[Auto-Pass to Full Text]
-        G --> H
+    subgraph Gate1A ["🛑 Gate 1A: Abstract Audit Gate (If two_stage_split)"]
+        D --> E{Gate 1A Active?<br/>two_stage_split}
+        E -->|"Yes"| F[Halt DAG: Sample Cohort (e.g. 10%)<br/>Blind Dual-Review Queue]
+        F --> G{Quorum & Consensus?}
+        G -->|"Agreement"| H[Approved Abstract Pool]
+        G -->|"Split Vote"| G_Adj[Escalate to Senior Arbiter<br/>AdjudicationDispute Ruling]
+        G_Adj --> H
+        E -->|"No / Fast-Track"| H
     end
 
-    subgraph FullTextAI ["Stage III: Full-Text AI Screening"]
-        H --> I[Full-Text Multimodal AI Screening]
+    subgraph FullTextRetrieval ["Stage III: Targeted PDF Retrieval & Full-Text AI Screening"]
+        H --> C[Parallel PDF Harvesting & Layout OCR<br/>Only for Abstract-Approved Candidates]
+        C --> I[Full-Text Multimodal AI Screening<br/>PICO Criteria & Exclusion Reason Assignment]
     end
 
-    subgraph Gate1B ["🛑 Gate 1B: Full-Text Audit (Combined or Split)"]
-        I --> J{Config: Full-Text Gate Enabled?}
-        J -->|"Yes"| K[Halt: Sample Candidates<br/>Review Eligibility & Exclusion Reasons]
-        K --> L[Quorum & Adjudication]
-        J -->|"No"| M[Approved Candidate Pool]
-        L --> M
+    subgraph Gate1B ["🛑 Gate 1B: Full-Text Audit Gate (Split or Combined)"]
+        I --> J{Gate 1B Active?<br/>Split or Combined}
+        J -->|"Yes"| K[Halt DAG: Sample Candidates<br/>Review Eligibility & Evidence Quotes]
+        K --> L{Quorum & Consensus?}
+        L -->|"Agreement"| M[Included Study Cohort]
+        L -->|"Split Vote"| L_Adj[Escalate to Senior Arbiter<br/>AdjudicationDispute Ruling]
+        L_Adj --> M
+        J -->|"No"| M
     end
 
     subgraph ExtractionAndRoB ["Stage IV: Parameter Extraction & Risk of Bias"]
-        M -->|"Resume Pipeline"| N[AI 30-Parameter Extraction<br/>Schema JSON & Evidence Quotes]
-        N --> RoB[Automated Cochrane RoB 2 / ROBINS-I<br/>Domain Evaluation & Traffic Light Matrix]
+        M --> N[AI Parameter Extraction<br/>30-Field Schema & Verbatim Provenance]
+        N --> RoB[Cochrane RoB 2 / ROBINS-I Appraisal<br/>5 Bias Domains, Quotes & Justifications]
     end
 
     subgraph Gate2 ["🛑 Gate 2: Extraction & Quality Audit Gate"]
-        RoB --> O{Config: Extraction Gate Enabled?}
-        O -->|"Yes (Sampled for Audit)"| P[Halt: Verify Field Values & Quotes<br/>Validate RoB Concerns]
-        P --> Q[Reviewers Verify / Modify / Reject]
-        O -->|"No"| R[Final Synthesis & Matrix]
-        Q --> R
+        RoB --> O{Gate 2 Active?<br/>Extraction Audit Gate}
+        O -->|"Yes"| P[Halt DAG: Sampled Extract Cohort<br/>ExtractionAuditReview Queue]
+        P --> Q[Reviewers: Verify / Modify / Reject<br/>Validate Values, Quotes & RoB Concerns]
+        Q --> Q_Adj{Extraction Consensus?}
+        Q_Adj -->|"Verified"| R[Final Validated Matrix]
+        Q_Adj -->|"Dispute"| Q_Dis[Senior Arbiter Dispute Ruling]
+        Q_Dis --> R
+        O -->|"No"| R
     end
 
-    subgraph Synthesis ["Stage V: Reporting & PRISMA Export"]
-        R --> S[Compute Cohen's Kappa & Confusion Matrix]
-        S --> T[Generate PRISMA 2020 Flow Diagram]
-        T --> U[Render Cochrane Traffic Light Plot]
-        U --> V[Export Excel Matrix & RIS/BibTeX Citations]
+    subgraph Synthesis ["Stage V: PRISMA 2020 Reporting & Deliverables"]
+        R --> S[Inter-Rater Reliability<br/>Cohen's Kappa & Agreement %]
+        S --> T[Generate PRISMA 2020 Flow Diagram<br/>Identified -> Screened -> Excluded -> Included]
+        T --> U[Render Cochrane Traffic Light Plot<br/>Domain Circles & Summary Bar Chart]
+        U --> V[Export Scientific Deliverables<br/>Excel Matrix, CSV, RIS, BibTeX, PRISMA JSON]
     end
 ```
 

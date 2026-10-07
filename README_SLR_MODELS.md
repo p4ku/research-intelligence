@@ -11,9 +11,10 @@
 3. [`SLRProtocol` (PICO Criteria & Versioning)](#3-slrprotocol-pico-criteria--versioning)
 4. [`AuditSampleCohort` (Sampling Batches & Quorum Tracking)](#4-auditsamplecohort-sampling-batches--quorum-tracking)
 5. [`ScreeningReview` (Blind Human Reviews & Evidence Quotes)](#5-screeningreview-blind-human-reviews--evidence-quotes)
-6. [`AdjudicationDispute` (Conflict Resolution & Arbiter Tie-Breaking)](#6-adjudicationdispute-conflict-resolution--arbiter-tie-breaking)
-7. [`RiskOfBiasAssessment` (Cochrane RoB 2 / ROBINS-I Appraisal)](#7-riskofbiasassessment-cochrane-rob-2--robins-i-appraisal)
-8. [`SLRPRISMAMetrics` (PRISMA 2020 Counts & Cohen's Kappa)](#8-slrprismametrics-prisma-2020-counts--cohens-kappa)
+6. [`ExtractionAuditReview` (Parameter & Evidence Validation)](#6-extractionauditreview-parameter--evidence-validation)
+7. [`AdjudicationDispute` (Conflict Resolution & Arbiter Tie-Breaking)](#7-adjudicationdispute-conflict-resolution--arbiter-tie-breaking)
+8. [`RiskOfBiasAssessment` (Cochrane RoB 2 / ROBINS-I Appraisal)](#8-riskofbiasassessment-cochrane-rob-2--robins-i-appraisal)
+9. [`SLRPRISMAMetrics` (PRISMA 2020 Counts & Cohen's Kappa)](#9-slrprismametrics-prisma-2020-counts--cohens-kappa)
 
 ---
 
@@ -27,16 +28,23 @@ erDiagram
     
     PipelineRun ||--o{ AuditSampleCohort : "generates at gates"
     PipelineRun ||--|| SLRPRISMAMetrics : "computes PRISMA counts"
+    PipelineRun ||--o{ RiskOfBiasAssessment : "evaluates RoB in"
     
-    AuditSampleCohort ||--o{ ScreeningReview : "collects blind votes"
+    AuditSampleCohort ||--o{ ScreeningReview : "collects screening votes"
+    AuditSampleCohort ||--o{ ExtractionAuditReview : "collects extraction audits"
     AuditSampleCohort ||--o{ AdjudicationDispute : "flags split votes"
     AuditSampleCohort }o--o{ Paper : "samples"
     
     Paper ||--o{ ScreeningReview : "reviewed in"
+    Paper ||--o{ Extraction : "has extracted parameters"
+    Paper ||--o{ ExtractionAuditReview : "audited in"
     Paper ||--o{ AdjudicationDispute : "adjudicated in"
     Paper ||--o{ RiskOfBiasAssessment : "evaluated for RoB"
     
+    Extraction ||--o{ ExtractionAuditReview : "validated by"
+    
     User ||--o{ ScreeningReview : "reviews"
+    User ||--o{ ExtractionAuditReview : "validates"
     User ||--o{ AdjudicationDispute : "arbitrates"
     User ||--o{ RiskOfBiasAssessment : "verifies"
 ```
@@ -488,7 +496,100 @@ class ScreeningReview(models.Model):
 
 ---
 
-## 6. `AdjudicationDispute`
+## 6. `ExtractionAuditReview`
+
+Audits and validates AI-extracted parameters and evidence quotes during Gate 2 (Extraction Audit Gate). When a sample of papers is drawn (e.g. 10 of 50 papers), reviewers verify each parameter value, correct any inaccuracies, and confirm textual provenance.
+
+### 📋 Non-Technical Field Summary
+* `sample_cohort`: FK $\rightarrow$ `AuditSampleCohort` — The extraction audit batch (e.g. 10 sampled papers out of 50).
+* `paper`: FK $\rightarrow$ `research_intelligence.Paper` — The research article from which parameters were extracted.
+* `extraction`: FK $\rightarrow$ `research_intelligence.Extraction` — The specific parameter extraction record being audited.
+* `reviewer`: FK $\rightarrow$ `auth.User` — The researcher / student validating the data.
+* `action`: `verify` | `modify` | `reject` — Verdict on the AI extraction quality:
+  - `verify`: AI correctly identified values and quote (confirmed without changes).
+  - `modify`: Human corrected a wrong number or updated the evidence quote.
+  - `reject`: Parameter is not in text or AI hallucinated (marked as Not Reported).
+* `original_fields`: JSON — Snapshot of what the AI model extracted originally.
+* `corrected_fields`: JSON (Optional) — Human-corrected parameter values (populated when `action == 'modify'`).
+* `verified_evidence_quotes`: JSON List — Human-confirmed verbatim quotes and page numbers.
+* `reviewer_notes`: Text (Optional) — Contextual notes explaining any manual modifications.
+
+### 🐍 Python Django Implementation
+*File location: `backend/slr_review/models/extraction_review.py`*
+
+```python
+import uuid
+from django.db import models
+from django.conf import settings
+
+
+class ExtractionAuditReview(models.Model):
+    """
+    Audits and validates AI-extracted parameters and evidence quotes
+    during Gate 2 (Extraction Audit Gate).
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sample_cohort = models.ForeignKey(
+        'slr_review.AuditSampleCohort',
+        on_delete=models.CASCADE,
+        related_name='extraction_reviews',
+        help_text="Extraction audit cohort (e.g. 10 sampled papers out of 50)."
+    )
+    paper = models.ForeignKey(
+        'research_intelligence.Paper',
+        on_delete=models.CASCADE,
+        related_name='slr_extraction_reviews'
+    )
+    extraction = models.ForeignKey(
+        'research_intelligence.Extraction',
+        on_delete=models.CASCADE,
+        related_name='slr_audit_reviews'
+    )
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='slr_extractions_reviewed'
+    )
+
+    ACTION_CHOICES = [
+        ('verify', 'Verify (Confirmed AI is 100% correct)'),
+        ('modify', 'Modify (Corrected values or quotes)'),
+        ('reject', 'Reject (Hallucinated / Not Reported in text)'),
+    ]
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES, default='verify', db_index=True)
+
+    # Audited Data & Provenance
+    original_fields = models.JSONField(help_text="Snapshot of raw AI extraction output.")
+    corrected_fields = models.JSONField(
+        blank=True,
+        null=True,
+        help_text="Human-corrected parameter values (if action == 'modify')."
+    )
+    verified_evidence_quotes = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Human-verified or updated verbatim quotes and page numbers."
+    )
+
+    reviewer_notes = models.TextField(blank=True, null=True)
+    time_spent_seconds = models.PositiveIntegerField(null=True, blank=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('sample_cohort', 'extraction', 'reviewer')
+        ordering = ['-submitted_at']
+        indexes = [
+            models.Index(fields=['sample_cohort', 'action']),
+            models.Index(fields=['paper', 'reviewer']),
+        ]
+
+    def __str__(self):
+        return f"{self.reviewer} -> {self.extraction.category or 'Extraction'} [{self.action.upper()}]"
+```
+
+---
+
+## 7. `AdjudicationDispute`
 
 Formed automatically whenever independent human reviews split on a paper (e.g. Reviewer 1 votes Include, Reviewer 2 votes Exclude). Escalates to the Senior Arbiter with side-by-side evidence quotes for fast tie-breaking.
 
@@ -582,7 +683,7 @@ class AdjudicationDispute(models.Model):
 
 ---
 
-## 7. `RiskOfBiasAssessment`
+## 8. `RiskOfBiasAssessment`
 
 Evaluates the methodological quality and risk of bias for each included study using standard Cochrane RoB 2 (RCTs) or ROBINS-I frameworks. Provides data to render publication-ready Traffic Light Plots.
 
@@ -695,7 +796,7 @@ class RiskOfBiasAssessment(models.Model):
 
 ---
 
-## 8. `SLRPRISMAMetrics`
+## 9. `SLRPRISMAMetrics`
 
 Maintains official PRISMA 2020 flow counts (records identified, duplicates removed, screened, excluded with reasons, included) and calculates scientific reliability metrics like Cohen's Kappa ($\kappa$).
 
