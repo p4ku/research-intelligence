@@ -24,7 +24,8 @@
     "scope:check": "bun run scripts/scope-check.ts",
     "screenshots": "bun run scripts/screenshots.ts",
     "skeleton:drift": "bun run scripts/skeleton-drift.ts",
-    "docs:pdf": "bun run ../scripts/build_user_journeys_pdf.mjs"
+    "docs:pdf": "bun run ../scripts/build_user_journeys_pdf.mjs",
+    "docs:user-guide:pdf": "bun run ../scripts/build_user_documentation_pdf.mjs"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.6",

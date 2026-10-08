@@ -1,11 +1,15 @@
-import { readFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { chromium } from '@playwright/test';
+import { readFileSync, existsSync, writeFileSync } from 'node:fs';
+import { join, dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { chromium } from '../frontend/node_modules/playwright';
 import { marked } from 'marked';
 
-const BASE_DIR = join(process.cwd(), 'docs', 'user_journeys');
-const OUT_PDF = join(BASE_DIR, 'Schwarz_Research_Intelligence_User_Journeys.pdf');
-const OUT_HTML = join(BASE_DIR, 'preview_user_journeys.html');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const ROOT_DIR = resolve(__dirname, '..');
+const BASE_DIR = resolve(ROOT_DIR, 'docs', 'user_journeys');
+const OUT_PDF = resolve(BASE_DIR, 'Schwarz_Research_Intelligence_User_Journeys.pdf');
+const OUT_HTML = resolve(BASE_DIR, 'preview_user_journeys.html');
 
 // Helper to convert image paths to base64 data URIs
 function inlineImages(markdown, docDir) {
@@ -80,6 +84,12 @@ async function main() {
       </section>
     `;
   }
+
+  const generationDate = new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date());
 
   const fullHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -448,11 +458,11 @@ async function main() {
         </div>
         <div class="meta-item">
           <span class="meta-label">System Deployment</span>
-          <span class="meta-value">v0.1.358 (Production)</span>
+          <span class="meta-value">Production (Active)</span>
         </div>
         <div class="meta-item">
           <span class="meta-label">Publication Date</span>
-          <span class="meta-value">10 September 2026</span>
+          <span class="meta-value">${generationDate}</span>
         </div>
         <div class="meta-item">
           <span class="meta-label">Scope</span>
@@ -530,8 +540,10 @@ async function main() {
     ? '/Users/piotr/Library/Caches/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-mac-arm64/chrome-headless-shell'
     : '/Users/piotr/Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing';
   
-  console.log(`  Using browser binary: ${execPath}`);
-  const browser = await chromium.launch({ executablePath: execPath, headless: true });
+  const browser = await chromium.launch({
+    executablePath: existsSync(execPath) ? execPath : undefined,
+    headless: true,
+  });
   const context = await browser.newContext();
   const page = await context.newPage();
 

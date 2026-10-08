@@ -10,94 +10,96 @@ This document walks through the complete interface sequentially from top to bott
 
 ## 2. Complete Visual Walkthrough (Sequential Scroll Progression)
 
-Due to the depth of the LLM extraction framework and technical assessment facets, the document is captured in overlapping vertical steps from the masthead down to the ingestion provenance footer:
+Due to the depth of the LLM extraction framework and technical assessment facets, the document is captured in four cleanly aligned vertical stages from the masthead down to the ingestion provenance footer:
 
 ```
-[ Step 1: Masthead & Scorecard ] ➔ [ Step 2: Research Metric Facets ] ➔ [ Step 3: Schwarz Fit Synergies ] ➔ [ Step 4: TRL Classification & Provenance Footer ]
+[ Step 1: Masthead, TLDR & Scorecard ] ➔ [ Step 2: TRL Classification ] ➔ [ Step 3: Schwarz Fit Synergies ] ➔ [ Step 4: Research Metric & Provenance ]
 ```
 
 ---
 
 ### Step 1: Masthead, Compliance Badges, Abstract & Scorecard Rail
 
-The initial viewport presents the paper's academic provenance, strategic compliance certifications, the scientific abstract, and the sticky assessment scorecard:
+The initial viewport presents the paper's academic provenance, strategic compliance certifications, the scientific abstract toggle, structured TLDR synthesis, and the sticky assessment scorecard:
 
-![Selected Document — Step 1: Masthead, Badges & Abstract](./screenshots/04_selected_document_part1.png)
+![Selected Document — Step 1: Masthead, Badges & Scorecard](./screenshots/04_selected_document_part1.png)
 
 #### Key UI Elements:
-- **Top Bar Navigation**: `< Go to Briefings` navigates back to the parent briefing edition; `arXiv · Published Aug 19, 2026 · View original paper ↗` offers an outbound link to the upstream preprint.
+- **Top Bar Navigation**: `< Back to briefing` navigates back to the parent briefing edition; `arXiv · Published Sep 29, 2026 · View original paper ↗` offers an outbound link to the upstream preprint repository.
 - **Bookmark Trigger**: `☆ Star paper` adds this publication to the analyst's personal shortlist.
-- **Publication Masthead**: Title (*"RushHour: A Dynamically Reconfigurable Lattice-Surgery Architecture"*) and author list (*Nathaniel Tornow, Aleksandra Świerkowska, Peter Wegmann, Pramod Bhatotia*).
+- **Publication Masthead**: Title (*"Rho: A Foundation for Efficiently Adaptable VLA Models"*) and author list (*Rho Team, Simran Bagaria, Daphne Chen, Dean Fortier, Jianlong Fu, Michael Harrison, Tess Hellebrekers, Neel Joshi, Andrey Kolobov, Dalton Moore, Galen Mullins, Michael Murray, Eduardo Salinas, Reuben Tan*).
 - **Institutional Affiliation & Funding Card**:
-  - **University**: *Technical University of Munich*.
-  - **Grants & Funding**: Discloses backing from the *Bavarian State Ministry of Science and the Arts* and *Munich Quantum Valley (MQV)* initiative.
+  - **Organization**: *Microsoft Research* with direct link to `Artifact Repository ↗`.
   - **Compliance Badges**:
-    - `✓ GDPR Sovereignty: NO` (Assesses personal data processing and residency risk).
-    - `✓ Schwarz Ecosystem: YES (TUM)` (Flags existing institutional partnerships and sponsored research chairs).
-    - `✓ Competitor Involvement: None` (Confirms absence of competing commercial cloud or retail entities).
-- **Abstract**: Unabridged abstract text describing the dynamic lattice-surgery compiler, instruction set architecture (ISA), and runtime benchmarks.
+    - `ⓘ Schwarz Ecosystem: NO` (Indicates no prior formal Schwarz partnership).
+    - `⚠ Competitor Involvement: YES (Microsoft (Author Affiliation))` (Explicitly alerts leadership to corporate hyperscaler presence).
+    - `✓ Compliance Risks: NO` (Confirms absence of IP infringement, sanctions, or regulatory red flags).
+- **Abstract & TLDR Synthesis**:
+  - **Abstract**: Expandable accordion revealing the unabridged author abstract.
+  - **What it does**: *The system introduces an adaptable AI model designed for two-armed robots, allowing robots to quickly learn new manipulation tasks from limited demonstration data and modest human guidance.*
+  - **How it works**: *The model first learns general physical movements on a specific robot design before tackling specific tasks. It pairs an image-understanding system with a motion generator, updating a small internal steering module during online human interventions.*
+  - **Key finding**: *Platform-specific midtraining halved the required task demonstration data to hit target success rates and outperformed comparable open-source robot models.*
+  - **Why it matters**: *Teaching robots new physical behaviors typically demands large sets of custom demonstrations. Splitting hardware familiarization from task training makes robotic deployment faster and less data-intensive.*
 - **Sticky Scorecard Rail (Right)**:
-  - **Schwarz Score (`53.3`)**: Unified composite relevance score.
-  - **TRL Classification Badge**: `TRL 3 · Research`.
-  - **Dimensional Score Bars**: `Research Metric: 81.67`, `Schwarz Fit: 25`, `TRL: 3 / 9`.
-  - **Radar Chart**: Triangular visualization comparing methodology rigour, commercial alignment, and technological maturity.
+  - **Total Score (`73`)**: High composite relevance rating reflecting industrial robotics potential.
+  - **Dimensional Score Bars**: `TRL: 4 / 9`, `Schwarz Fit: 70`, `Research Metric: 75`.
+  - **Radar Chart**: Triangular visualization balancing lab validation maturity (TRL 4), scientific rigor (75), and strategic corporate fit (70).
   - **Ask This Paper Composer**: Quick question input with trigger (`➤`) opening the interactive chat drawer.
 
 ---
 
-### Step 2: Assessment Kickoff & Research Metric Breakdown
+### Step 2: Technology Readiness Level (TRL) Classification
 
-Scrolling past the abstract reveals the **`ASSESSMENT`** section, starting with a detailed decomposition of the scientific methodology:
+Scrolling down brings the dedicated **Technology Readiness Level (TRL)** assessment cleanly into view:
 
-![Selected Document — Step 2: Research Metric Assessment](./screenshots/04_selected_document_part2.png)
+![Selected Document — Step 2: Technology Readiness Level](./screenshots/04_selected_document_part2.png)
 
 #### Key UI Elements:
-- **Research Metric Headline (`81.67 / 100`)**: Evaluates scientific excellence, experimental rigour, and technical novelty.
-- **Lead Evaluation Rationale**:
-  > *"The paper excels through a transformative co-design concept supported by remarkably thorough experimental rigour, demonstrating substantial practical speedups and footprint reductions that make it an exemplary benchmark for fault-tolerant compilation."*
-- **Granular Facet Scores**:
-  1. **`Novelty` (`78 / 100`)**: Analyzes departure from static floorplans toward an expressive ISA-driven compilation paradigm using single-round walking qubits.
-  2. **`Significance` (`82 / 100`)**: Measures practical hardware impact (executing workloads on chips up to 3.5× smaller).
-  3. **`Rigour` (`85 / 100`)**: Validates formal proofs, multi-baseline benchmarks across 35 workloads, and stress tests against physical error models.
-- **Persistent Scorecard**: The right rail remains fixed in the viewport, allowing continuous cross-referencing between facet commentary and overall scores.
+- **TRL Classification Badge**: `TRL 4 - Technology validated in lab` (`4 / 9`).
+- **Evaluation Evidence**:
+  > *"The authors developed and integrated a 5.2B parameter VLA model (Rho) featuring a physically grounded Phi-Phy backbone, a flow-matching action expert, embodiment midtraining, and latent-space online adaptation. The integrated system was systematically tested and validated in simulated robotic environments (RoboEval, LIBERO, RobotTwin 2.0, Meta-World) and across multiple real hardware bimanual setups (YAM Box, UR AI Trainer, Franka FR3 Duo) within controlled laboratory conditions. The evaluations do not reflect deployment in a true operational/industrial environment (which would correspond to TRL 6 or 7), making TRL 4 the highest solidly supported level."*
+- **Technology being Assessed**:
+  > *"Vision-Language-Action (VLA) foundation model architecture and progressive multi-stage adaptation framework for bimanual robotic manipulation"*
+- **Scorecard Rail Persistence**: The right scorecard remains pinned in view, providing unbroken context.
 
 ---
 
-### Step 3: Schwarz Strategic Fit & Enterprise Applicability
+### Step 3: Schwarz Strategic Fit & Enterprise Synergies
 
-Continuing the scroll brings the **Schwarz Fit** evaluation into focus, analyzing how the technology intersects with Schwarz Group operations:
+Continuing the scroll centers the **Schwarz Fit** evaluation, detailing how bimanual robotics technology impacts Schwarz Group divisions:
 
 ![Selected Document — Step 3: Schwarz Strategic Fit](./screenshots/04_selected_document_part3.png)
 
 #### Key UI Elements:
-- **Schwarz Fit Headline (`25 / 100`)**: Quantifies immediate enterprise and strategic utility for retail, logistics, and cloud infrastructure.
+- **Schwarz Fit Headline (`70 / 100`)**: Strong operational alignment across retail distribution centers, manufacturing, and sovereign cloud infrastructure.
 - **Lead Strategic Rationale**:
-  > *"Despite broad theoretical applicability to future quantum hardware, RushHour lacks relevance to Schwarz Group's core retail, logistics, and sovereign cloud operations, offering no immediate operational integration or asset advantage."*
+  > *"Fit is strongest in operational synergy and external cloud scalability via STACKIT, while held back slightly by the hardware engineering overhead required to deploy and supervise physical bimanual robots in live environments."*
 - **Operational Facet Ratings**:
-  1. **`Cross industry scalability` (`38 / 100`)**: High broad applicability to external hardware vendors, but commercialization horizon is long-term.
-  2. **`Engagement feasibility` (`32 / 100`)**: Software is available in Rust, but physical deployment is blocked by lack of dedicated in-house quantum hardware.
-  3. **`Synergy index` (`12 / 100`)**: Classical cloud data centers and retail supply chains offer no direct deployment surface for surface-code compilation.
+  1. **`Strategic operational need match` (`68 / 100`)**: Rho targets multi-stage industrial manipulation and rapid adaptation, offering Lidl logistics, Schwarz Produktion plants, and PreZero recycling streams a direct path to automating complex packing, sorting, and assembly tasks with fewer robot demonstrations.
+  2. **`Cross industry scalability` (`75 / 100`)**: Because Rho is embodiment-agnostic across dual-arm setups and publicly released, Schwarz Digits could productize hosted physical AI adaptation services on STACKIT for external manufacturing, logistics, and retail automation clients across Europe.
+  3. **`Engagement feasibility` (`65 / 100`)**: With open weights and codebase already published, Schwarz Digits can pilot models immediately on STACKIT; however, physical deployment still requires dual-arm hardware rigs, teleoperation collection setups, and human-in-the-loop safety oversight.
+  4. **`Synergy index` (`72 / 100`)**: Schwarz possesses massive physical warehouse footprints, standardized logistics cells, and sovereign STACKIT GPU infrastructure, enabling rapid internal training and scaled multi-embodiment deployment far faster than competitors lacking integrated physical operations and owned cloud compute.
 
 ---
 
-### Step 4: Strategic Need, TRL Classification & Provenance Footer
+### Step 4: Research Metric & Scientific Provenance
 
-Scrolling to the base of the page details the operational need alignment, explicit Technology Readiness Level classification, and the audit provenance footer:
+The lower section presents the granular academic rigour decomposition and full ingestion audit trail:
 
-![Selected Document — Step 4: TRL Classification & Provenance Footer](./screenshots/04_selected_document_part4.png)
+![Selected Document — Step 4: Research Metric & Audit Trail](./screenshots/04_selected_document_part4.png)
 
 #### Key UI Elements:
-- **`Strategic operational need match` (`18 / 100`)**: Low-level compiler architecture does not solve near-term retail or cloud supply chain bottlenecks.
-- **Technology Readiness Level (TRL) Specification**:
-  - **Score**: `3 / 9`.
-  - **Maturity Band**: `TRL 3 — Experimental proof of concept`.
-  - **Evaluation Evidence**:
-    > *"The authors present the concept of dynamic lattice surgery along with an ISA, a Lattice Management Unit (LMU), and an optimizing compiler (~9,300 lines of Rust)... Because the work demonstrates feasibility through analytical and software simulation without testing on physical quantum hardware or full lab-integrated control systems, it is validated at TRL 3."*
-- **Technology being Assessed**: *"Dynamically reconfigurable lattice surgery architecture and compiler for surface code quantum computing (RushHour)"*.
+- **Research Metric Headline (`75 / 100`)**: Evaluates scientific novelty, benchmark significance, and experimental methodology.
+- **Lead Evaluation Rationale**:
+  > *"The research excels in rigorous empirical benchmarking and practical significance through open-weight dual-arm checkpoints, while its novelty lies in an effective multi-stage adaptation framing rather than radically new fundamental model architectures."*
+- **Granular Facet Scores**:
+  1. **`Novelty` (`62 / 100`)**: The work innovates by decoupling embodiment midtraining from downstream task specialization in VLAs and integrating flow inversion for latent online adaptation, though individual components build largely on existing architectures like FlowDagger and DiT-style experts.
+  2. **`Significance` (`78 / 100`)**: By halving required task adaptation data and releasing open-weight foundation and embodiment checkpoints across three major bimanual platforms, this paper delivers high utility and establishes an impactful paradigm likely to guide practical robotic deployment.
+  3. **`Rigour` (`85 / 100`)**: The authors conduct extensive, well-controlled real-world and simulation experiments using parallel A/B testing, systematic architectural ablations, explicit standard deviations, and provide transparent discussion of baseline conditions and hardware limitations.
 - **Provenance Audit Strip (Footer)**:
-  - **Preprint Source Link**: `DOI 10.48550/arxiv.2608.18985 ↗` linking to original scholarly repository.
-  - **Ingestion Timestamp**: `Ingested Sep 10, 2026`.
-  - **Originating Pipeline Run**: Hyperlink to the exact autonomous run (`Autonomous Pipeline Run - 2026-09-10 21:43`) that parsed, screened, and evaluated this paper.
+  - **Scholarly Source Link**: `arXiv 2609.38164 ↗` linking directly to the authoritative preprint.
+  - **Ingestion Timestamp**: `Ingested Oct 7, 2026`.
+  - **Originating Pipeline Run**: Hyperlink to `Autonomous Pipeline Run - 2026-10-07 20:59` allowing auditors to inspect raw scraper outputs and model extraction parameters.
 
 ---
 
@@ -105,25 +107,25 @@ Scrolling to the base of the page details the operational need alignment, explic
 
 To view the complete, uninterrupted page layout from top to bottom in a single composite graphic:
 
-- 📄 **[View Complete Full-Page Screenshot (2908px tall)](./screenshots/04_selected_document_fullpage.png)**
+- 📄 **[View Complete Full-Page Screenshot (2896px tall)](./screenshots/04_selected_document_fullpage.png)**
 
 ---
 
 ## 4. Navigation & URL Route
 
-- **Primary Route**: `/papers/[id]` (e.g., `/papers/1dab6d06-d931-423d-9472-95a1eba3b616`)
+- **Primary Route**: `/papers/[id]` (e.g., `/papers/1d36d81b-0072-485b-82a9-d7ee548dc363`)
 - **Run-Scoped Permalinks**: `/papers/[id]?run=[runId]`
   - Binds the scorecard and facet commentary to the exact pipeline run edition.
-- **Parent Navigation**: `< Go to Briefings` restores the previous briefing context.
+- **Parent Navigation**: `< Back to briefing` restores the previous briefing context.
 
 ---
 
 ## 5. Summary of User Actions on this Page
 
-1. **Scan Metadata & Badges**: Immediately confirm ecosystem fit (`Schwarz Ecosystem: YES`) and absence of competitor risk.
-2. **Review High-Level Scores**: Consult the sticky sidebar for Schwarz Score (`53.3`) and Radar balance.
-3. **Scroll to Investigate Methodology**: Read the `Novelty` (`78`), `Significance` (`82`), and `Rigour` (`85`) commentary.
-4. **Audit Commercial Viability**: Examine the `Schwarz Fit` facets (`Synergy: 12`, `Need Match: 18`) to understand why the commercial score is conservative.
-5. **Verify TRL Level**: Read the empirical justifications placing the software simulation at `TRL 3`.
-6. **Audit Pipeline Provenance**: Trace the evaluation back to its originating run via the footer link.
+1. **Scan Metadata & Badges**: Immediately confirm competitor involvement (`Competitor Involvement: YES (Microsoft)`) and compliance status.
+2. **Review High-Level Scores**: Consult the sticky sidebar for Total Score (`73`), TRL (`4 / 9`), and Radar balance.
+3. **Verify TRL Level**: Read empirical lab justifications validating the model at `TRL 4`.
+4. **Audit Strategic Enterprise Fit**: Examine the `Schwarz Fit` facets (`Synergy: 72`, `Scalability: 75`, `Need Match: 68`, `Feasibility: 65`) to evaluate deployment across Lidl logistics and STACKIT.
+5. **Investigate Academic Rigour**: Read the `Novelty` (`62`), `Significance` (`78`), and `Rigour` (`85`) commentary.
+6. **Audit Pipeline Provenance**: Trace the evaluation back to its originating run (`Autonomous Pipeline Run - 2026-10-07 20:59`) via the footer link.
 7. **Ask In-Depth Questions**: Type into the `ASK THIS PAPER` composer at any point during scrolling to launch the interactive drawer.

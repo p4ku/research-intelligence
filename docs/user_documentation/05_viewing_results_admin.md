@@ -5,8 +5,8 @@ This guide details how to inspect, analyze, and audit Systematic Literature Revi
 ---
 
 ## 🌐 Quick Access
-* **Admin Portal URL**: [https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/)
-* **Storage Browser**: [https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/storage-browser/](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/storage-browser/)
+* **Admin Portal URL**: [https://research-scanner.schwarz/admin/](https://research-scanner.schwarz/admin/) *(or [Cloud Foundry mirror](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/))*
+* **Storage Browser**: [https://research-scanner.schwarz/admin/storage-browser/](https://research-scanner.schwarz/admin/storage-browser/) *(or [Cloud Foundry mirror](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/storage-browser/))*
 
 ---
 

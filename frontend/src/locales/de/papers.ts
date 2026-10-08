@@ -209,4 +209,32 @@ export const dict: Record<string, string> = {
   'Loading the paper': 'Das Paper wird geladen',
   "I couldn't ground an answer to that in this paper's text — try asking about what it enables, how solid the evidence is, or where it could apply.":
     'Dazu ließ sich im Text dieses Papers keine belegte Antwort finden – fragen Sie etwa, was es ermöglicht, wie belastbar die Belege sind oder wo es einsetzbar wäre.',
+
+  // Paper comments
+  Comments: 'Kommentare',
+  'Paper comments': 'Paper-Kommentare',
+  'Could not load comments.': 'Kommentare konnten nicht geladen werden.',
+  'Comment added': 'Kommentar hinzugefügt',
+  'Could not post comment. Please try again.':
+    'Kommentar konnte nicht gesendet werden. Bitte versuchen Sie es erneut.',
+  'Comment deleted': 'Kommentar gelöscht',
+  'Could not delete comment.': 'Kommentar konnte nicht gelöscht werden.',
+  'No comments yet. Start a discussion.': 'Noch keine Kommentare. Starten Sie eine Diskussion.',
+  '1 note on this paper.': '1 Notiz zu diesem Paper.',
+  'notes on this paper.': 'Notizen zu diesem Paper.',
+  'Add a comment…': 'Kommentar hinzufügen…',
+  'No comments yet.': 'Noch keine Kommentare.',
+  'Leave the first note or discussion point below.':
+    'Hinterlassen Sie unten die erste Notiz oder Diskussionspunkt.',
+  Anonymous: 'Anonym',
+  You: 'Sie',
+  edited: 'bearbeitet',
+  'Delete comment': 'Kommentar löschen',
+  'Write a comment… (Markdown supported)': 'Kommentar verfassen… (Markdown unterstützt)',
+  'to send': 'zum Senden',
+  'Posting…': 'Wird gesendet…',
+  Comment: 'Kommentieren',
+  'Delete comment?': 'Kommentar löschen?',
+  'This comment will be permanently removed. This action cannot be undone.':
+    'Dieser Kommentar wird dauerhaft entfernt. Diese Aktion kann nicht rückgängig gemacht werden.',
 }

@@ -46,7 +46,7 @@ The login screen is split into two visual regions:
 ## 5. Step-by-Step User Workflow
 
 1. **Accessing the Portal**:
-   - Navigate to the production URL: `https://sri-prod.apps.01.cf.eu01.onstackit.cloud/`.
+   - Navigate to the production URL: `https://research-scanner.schwarz/` *(or `https://sri-prod.apps.01.cf.eu01.onstackit.cloud/`)*.
    - If unauthenticated, the application displays the `/login` view.
 2. **Entering Credentials**:
    - Input username or email (e.g., `admin`).

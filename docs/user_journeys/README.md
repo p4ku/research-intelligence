@@ -1,6 +1,6 @@
 # Schwarz Research Intelligence (SRI) — Web Interface User Journeys
 
-Welcome to the comprehensive user journey documentation for the **Schwarz Research Intelligence (SRI)** web platform. This repository section documents the complete end-to-end user workflows, interactive screen topologies, and operational interfaces captured directly from the live production deployment (`https://sri-prod.apps.01.cf.eu01.onstackit.cloud`).
+Welcome to the comprehensive user journey documentation for the **Schwarz Research Intelligence (SRI)** web platform. This repository section documents the complete end-to-end user workflows, interactive screen topologies, and operational interfaces captured directly from the live production deployment (`https://research-scanner.schwarz` / `https://sri-prod.apps.01.cf.eu01.onstackit.cloud`).
 
 ---
 

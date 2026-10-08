@@ -5,9 +5,9 @@ This guide provides a comprehensive walkthrough for researchers, project leads, 
 ---
 
 ## 🌐 Quick Access
-* **Web Application**: [https://sri-prod.apps.01.cf.eu01.onstackit.cloud/](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/)
-* **Admin Portal URL**: [https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/)
-* **Credentials**: Use your assigned Enterprise Single Sign-On (SSO) or administrative credentials.
+* **Web Application**: [https://research-scanner.schwarz/](https://research-scanner.schwarz/) *(or [Cloud Foundry mirror](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/))*
+* **Admin Portal URL**: [https://research-scanner.schwarz/admin/](https://research-scanner.schwarz/admin/) *(or [Cloud Foundry mirror](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/))*
+* **Credentials**: Use your assigned Enterprise Single Sign-On (SSO) or administrative credentials (`admin` / `schwarz123!`).
 
 ![SRI Admin Login Screen](./images/01_login_page.png)
 *Figure 1: SRI Enterprise Single Sign-On and Administration Login Portal.*
@@ -43,7 +43,7 @@ Setting up a complete intelligence pipeline involves 6 straightforward steps:
 ```
 
 ![SRI Admin Dashboard](./images/02_admin_dashboard.png)
-*Figure 2: Django Admin Dashboard highlighting Workspaces, Scrapers, Extraction Definitions, and Pipeline Runs.*
+*Figure 2: Production Django Admin Dashboard highlighting Workspaces, Scrapers, Extraction Definitions, and Pipeline Runs.*
 
 ---
 
@@ -54,14 +54,17 @@ A **Workspace** is an isolated research initiative with dedicated inclusion/excl
 ![Workspaces List View](./images/03_workspaces_list.png)
 *Figure 3: Active Workspaces list in SRI Admin.*
 
-1. Log into the [SRI Admin Portal](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/).
+1. Log into the [SRI Admin Portal](https://research-scanner.schwarz/admin/).
 2. Under the **Research Intelligence** section, click **Workspaces** ➡️ **+ Add Workspace** (or edit an existing one).
 3. Fill in the core project metadata:
    * **Name**: `Quantum Computing in Logistics & Supply Chain 2026`
    * **Reasoning Effort**: `medium` *(Chain of Thought thinking token budget for Gemini 3.7 Flash)*.
 
+![Add Workspace Form](./images/04_add_workspace_form.png)
+*Figure 4: Workspace creation form defining project scope and reasoning effort.*
+
 ![Workspace Detail & Criteria Configuration](./images/04_workspace_detail.png)
-*Figure 4: Workspace configuration page with dual-stage screening criteria and Python signal score formula.*
+*Figure 5: Workspace configuration page with dual-stage screening criteria and Python signal score formula.*
 
 ### 🎯 Configuring Dual-Stage Screening Criteria
 SRI uses a two-stage screening funnel to save time and compute costs.
@@ -135,9 +138,13 @@ Establish autonomous recurring runs:
 Scrapers define what academic databases to search and what query strings to execute during Step 1 of the pipeline.
 
 ![Scrapers List](./images/05_scrapers_list.png)
-*Figure 5: Active Scrapers configured across ArXiv, OpenAlex, and Lens.*
+*Figure 6: Active Scrapers configured across ArXiv, OpenAlex, and Lens.*
 
 1. In the Admin sidebar, click **Scrapers** ➡️ **+ Add Scraper** (or use the inline section on the Workspace page).
+
+![Add Scraper Form](./images/05b_add_scraper_form.png)
+*Figure 7: Scraper configuration form with query, candidate limits, lookback days, and provider selection.*
+
 2. Set the configuration:
    * **Workspace**: Select your workspace.
    * **Provider**:
@@ -159,12 +166,15 @@ Scrapers define what academic databases to search and what query strings to exec
 Extraction definitions tell the AI what specific parameters, KPI values, and technology metrics to extract from full-text papers that pass dual-stage screening.
 
 ![Extraction Definitions List](./images/06_extraction_definitions_list.png)
-*Figure 6: Extraction Definitions configured with exit metrics and custom LLM schemas.*
+*Figure 8: Extraction Definitions configured with exit metrics and custom LLM schemas.*
 
 1. Navigate to **Extraction Definitions** ➡️ **+ Add Extraction Definition** (or edit an existing one).
 
+![Add Extraction Definition Form](./images/06b_add_extraction_def_form.png)
+*Figure 9: New Extraction Definition creation modal.*
+
 ![Extraction Definition Schema Editor](./images/06b_extraction_def_detail.png)
-*Figure 7: JSON Schema and System Prompt editor for structured parameter extraction.*
+*Figure 10: JSON Schema and System Prompt editor for structured parameter extraction.*
 
 2. Example Target 1: **Schwarz Strategic Fit & Application Scope**
    * **Name**: `Schwarz Strategic Fit`

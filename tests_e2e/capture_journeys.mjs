@@ -1,4 +1,4 @@
-import { chromium } from '@playwright/test';
+import { chromium } from '../frontend/node_modules/playwright';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -91,40 +91,78 @@ async function main() {
       }
     }
 
-    // 5. Capture Selected Document (Paper detail) — Top, Scroll Sequence, and Fullpage
+
+    // 5. Capture Selected Document (Paper detail) — 4 clean semantic parts and fullpage
     console.log(`📸 4. Capturing Selected Document Details (${paperPath})...`);
     await gotoWithRetry(page, `${BASE_URL}${paperPath}`);
     await page.waitForTimeout(3000);
     await page.screenshot({ path: join(OUT_DIR, '04_selected_document.png'), fullPage: false });
-
-    // Sequential scroll capture
-    const scrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-    const viewportHeight = 900;
-    let currentScroll = 0;
-    let partIndex = 1;
-    const scrollStep = 650;
-    while (currentScroll < scrollHeight) {
-      await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), currentScroll);
-      await page.waitForTimeout(600);
-      await page.screenshot({ path: join(OUT_DIR, `04_selected_document_part${partIndex}.png`), fullPage: false });
-      if (currentScroll + viewportHeight >= scrollHeight) break;
-      currentScroll += scrollStep;
-      if (currentScroll + viewportHeight > scrollHeight) currentScroll = scrollHeight - viewportHeight;
-      partIndex++;
-    }
     await page.screenshot({ path: join(OUT_DIR, '04_selected_document_fullpage.png'), fullPage: true });
 
-    // Scroll back to top
+    // Part 1: Top (Masthead, Authors, Badges, TLDR, Scorecard)
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: join(OUT_DIR, '04_selected_document_part1.png'), fullPage: false });
+
+    // Part 2: Technology Readiness Level (TRL)
+    const trlPos = await page.evaluate(() => {
+      const el = Array.from(document.querySelectorAll('h2')).find(h => h.innerText.includes('TECHNOLOGY READINESS LEVEL'));
+      return el ? Math.round(el.getBoundingClientRect().top + window.scrollY) - 36 : 890;
+    });
+    await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), trlPos);
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: join(OUT_DIR, '04_selected_document_part2.png'), fullPage: false });
+
+    // Part 3: Schwarz Fit Synergies & Enterprise Applicability
+    const fitPos = await page.evaluate(() => {
+      const el = Array.from(document.querySelectorAll('h2')).find(h => h.innerText.includes('SCHWARZ FIT'));
+      return el ? Math.round(el.getBoundingClientRect().top + window.scrollY) - 36 : 1260;
+    });
+    await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), fitPos);
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: join(OUT_DIR, '04_selected_document_part3.png'), fullPage: false });
+
+    // Part 4: Research Metric & Provenance Footer
+    await page.evaluate(() => {
+      document.body.style.paddingBottom = '220px';
+      const el = Array.from(document.querySelectorAll('h2')).find(h => h.innerText.includes('RESEARCH METRIC'));
+      const y = el ? Math.round(el.getBoundingClientRect().top + window.scrollY) - 36 : 2060;
+      window.scrollTo({ top: y, behavior: 'instant' });
+    });
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: join(OUT_DIR, '04_selected_document_part4.png'), fullPage: false });
+
+    // Reset scroll & padding
+    await page.evaluate(() => {
+      document.body.style.paddingBottom = '';
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    });
+    await page.waitForTimeout(800);
 
     // 6. Capture Ask Document (interactive chat drawer on paper page)
     console.log(`📸 5. Capturing Ask Document / Chat drawer on ${paperPath}...`);
+    const newChatBtn = page.locator('button[aria-label="New chat"], button[title="New chat"]');
+    if (await newChatBtn.isVisible()) {
+      await newChatBtn.click();
+      await page.waitForTimeout(800);
+    }
     const railInput = page.locator('input[placeholder*="What would you like to know"], input[name="rail-question"]');
     if (await railInput.isVisible()) {
       await railInput.fill('What is the primary contribution of this research?');
-      await page.keyboard.press('Enter');
-      await page.waitForTimeout(6000);
+      const sendBtn = page.locator('button[aria-label="Send"], button:has-text("Send"), button[title="Send"]').first();
+      if (await sendBtn.isVisible()) {
+        await sendBtn.click();
+      } else {
+        await page.keyboard.press('Enter');
+      }
+      for (let i = 0; i < 40; i++) {
+        await page.waitForTimeout(1000);
+        const bodyText = await page.innerText('body');
+        const isAnswering = bodyText.includes('Answering…');
+        const stopVisible = await page.locator('button:has-text("Stop"), button[aria-label="Stop"]').isVisible().catch(() => false);
+        if (!isAnswering && !stopVisible && i > 4) break;
+      }
+      await page.waitForTimeout(1000);
     }
     await page.screenshot({ path: join(OUT_DIR, '07_ask_document.png'), fullPage: false });
 
@@ -148,11 +186,9 @@ async function main() {
     await page.screenshot({ path: join(OUT_DIR, '06_run_details.png'), fullPage: false });
     await page.screenshot({ path: join(OUT_DIR, '06_run_details_fullpage.png'), fullPage: true });
 
-    // Clean up stale part screenshots if total parts was less than 5
-    if (partIndex <= 4) {
-      const { unlink } = await import('node:fs/promises');
-      await unlink(join(OUT_DIR, '04_selected_document_part5.png')).catch(() => {});
-    }
+    // Clean up stale part5 screenshot if present
+    const { unlink } = await import('node:fs/promises');
+    await unlink(join(OUT_DIR, '04_selected_document_part5.png')).catch(() => {});
 
     console.log('🎉 All screenshots successfully captured in:', OUT_DIR);
   } catch (err) {
