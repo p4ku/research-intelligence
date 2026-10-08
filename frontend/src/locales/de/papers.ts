@@ -237,4 +237,6 @@ export const dict: Record<string, string> = {
   'Delete comment?': 'Kommentar löschen?',
   'This comment will be permanently removed. This action cannot be undone.':
     'Dieser Kommentar wird dauerhaft entfernt. Diese Aktion kann nicht rückgängig gemacht werden.',
+  'Show score breakdown': 'Aufschlüsselung anzeigen',
+  'Hide score breakdown': 'Aufschlüsselung ausblenden',
 }

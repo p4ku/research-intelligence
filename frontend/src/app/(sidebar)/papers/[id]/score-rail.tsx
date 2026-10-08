@@ -1,3 +1,5 @@
+'use client'
+
 import { RadarChart } from '@/components/charts'
 import { Card } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
@@ -5,7 +7,9 @@ import { type Lang, type T } from '@/lib/i18n'
 import { dimensionShortName } from '@/lib/papers/dimension-label'
 import { formatMeasure, formatScore } from '@/lib/papers/select'
 import type { Dimension, ScoredPaper } from '@/lib/papers/types'
-import type { ReactNode } from 'react'
+import { ChevronDownIcon } from '@heroicons/react/16/solid'
+import clsx from 'clsx'
+import { useState, type ReactNode } from 'react'
 import { definitionAnchor } from './assessment'
 import { ScoreBarFrame, ScoreBars, type RailBar } from './score-bars'
 
@@ -31,6 +35,7 @@ export function ScoreRailFrame({
   score,
   bars,
   radar,
+  t,
 }: {
   state?: 'loaded' | 'skeleton'
   label: string
@@ -38,21 +43,56 @@ export function ScoreRailFrame({
   bars: ReactNode
   /** Omitted when the paper has fewer than three numeric dimensions. */
   radar?: ReactNode
+  t?: T
 }) {
+  const [expanded, setExpanded] = useState(false)
+  const toggleLabel = expanded
+    ? t
+      ? t('Hide score breakdown')
+      : 'Hide score breakdown'
+    : t
+      ? t('Show score breakdown')
+      : 'Show score breakdown'
+
   return (
     <Card data-shape="score-rail" data-state={state}>
       <div data-row="score" className="flex items-baseline justify-between gap-4">
         <span className={SCORE_CLASS}>{score}</span>
-        <span className="text-[11px] font-semibold tracking-[0.18em] text-zinc-400 uppercase dark:text-zinc-500">
-          {label}
-        </span>
-      </div>
-      <ul className="mt-4 space-y-0.5">{bars}</ul>
-      {radar && (
-        <div data-row="radar" className="mt-4 flex justify-center border-t border-line-soft pt-4">
-          {radar}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-semibold tracking-[0.18em] text-zinc-400 uppercase dark:text-zinc-500">
+            {label}
+          </span>
+          {bars && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              aria-expanded={expanded}
+              aria-label={toggleLabel}
+              title={toggleLabel}
+              className="hidden size-6 items-center justify-center rounded text-zinc-400 transition-colors group-has-[[data-console-open]]/record:inline-flex hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            >
+              <ChevronDownIcon
+                aria-hidden="true"
+                className={clsx(
+                  'size-3.5 transition-transform duration-200',
+                  expanded && 'rotate-180',
+                )}
+              />
+            </button>
+          )}
         </div>
-      )}
+      </div>
+      <div
+        data-row="details"
+        className={clsx(!expanded && 'group-has-[[data-console-open]]/record:hidden')}
+      >
+        <ul className="mt-4 space-y-0.5">{bars}</ul>
+        {radar && (
+          <div data-row="radar" className="mt-4 flex justify-center border-t border-line-soft pt-4">
+            {radar}
+          </div>
+        )}
+      </div>
     </Card>
   )
 }
@@ -116,6 +156,7 @@ export interface RailParts {
   bars: ReactNode
   /** Omitted when the paper has fewer than three numeric dimensions. */
   radar?: ReactNode
+  t?: T
 }
 
 export function railParts(paper: ScoredPaper, t: T, lang: Lang = 'en'): RailParts {
@@ -133,6 +174,7 @@ export function railParts(paper: ScoredPaper, t: T, lang: Lang = 'en'): RailPart
       axes.length >= 3 ? (
         <RadarChart axes={axes} color="var(--accent)" size={RADAR} valueLabels />
       ) : undefined,
+    t,
   }
 }
 
@@ -158,6 +200,7 @@ export function ScoreRailSkeleton({ t, bars = 7 }: { t: T; bars?: number }) {
         />
       ))}
       radar={<Bone.Block style={{ width: RADAR, height: RADAR_H }} />}
+      t={t}
     />
   )
 }

@@ -383,4 +383,12 @@ describe('ScoreRail Component Rendering', () => {
     expect(out).toContain('data-row="radar"')
     expect(out).not.toContain('label="Summarisation"')
   })
+
+  test('wraps bars and radar in collapsible details row with console-open hidden class and toggle button', () => {
+    const paper = mockPaper()
+    const out = renderToStaticMarkup(<ScoreRail paper={paper} t={t} />)
+    expect(out).toContain('data-row="details"')
+    expect(out).toContain('group-has-[[data-console-open]]/record:hidden')
+    expect(out).toContain('aria-label="Show score breakdown"')
+  })
 })

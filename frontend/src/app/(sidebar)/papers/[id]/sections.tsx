@@ -285,7 +285,7 @@ export async function PaperRecord({
           Sticky as one unit so the scores stay in view while the assessment
           is read.
         */}
-        <div className="lg:sticky lg:top-8">
+        <div className="scrollbar-thin pr-0.5 lg:sticky lg:top-8 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto lg:overscroll-contain">
           <PaperChat paper={paper} rail={railParts(paper, t, lang)} initialSessionId={sessionId} />
           <PaperComments paperId={paper.id} currentUser={currentUser} />
         </div>
