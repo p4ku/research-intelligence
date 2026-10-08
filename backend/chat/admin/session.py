@@ -5,7 +5,7 @@ from chat.models import PaperChatSession
 from .message import PaperChatMessageInline
 
 
-@admin.register(PaperChatSession)
+# PaperChatSession is hidden from Django admin
 class PaperChatSessionAdmin(admin.ModelAdmin):
     list_display = ('title', 'paper_link', 'workspace', 'user', 'messages_count', 'session_tokens_display', 'session_cost_display', 'updated_at', 'created_at')
     list_filter = ('workspace', 'created_at')

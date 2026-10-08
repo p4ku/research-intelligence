@@ -2230,7 +2230,7 @@ class WorkspaceMemberAdmin(admin.ModelAdmin):
     role_badge.short_description = "Role"
 
 
-@admin.register(Star)
+# Star model is hidden from Django admin
 class StarAdmin(admin.ModelAdmin):
     list_display = ('user', 'kind', 'paper', 'pipeline_run', 'created_at')
     list_filter = ('kind', 'created_at')
@@ -5348,7 +5348,7 @@ class NarrativeReportAdmin(admin.ModelAdmin):
     readonly_fields = ('pipeline_run', 'workspace', 'created_at')
 
 
-@admin.register(HITLCorrection)
+# HITLCorrection model is hidden from Django admin
 class HITLCorrectionAdmin(admin.ModelAdmin):
     list_display = ('action', 'human_operator', 'extraction', 'timestamp')
     ordering = ('-timestamp', '-id')
