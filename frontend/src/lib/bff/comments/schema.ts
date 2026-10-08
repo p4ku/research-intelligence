@@ -28,3 +28,9 @@ export const createCommentBody = z.object({
 })
 
 export type CreateCommentBody = z.infer<typeof createCommentBody>
+
+export const updateCommentBody = z.object({
+  content: z.string().min(1, 'Comment cannot be empty'),
+})
+
+export type UpdateCommentBody = z.infer<typeof updateCommentBody>

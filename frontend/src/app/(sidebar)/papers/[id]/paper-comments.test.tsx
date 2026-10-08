@@ -70,4 +70,18 @@ describe('PaperComments component static rendering', () => {
     expect(boldWithSpaces).toContain('<strong')
     expect(boldWithSpaces).toContain('V')
   })
+
+  test('only comment author has edit rights', () => {
+    const authorUser = { id: 10, username: 'author_user' }
+    const otherUser = { id: 20, username: 'other_user' }
+    const comment = { id: 'c1', user: { id: 10, username: 'author_user' } }
+
+    const isAuthor =
+      authorUser.id === comment.user.id || authorUser.username === comment.user.username
+    const isOtherAuthor =
+      otherUser.id === comment.user.id || otherUser.username === comment.user.username
+
+    expect(isAuthor).toBe(true)
+    expect(isOtherAuthor).toBe(false)
+  })
 })

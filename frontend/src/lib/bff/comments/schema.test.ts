@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import * as z from 'zod'
-import { commentAuthor, createCommentBody, paperComment } from './schema'
+import { commentAuthor, createCommentBody, paperComment, updateCommentBody } from './schema'
 
 const commentsListSchema = z.union([
   z.array(paperComment),
@@ -69,6 +69,17 @@ describe('createCommentBody schema', () => {
 
   test('rejects empty string', () => {
     expect(() => createCommentBody.parse({ content: '' })).toThrow()
+  })
+})
+
+describe('updateCommentBody schema', () => {
+  test('accepts non-empty updated content', () => {
+    const parsed = updateCommentBody.parse({ content: 'Revised insights.' })
+    expect(parsed.content).toBe('Revised insights.')
+  })
+
+  test('rejects empty string on update', () => {
+    expect(() => updateCommentBody.parse({ content: '' })).toThrow()
   })
 })
 

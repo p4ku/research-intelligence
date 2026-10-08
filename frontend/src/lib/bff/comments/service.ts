@@ -43,6 +43,21 @@ export const comments = {
     })
   },
 
+  async update(commentId: string, content: string): Promise<PaperComment> {
+    const validId = assertUuid(commentId, 'comment id')
+    const trimmed = content.trim()
+    if (!trimmed) {
+      throw problem('validation', { detail: 'Comment content cannot be empty.' })
+    }
+    return django(`/api/comments/${validId}/`, paperComment, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        content: trimmed,
+      }),
+    })
+  },
+
   async delete(commentId: string): Promise<void> {
     const validId = assertUuid(commentId, 'comment id')
     await djangoVoid(`/api/comments/${validId}/?hard=true`, {

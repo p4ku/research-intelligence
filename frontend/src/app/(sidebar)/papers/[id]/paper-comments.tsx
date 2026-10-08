@@ -21,6 +21,7 @@ import { useT } from '@/lib/i18n-client'
 import {
   ChatBubbleLeftEllipsisIcon,
   PaperAirplaneIcon,
+  PencilSquareIcon,
   TrashIcon,
   XMarkIcon,
 } from '@heroicons/react/16/solid'
@@ -72,6 +73,10 @@ export function PaperComments({ paperId, currentUser = null }: PaperCommentsProp
 
   const [pendingDelete, setPendingDelete] = useState<PaperComment | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const listRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -143,6 +148,40 @@ export function PaperComments({ paperId, currentUser = null }: PaperCommentsProp
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault()
       void handleSubmit()
+    }
+  }
+
+  const startEditing = (comment: PaperComment) => {
+    setEditingId(comment.id)
+    setEditDraft(comment.content)
+  }
+
+  const cancelEditing = () => {
+    setEditingId(null)
+    setEditDraft('')
+  }
+
+  const handleSaveEdit = async (commentId: string) => {
+    const content = editDraft.trim()
+    if (!content || savingEdit) return
+
+    setSavingEdit(true)
+    try {
+      const updated = await bffFetch<PaperComment>(`/bff/papers/${paperId}/comments/${commentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ content }),
+      })
+      setComments((prev) =>
+        prev.map((c) => (c.id === commentId ? { ...c, ...updated, is_edited: true } : c)),
+      )
+      setEditingId(null)
+      setEditDraft('')
+      toast.success(t('Comment updated'))
+    } catch (err) {
+      console.error('[comments] update failed:', err)
+      toast.error(t('Could not update comment.'))
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -278,8 +317,10 @@ export function PaperComments({ paperId, currentUser = null }: PaperCommentsProp
                   const isAuthor =
                     Boolean(currentUser) &&
                     (currentUser?.id === comment.user?.id ||
-                      currentUser?.username === comment.user?.username ||
-                      currentUser?.isStaff)
+                      currentUser?.username === comment.user?.username)
+                  const canEdit = isAuthor
+                  const canDelete = isAuthor || Boolean(currentUser?.isStaff)
+                  const isEditing = editingId === comment.id
 
                   return (
                     <article
@@ -318,24 +359,91 @@ export function PaperComments({ paperId, currentUser = null }: PaperCommentsProp
                           <span className="text-[10px] text-muted-foreground">({t('edited')})</span>
                         )}
 
-                        {/* Author delete action */}
-                        {isAuthor && (
-                          <button
-                            type="button"
-                            onClick={() => setPendingDelete(comment)}
-                            aria-label={t('Delete comment')}
-                            title={t('Delete comment')}
-                            className="ml-auto inline-flex items-center justify-center rounded p-1 text-zinc-400 opacity-70 transition-all group-hover/comment:opacity-100 hover:text-red-600 hover:opacity-100 dark:hover:text-red-400"
-                          >
-                            <TrashIcon className="size-3.5" />
-                          </button>
+                        {/* Author actions */}
+                        {(canEdit || canDelete) && !isEditing && (
+                          <div className="ml-auto inline-flex items-center gap-0.5 opacity-70 transition-all group-hover/comment:opacity-100">
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => startEditing(comment)}
+                                aria-label={t('Edit comment')}
+                                title={t('Edit comment')}
+                                className="inline-flex items-center justify-center rounded p-1 text-zinc-400 hover:text-foreground hover:opacity-100"
+                              >
+                                <PencilSquareIcon className="size-3.5" />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                type="button"
+                                onClick={() => setPendingDelete(comment)}
+                                aria-label={t('Delete comment')}
+                                title={t('Delete comment')}
+                                className="inline-flex items-center justify-center rounded p-1 text-zinc-400 hover:text-red-600 hover:opacity-100 dark:hover:text-red-400"
+                              >
+                                <TrashIcon className="size-3.5" />
+                              </button>
+                            )}
+                          </div>
                         )}
                       </header>
 
-                      {/* Markdown content */}
-                      <div className="mt-1.5 pl-6 text-[13px] leading-relaxed text-foreground">
-                        <AnswerMarkdown text={comment.content} />
-                      </div>
+                      {/* Comment content or Inline editor */}
+                      {isEditing ? (
+                        <div className="mt-2 pl-6">
+                          <textarea
+                            value={editDraft}
+                            onChange={(e) => setEditDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') {
+                                e.preventDefault()
+                                cancelEditing()
+                              } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                                e.preventDefault()
+                                void handleSaveEdit(comment.id)
+                              }
+                            }}
+                            rows={2}
+                            autoFocus
+                            className="w-full resize-none rounded-sm border border-accent bg-transparent p-2 text-xs leading-relaxed text-foreground placeholder:text-muted-foreground focus:ring-1 focus:ring-accent focus:outline-none"
+                          />
+                          <div className="mt-1.5 flex items-center justify-between">
+                            <span className="font-mono text-[10px] text-muted-foreground">
+                              esc {t('to cancel')} · ⌘↵ {t('to save')}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={cancelEditing}
+                                disabled={savingEdit}
+                                className="rounded-sm px-2 py-0.5 font-mono text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                              >
+                                {t('Cancel')}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleSaveEdit(comment.id)}
+                                disabled={!editDraft.trim() || savingEdit}
+                                className={clsx(
+                                  'inline-flex items-center gap-1 rounded-sm px-2.5 py-0.5 font-mono text-[11px] font-medium transition-colors',
+                                  editDraft.trim() && !savingEdit
+                                    ? 'bg-foreground text-background hover:bg-foreground/85'
+                                    : 'cursor-not-allowed bg-foreground/10 text-muted-foreground',
+                                )}
+                              >
+                                {savingEdit && (
+                                  <Spinner className="size-2.5 shrink-0" aria-hidden="true" />
+                                )}
+                                {savingEdit ? t('Saving…') : t('Save')}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-1.5 pl-6 text-[13px] leading-relaxed text-foreground">
+                          <AnswerMarkdown text={comment.content} />
+                        </div>
+                      )}
                     </article>
                   )
                 })}
