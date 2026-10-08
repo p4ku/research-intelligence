@@ -5,7 +5,12 @@ import * as z from 'zod'
 import { django, djangoVoid } from '../core/http'
 import { problem } from '../core/problem'
 import { assertUuid } from '../core/validate'
-import { paperComment, type PaperComment } from './schema'
+import {
+  paperComment,
+  toggleReactionResponse,
+  type CommentReactionGroup,
+  type PaperComment,
+} from './schema'
 
 const commentsListSchema = z.union([
   z.array(paperComment),
@@ -62,6 +67,18 @@ export const comments = {
     const validId = assertUuid(commentId, 'comment id')
     await djangoVoid(`/api/comments/${validId}/?hard=true`, {
       method: 'DELETE',
+    })
+  },
+
+  async toggleReaction(
+    commentId: string,
+    reactionType: string,
+  ): Promise<{ action: 'added' | 'removed'; reactions: CommentReactionGroup[] }> {
+    const validId = assertUuid(commentId, 'comment id')
+    return django(`/api/comments/${validId}/reactions/`, toggleReactionResponse, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ reaction_type: reactionType }),
     })
   },
 }

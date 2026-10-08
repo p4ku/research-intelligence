@@ -16,10 +16,11 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import type { SessionUser } from '@/lib/auth/session'
 import { bffFetch } from '@/lib/bff/client'
-import type { PaperComment } from '@/lib/bff/comments/schema'
+import type { CommentReactionGroup, PaperComment } from '@/lib/bff/comments/schema'
 import { useT } from '@/lib/i18n-client'
 import {
   ChatBubbleLeftEllipsisIcon,
+  FaceSmileIcon,
   PaperAirplaneIcon,
   PencilSquareIcon,
   TrashIcon,
@@ -59,6 +60,20 @@ export function userInitials(name?: string, username?: string): string {
   return src.slice(0, 2).toUpperCase()
 }
 
+export const AVAILABLE_REACTIONS = [
+  { type: 'thumbs_up', emoji: '👍', label: 'Agree / Useful' },
+  { type: 'thumbs_down', emoji: '👎', label: 'Disagree' },
+  { type: 'bulb', emoji: '💡', label: 'Insightful' },
+  { type: 'rocket', emoji: '🚀', label: 'Priority / Breakthrough' },
+  { type: 'question', emoji: '❓', label: 'Clarification Needed' },
+  { type: 'heart', emoji: '❤️', label: 'Appreciated' },
+] as const
+
+export function getReactionEmoji(type: string): string {
+  const found = AVAILABLE_REACTIONS.find((r) => r.type === type)
+  return found ? found.emoji : '💬'
+}
+
 export function PaperComments({ paperId, currentUser = null }: PaperCommentsProps) {
   const t = useT()
   const [open, setOpen] = useState(false)
@@ -77,6 +92,8 @@ export function PaperComments({ paperId, currentUser = null }: PaperCommentsProp
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
+
+  const [activePickerCommentId, setActivePickerCommentId] = useState<string | null>(null)
 
   const listRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -213,6 +230,101 @@ export function PaperComments({ paperId, currentUser = null }: PaperCommentsProp
       toast.error(t('Could not delete comment.'))
     } finally {
       setDeleting(false)
+    }
+  }
+
+  // Dismiss reaction picker on click outside or Escape
+  useEffect(() => {
+    if (!activePickerCommentId) return
+    const onKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') setActivePickerCommentId(null)
+    }
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target?.closest('[data-reaction-picker]')) return
+      setActivePickerCommentId(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('click', onClick)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('click', onClick)
+    }
+  }, [activePickerCommentId])
+
+  const handleToggleReaction = async (commentId: string, reactionType: string) => {
+    setActivePickerCommentId(null)
+    const currentUsername = currentUser?.username || 'You'
+
+    // Optimistic UI update
+    setComments((prev) =>
+      prev.map((c) => {
+        if (c.id !== commentId) return c
+        const existingList = c.reactions ?? []
+        const existingGroup = existingList.find((g) => g.reaction_type === reactionType)
+
+        let nextList: CommentReactionGroup[]
+        if (existingGroup) {
+          if (existingGroup.has_reacted) {
+            const nextCount = existingGroup.count - 1
+            if (nextCount <= 0) {
+              nextList = existingList.filter((g) => g.reaction_type !== reactionType)
+            } else {
+              nextList = existingList.map((g) =>
+                g.reaction_type === reactionType
+                  ? {
+                      ...g,
+                      count: nextCount,
+                      has_reacted: false,
+                      users: g.users.filter((u) => u !== currentUsername),
+                    }
+                  : g,
+              )
+            }
+          } else {
+            nextList = existingList.map((g) =>
+              g.reaction_type === reactionType
+                ? {
+                    ...g,
+                    count: g.count + 1,
+                    has_reacted: true,
+                    users: [...g.users, currentUsername],
+                  }
+                : g,
+            )
+          }
+        } else {
+          nextList = [
+            ...existingList,
+            {
+              reaction_type: reactionType,
+              count: 1,
+              has_reacted: true,
+              users: [currentUsername],
+            },
+          ]
+        }
+        return { ...c, reactions: nextList }
+      }),
+    )
+
+    try {
+      const res = await bffFetch<{
+        action: 'added' | 'removed'
+        reactions: CommentReactionGroup[]
+      }>(`/bff/papers/${paperId}/comments/${commentId}/reactions`, {
+        method: 'POST',
+        body: JSON.stringify({ reaction_type: reactionType }),
+      })
+      if (res?.reactions) {
+        setComments((prev) =>
+          prev.map((c) => (c.id === commentId ? { ...c, reactions: res.reactions } : c)),
+        )
+      }
+    } catch (err) {
+      console.error('[comments] reaction toggle failed:', err)
+      toast.error(t('Could not update reaction.'))
+      void fetchComments()
     }
   }
 
@@ -372,9 +484,47 @@ export function PaperComments({ paperId, currentUser = null }: PaperCommentsProp
                           <span className="text-[10px] text-muted-foreground">({t('edited')})</span>
                         )}
 
-                        {/* Author actions */}
-                        {(canEdit || canDelete) && !isEditing && (
+                        {/* Actions: React, Edit, Delete */}
+                        {!isEditing && (
                           <div className="ml-auto inline-flex items-center gap-0.5 opacity-70 transition-all group-hover/comment:opacity-100">
+                            {/* React button & popover */}
+                            <div className="relative" data-reaction-picker="">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setActivePickerCommentId((cur) =>
+                                    cur === comment.id ? null : comment.id,
+                                  )
+                                }}
+                                aria-label={t('Add reaction')}
+                                title={t('Add reaction')}
+                                className="inline-flex items-center justify-center rounded p-1 text-zinc-400 hover:text-foreground hover:opacity-100"
+                              >
+                                <FaceSmileIcon className="size-3.5" />
+                              </button>
+
+                              {activePickerCommentId === comment.id && (
+                                <div className="absolute top-full right-0 z-30 mt-1 flex animate-in items-center gap-0.5 rounded-md border border-line-soft bg-surface p-1 shadow-lg backdrop-blur-sm duration-100 zoom-in-95 fade-in">
+                                  {AVAILABLE_REACTIONS.map((r) => (
+                                    <button
+                                      key={r.type}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        void handleToggleReaction(comment.id, r.type)
+                                      }}
+                                      title={t(r.label)}
+                                      aria-label={t(r.label)}
+                                      className="flex size-6 items-center justify-center rounded text-sm transition-transform hover:scale-125 hover:bg-foreground/5 active:scale-95"
+                                    >
+                                      {r.emoji}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
                             {canEdit && (
                               <button
                                 type="button"
@@ -453,9 +603,59 @@ export function PaperComments({ paperId, currentUser = null }: PaperCommentsProp
                           </div>
                         </div>
                       ) : (
-                        <div className="mt-1.5 pl-6 text-[13px] leading-relaxed text-foreground">
-                          <AnswerMarkdown text={comment.content} />
-                        </div>
+                        <>
+                          <div className="mt-1.5 pl-6 text-[13px] leading-relaxed text-foreground">
+                            <AnswerMarkdown text={comment.content} />
+                          </div>
+
+                          {/* Reaction chips */}
+                          {(comment.reactions?.length ?? 0) > 0 && (
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-6">
+                              {comment.reactions?.map((r) => {
+                                const emoji = getReactionEmoji(r.reaction_type)
+                                const tooltip = r.users.length > 0 ? r.users.join(', ') : undefined
+                                return (
+                                  <button
+                                    key={r.reaction_type}
+                                    type="button"
+                                    onClick={() =>
+                                      void handleToggleReaction(comment.id, r.reaction_type)
+                                    }
+                                    title={tooltip}
+                                    aria-label={`${r.reaction_type}: ${r.count}`}
+                                    className={clsx(
+                                      'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs transition-colors',
+                                      r.has_reacted
+                                        ? 'border-accent/40 bg-accent/10 font-medium text-accent'
+                                        : 'bg-surface-muted/50 border-line-soft text-muted-foreground hover:border-line hover:text-foreground',
+                                    )}
+                                  >
+                                    <span className="text-sm leading-none">{emoji}</span>
+                                    <span className="text-[11px] tabular-nums">{r.count}</span>
+                                  </button>
+                                )
+                              })}
+
+                              {/* Plus button next to reaction chips */}
+                              <div className="relative" data-reaction-picker="">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setActivePickerCommentId((cur) =>
+                                      cur === comment.id ? null : comment.id,
+                                    )
+                                  }}
+                                  aria-label={t('Add reaction')}
+                                  title={t('Add reaction')}
+                                  className="inline-flex size-5 items-center justify-center rounded-full border border-dashed border-line-soft text-zinc-400 hover:border-line hover:text-foreground"
+                                >
+                                  <span className="text-xs leading-none">+</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </>
                       )}
                     </article>
                   )

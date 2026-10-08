@@ -9,6 +9,22 @@ export const commentAuthor = z.object({
 
 export type CommentAuthor = z.infer<typeof commentAuthor>
 
+export const commentReactionGroup = z.object({
+  reaction_type: z.string(),
+  count: z.number().default(0),
+  users: z.array(z.string()).default([]),
+  has_reacted: z.boolean().default(false),
+})
+
+export type CommentReactionGroup = z.infer<typeof commentReactionGroup>
+
+export const toggleReactionResponse = z.object({
+  action: z.enum(['added', 'removed']),
+  reactions: z.array(commentReactionGroup),
+})
+
+export type ToggleReactionResponse = z.infer<typeof toggleReactionResponse>
+
 export const paperComment = z.object({
   id: z.string(),
   paper_id: z.string().optional().default(''),
@@ -19,6 +35,7 @@ export const paperComment = z.object({
   updated_at: z.string().optional().default(''),
   is_edited: z.boolean().optional().default(false),
   is_deleted: z.boolean().optional().default(false),
+  reactions: z.array(commentReactionGroup).optional().default([]),
 })
 
 export type PaperComment = z.infer<typeof paperComment>

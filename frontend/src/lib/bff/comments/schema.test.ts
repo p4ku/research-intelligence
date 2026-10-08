@@ -112,3 +112,45 @@ describe('commentsListSchema handling DRF envelopes', () => {
     expect(parsed[0]?.id).toBe('00000000-0000-4000-8000-000000000001')
   })
 })
+
+describe('comment reactions schema', () => {
+  test('parses paperComment with reactions array', () => {
+    const raw = {
+      id: '00000000-0000-4000-8000-000000000088',
+      user: { id: 2, username: 'bob' },
+      content: 'Important observation.',
+      created_at: '2026-10-08T15:00:00Z',
+      reactions: [
+        {
+          reaction_type: 'thumbs_up',
+          count: 3,
+          users: ['alice', 'charlie', 'bob'],
+          has_reacted: true,
+        },
+        {
+          reaction_type: 'bulb',
+          count: 1,
+          users: ['alice'],
+          has_reacted: false,
+        },
+      ],
+    }
+    const parsed = paperComment.parse(raw)
+    expect(parsed.reactions).toHaveLength(2)
+    expect(parsed.reactions[0]?.reaction_type).toBe('thumbs_up')
+    expect(parsed.reactions[0]?.count).toBe(3)
+    expect(parsed.reactions[0]?.has_reacted).toBe(true)
+    expect(parsed.reactions[1]?.reaction_type).toBe('bulb')
+  })
+
+  test('defaults reactions to empty array when omitted', () => {
+    const raw = {
+      id: '00000000-0000-4000-8000-000000000088',
+      user: { id: 2, username: 'bob' },
+      content: 'No reactions yet.',
+      created_at: '2026-10-08T15:00:00Z',
+    }
+    const parsed = paperComment.parse(raw)
+    expect(parsed.reactions).toEqual([])
+  })
+})

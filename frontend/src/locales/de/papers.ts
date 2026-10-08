@@ -247,4 +247,12 @@ export const dict: Record<string, string> = {
     'Dieser Kommentar wird dauerhaft entfernt. Diese Aktion kann nicht rückgängig gemacht werden.',
   'Show score breakdown': 'Aufschlüsselung anzeigen',
   'Hide score breakdown': 'Aufschlüsselung ausblenden',
+  'Add reaction': 'Reaktion hinzufügen',
+  'Could not update reaction.': 'Reaktion konnte nicht aktualisiert werden.',
+  'Agree / Useful': 'Zustimmen / Nützlich',
+  Disagree: 'Nicht einverstanden',
+  Insightful: 'Aufschlussreich',
+  'Priority / Breakthrough': 'Priorität / Durchbruch',
+  'Clarification Needed': 'Klärung erforderlich',
+  Appreciated: 'Geschätzt',
 }

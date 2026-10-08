@@ -1,7 +1,13 @@
 import { AnswerMarkdown } from '@/components/answer-markdown'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { formatCommentDate, PaperComments, userInitials } from './paper-comments'
+import {
+  AVAILABLE_REACTIONS,
+  formatCommentDate,
+  getReactionEmoji,
+  PaperComments,
+  userInitials,
+} from './paper-comments'
 
 describe('userInitials', () => {
   test('extracts initials from multi-word full name', () => {
@@ -83,5 +89,16 @@ describe('PaperComments component static rendering', () => {
 
     expect(isAuthor).toBe(true)
     expect(isOtherAuthor).toBe(false)
+  })
+
+  test('provides 6 standard annotator reactions with matching emoji representations', () => {
+    expect(AVAILABLE_REACTIONS).toHaveLength(6)
+    expect(getReactionEmoji('thumbs_up')).toBe('👍')
+    expect(getReactionEmoji('thumbs_down')).toBe('👎')
+    expect(getReactionEmoji('bulb')).toBe('💡')
+    expect(getReactionEmoji('rocket')).toBe('🚀')
+    expect(getReactionEmoji('question')).toBe('❓')
+    expect(getReactionEmoji('heart')).toBe('❤️')
+    expect(getReactionEmoji('unknown_reaction')).toBe('💬')
   })
 })
