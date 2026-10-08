@@ -14,6 +14,7 @@ import 'katex/dist/katex.min.css'
 import { Fragment, memo, type ReactNode } from 'react'
 import Markdown, { type Components, type Options } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
+import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import remend from 'remend'
@@ -53,8 +54,10 @@ const CARET_TAIL = / ?$/
 // GFM would read as strikethrough. `remark-math` + `rehype-katex` turn the
 // LaTeX the OCR step writes into the markdown ($…$ inline, $$…$$ display, per
 // `ocr_providers/gemini_provider.py`) into typeset math instead of raw source.
+// `remarkBreaks` renders single line breaks as <br/> (common in chat & comments).
 const REMARK_PLUGINS: NonNullable<Options['remarkPlugins']> = [
   [remarkGfm, { singleTilde: false }],
+  remarkBreaks,
   remarkMath,
 ]
 
@@ -114,37 +117,37 @@ export function normalizeLooseFormatting(text: string): string {
     .replace(/`[^`\n]+`/g, (m) => `\u{E002}${codeBlocks.push(m) - 1}\u{E002}`)
 
   let s = masked
-  // *** bold italic *** or ___ bold italic ___
+  // *** bold italic *** or ___ bold italic ___ (within the same line)
   s = s.replace(
-    /(?<=^|[\s(])\*{3}\s*([^\*\n]+?)\s*\*{3}(?=$|[\s),.?!:;])/g,
+    /(?<=^|[ \t(])\*{3}[ \t]*([^*\r\n]+?)[ \t]*\*{3}(?=$|[ \t),.?!:;])/g,
     (_, inner: string) => `***${inner.trim()}***`,
   )
   s = s.replace(
-    /(?<=^|[\s(])_{3}\s*([^_\n]+?)\s*_{3}(?=$|[\s),.?!:;])/g,
+    /(?<=^|[ \t(])_{3}[ \t]*([^_\r\n]+?)[ \t]*_{3}(?=$|[ \t),.?!:;])/g,
     (_, inner: string) => `***${inner.trim()}***`,
   )
-  // ** bold ** or __ bold __
+  // ** bold ** or __ bold __ (within the same line)
   s = s.replace(
-    /(?<=^|[\s(])\*{2}\s*([^\*\n]+?)\s*\*{2}(?=$|[\s),.?!:;])/g,
+    /(?<=^|[ \t(])\*{2}[ \t]*([^*\r\n]+?)[ \t]*\*{2}(?=$|[ \t),.?!:;])/g,
     (_, inner: string) => `**${inner.trim()}**`,
   )
   s = s.replace(
-    /(?<=^|[\s(])_{2}\s*([^_\n]+?)\s*_{2}(?=$|[\s),.?!:;])/g,
+    /(?<=^|[ \t(])_{2}[ \t]*([^_\r\n]+?)[ \t]*_{2}(?=$|[ \t),.?!:;])/g,
     (_, inner: string) => `**${inner.trim()}**`,
   )
-  // * italic *
+  // * italic * (within the same line; only when enclosed by asterisks on the same line)
   s = s.replace(
-    /(?<=^|[\s(])\*(?!\*)\s*([^\*\n]+?)\s*\*(?!\*)(?=$|[\s),.?!:;])/g,
+    /(?<=^|[ \t(])\*(?!\*)[ \t]*([^*\r\n]+?)[ \t]*\*(?!\*)(?=$|[ \t),.?!:;])/g,
     (_, inner: string) => `*${inner.trim()}*`,
   )
-  // _ italic _ (avoiding snake_case or intra-word underscores)
+  // _ italic _ (avoiding snake_case or intra-word underscores, within the same line)
   s = s.replace(
-    /(?<=^|[\s(])_(?!_)\s*([^_\n]+?)\s*_(?!_)(?=$|[\s),.?!:;])/g,
+    /(?<=^|[ \t(])_(?!_)[ \t]*([^_\r\n]+?)[ \t]*_(?!_)(?=$|[ \t),.?!:;])/g,
     (_, inner: string) => `*${inner.trim()}*`,
   )
-  // ~~ strikethrough ~~
+  // ~~ strikethrough ~~ (within the same line)
   s = s.replace(
-    /(?<=^|[\s(])~~(?!\~)\s*([^~\n]+?)\s*~~(?!\~)(?=$|[\s),.?!:;])/g,
+    /(?<=^|[ \t(])~~(?!\~)[ \t]*([^~\r\n]+?)[ \t]*~~(?!\~)(?=$|[ \t),.?!:;])/g,
     (_, inner: string) => `~~${inner.trim()}~~`,
   )
 

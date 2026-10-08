@@ -44,6 +44,22 @@ describe('AnswerMarkdown', () => {
     expect(boldItalic).toContain('<em')
     expect(boldItalic).toContain('comment 3 Bold')
     expect(boldItalic).not.toContain('***')
+
+    // Bullet points with * must not be confused with italics
+    const bullets = '* Ala\n* Ma\n* Kota'
+    expect(normalizeLooseFormatting(bullets)).toBe(bullets)
+    const bulletsHtml = html(bullets)
+    expect(bulletsHtml).toContain('<ul')
+    expect(bulletsHtml).toContain('>Ala</li>')
+    expect(bulletsHtml).toContain('>Ma</li>')
+    expect(bulletsHtml).toContain('>Kota</li>')
+    expect(bulletsHtml).not.toContain('<em')
+  })
+
+  test('renders single line breaks within paragraphs as br tags', () => {
+    const out = html('dcssff\nsfsfs\nfsfsfsdf')
+    expect(out).toContain('<br/>')
+    expect(out).toContain('dcssff<br/>\nsfsfs<br/>\nfsfsfsdf')
   })
 
   test('splits paragraphs on blank lines', () => {
