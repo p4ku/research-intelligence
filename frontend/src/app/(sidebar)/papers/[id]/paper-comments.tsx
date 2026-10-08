@@ -260,6 +260,7 @@ export function PaperComments({ paperId, currentUser = null }: PaperCommentsProp
       <div
         data-shape="paper-comments-console"
         data-console-open=""
+        data-comments-open=""
         role="region"
         aria-label={t('Paper comments')}
         className="mt-3 flex flex-col"

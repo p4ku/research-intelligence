@@ -808,18 +808,27 @@ export function PaperChatFrame({
           {count}
         </span>
       </button>
-      <p data-row="hint" className="px-4 pt-1.5 pb-2.5 text-xs text-muted-foreground">
+      <p
+        data-row="hint"
+        onClick={onOpen}
+        className={clsx(
+          'px-4 pt-1.5 pb-2.5 text-xs text-muted-foreground',
+          onOpen && 'group-has-[[data-comments-open]]/record:cursor-pointer',
+        )}
+      >
         {hint}
       </p>
-      {composer}
-      {cont && (
-        <p
-          data-row="continue"
-          className="flex items-center gap-2 border-t border-line-soft px-4 py-2 text-xs text-zinc-600 dark:text-zinc-300"
-        >
-          {cont}
-        </p>
-      )}
+      <div className="transition-all duration-150 group-has-[[data-comments-open]]/record:hidden">
+        {composer}
+        {cont && (
+          <p
+            data-row="continue"
+            className="flex items-center gap-2 border-t border-line-soft px-4 py-2 text-xs text-zinc-600 dark:text-zinc-300"
+          >
+            {cont}
+          </p>
+        )}
+      </div>
     </Card>
   )
 }
