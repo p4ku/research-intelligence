@@ -255,7 +255,7 @@ export function PaperComments({ paperId, currentUser = null }: PaperCommentsProp
           {/* Comments list scroller */}
           <div
             ref={listRef}
-            className="max-h-[380px] min-h-[140px] flex-1 overflow-y-auto overscroll-contain px-4 py-3"
+            className="max-h-[200px] min-h-[90px] flex-1 overflow-y-auto overscroll-contain px-4 py-3 lg:max-h-[min(220px,calc(100vh-480px))]"
           >
             {loading && !loaded ? (
               <div className="space-y-4 py-2">
@@ -265,7 +265,7 @@ export function PaperComments({ paperId, currentUser = null }: PaperCommentsProp
             ) : loadError ? (
               <ErrorNote className="my-2">{loadError}</ErrorNote>
             ) : count === 0 ? (
-              <div className="flex min-h-[120px] flex-col items-center justify-center text-center">
+              <div className="flex min-h-[90px] flex-col items-center justify-center text-center">
                 <p className="text-xs text-muted-foreground">{t('No comments yet.')}</p>
                 <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
                   {t('Leave the first note or discussion point below.')}
@@ -344,7 +344,10 @@ export function PaperComments({ paperId, currentUser = null }: PaperCommentsProp
           </div>
 
           {/* Composer */}
-          <form onSubmit={handleSubmit} className="border-t border-line-soft bg-surface p-3">
+          <form
+            onSubmit={handleSubmit}
+            className="shrink-0 border-t border-line-soft bg-surface p-3"
+          >
             {submitError && <ErrorNote className="mb-2">{submitError}</ErrorNote>}
 
             <div className="relative">

@@ -1,3 +1,4 @@
+import { AnswerMarkdown } from '@/components/answer-markdown'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { formatCommentDate, PaperComments, userInitials } from './paper-comments'
@@ -57,5 +58,16 @@ describe('PaperComments component static rendering', () => {
     )
 
     expect(out).toContain('data-shape="paper-comments-card"')
+  })
+
+  test('formats loose markdown delimiters in comments like bold and italic with inner whitespace', () => {
+    const boldItalic = renderToStaticMarkup(<AnswerMarkdown text="***comment 3 Bold ***" />)
+    expect(boldItalic).toContain('<strong')
+    expect(boldItalic).toContain('<em')
+    expect(boldItalic).toContain('comment 3 Bold')
+
+    const boldWithSpaces = renderToStaticMarkup(<AnswerMarkdown text="** V **" />)
+    expect(boldWithSpaces).toContain('<strong')
+    expect(boldWithSpaces).toContain('V')
   })
 })

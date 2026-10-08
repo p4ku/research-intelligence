@@ -97,6 +97,63 @@ function normalizeMath(text: string): string {
     : converted.replace(MASK, (_m, i: string) => fences[Number(i)])
 }
 
+/**
+ * CommonMark requires delimiter runs (like `**`, `***`, `~~`) to directly touch
+ * the enclosed content without whitespace on inner sides. However, users commonly
+ * write `** bold **`, `*** text ***`, `* italic *`, or `~~ strike ~~` with
+ * inner spacing. We normalize those loose delimiters so they parse and render
+ * as strong, emphasis, or strikethrough as intended, while strictly preserving
+ * code blocks, inline code, and math formulas.
+ */
+export function normalizeLooseFormatting(text: string): string {
+  if (!text.includes('*') && !text.includes('_') && !text.includes('~')) return text
+
+  const codeBlocks: string[] = []
+  const masked = text
+    .replace(/^```[\s\S]*?^```/gm, (m) => `\u{E002}${codeBlocks.push(m) - 1}\u{E002}`)
+    .replace(/`[^`\n]+`/g, (m) => `\u{E002}${codeBlocks.push(m) - 1}\u{E002}`)
+
+  let s = masked
+  // *** bold italic *** or ___ bold italic ___
+  s = s.replace(
+    /(?<=^|[\s(])\*{3}\s*([^\*\n]+?)\s*\*{3}(?=$|[\s),.?!:;])/g,
+    (_, inner: string) => `***${inner.trim()}***`,
+  )
+  s = s.replace(
+    /(?<=^|[\s(])_{3}\s*([^_\n]+?)\s*_{3}(?=$|[\s),.?!:;])/g,
+    (_, inner: string) => `***${inner.trim()}***`,
+  )
+  // ** bold ** or __ bold __
+  s = s.replace(
+    /(?<=^|[\s(])\*{2}\s*([^\*\n]+?)\s*\*{2}(?=$|[\s),.?!:;])/g,
+    (_, inner: string) => `**${inner.trim()}**`,
+  )
+  s = s.replace(
+    /(?<=^|[\s(])_{2}\s*([^_\n]+?)\s*_{2}(?=$|[\s),.?!:;])/g,
+    (_, inner: string) => `**${inner.trim()}**`,
+  )
+  // * italic *
+  s = s.replace(
+    /(?<=^|[\s(])\*(?!\*)\s*([^\*\n]+?)\s*\*(?!\*)(?=$|[\s),.?!:;])/g,
+    (_, inner: string) => `*${inner.trim()}*`,
+  )
+  // _ italic _ (avoiding snake_case or intra-word underscores)
+  s = s.replace(
+    /(?<=^|[\s(])_(?!_)\s*([^_\n]+?)\s*_(?!_)(?=$|[\s),.?!:;])/g,
+    (_, inner: string) => `*${inner.trim()}*`,
+  )
+  // ~~ strikethrough ~~
+  s = s.replace(
+    /(?<=^|[\s(])~~(?!\~)\s*([^~\n]+?)\s*~~(?!\~)(?=$|[\s),.?!:;])/g,
+    (_, inner: string) => `~~${inner.trim()}~~`,
+  )
+
+  if (codeBlocks.length > 0) {
+    s = s.replace(/\u{E002}(\d+)\u{E002}/gu, (_, i: string) => codeBlocks[Number(i)])
+  }
+  return s
+}
+
 // Streamed words resolve out of a soft blur. The span stays inline, so filter
 // and opacity apply without disturbing line boxes; whitespace rides between
 // spans as bare text so nothing is swallowed and keys stay put as text grows.
@@ -472,7 +529,7 @@ export const AnswerMarkdown = memo(function AnswerMarkdown({
     ? extractCitationMarkers(streaming ? holdBackOpenMarker(text) : text)
     : null
   const refs = extracted?.refs ?? []
-  let source = normalizeMath(extracted ? extracted.text : text)
+  let source = normalizeLooseFormatting(normalizeMath(extracted ? extracted.text : text))
   if (streaming) source = streamingSource(source, caret)
   const opts: RenderOpts = { stats, unveil, caret }
   const cite: CiteCtx | undefined =
