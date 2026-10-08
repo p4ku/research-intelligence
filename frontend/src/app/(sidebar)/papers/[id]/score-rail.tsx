@@ -40,7 +40,7 @@ export function ScoreRailFrame({
   radar?: ReactNode
 }) {
   return (
-    <Card data-shape="score-rail" data-state={state}>
+    <Card data-shape="score-rail" data-state={state} flush className="p-5 pb-2.5">
       <div data-row="score" className="flex items-baseline justify-between gap-4">
         <span className={SCORE_CLASS}>{score}</span>
         <span className="text-[11px] font-semibold tracking-[0.18em] text-zinc-400 uppercase dark:text-zinc-500">
@@ -50,7 +50,7 @@ export function ScoreRailFrame({
       <div data-row="details" className="group-has-[[data-console-open]]/record:hidden">
         <ul className="mt-4 space-y-0.5">{bars}</ul>
         {radar && (
-          <div data-row="radar" className="mt-4 flex justify-center border-t border-line-soft pt-4">
+          <div data-row="radar" className="mt-2 flex justify-center border-t border-line-soft pt-2">
             {radar}
           </div>
         )}

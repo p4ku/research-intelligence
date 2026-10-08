@@ -106,18 +106,30 @@ export function PaperComments({ paperId, currentUser = null }: PaperCommentsProp
   useEffect(() => {
     if (open) {
       const timer = window.setTimeout(() => {
-        textareaRef.current?.focus()
+        textareaRef.current?.focus({ preventScroll: true })
       }, 100)
       return () => window.clearTimeout(timer)
     }
   }, [open])
 
-  // Scroll to bottom when new comment is added
+  // Scroll to bottom when new comment is added or when opened / loaded
   const scrollToBottom = useCallback(() => {
     if (listRef.current) {
       listRef.current.scrollTop = listRef.current.scrollHeight
     }
   }, [])
+
+  useEffect(() => {
+    if (open && loaded) {
+      scrollToBottom()
+      const timer = window.setTimeout(scrollToBottom, 60)
+      const frame = window.requestAnimationFrame(scrollToBottom)
+      return () => {
+        window.clearTimeout(timer)
+        window.cancelAnimationFrame(frame)
+      }
+    }
+  }, [open, loaded, comments.length, scrollToBottom])
 
   const handleSubmit = async (e?: FormEvent) => {
     if (e) e.preventDefault()
