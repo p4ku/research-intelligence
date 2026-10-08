@@ -311,7 +311,6 @@ export function PaperChat({
           score={rail.score}
           bars={rail.bars}
           radar={rail.radar && <div ref={radarRef}>{rail.radar}</div>}
-          t={t}
         />
         <PaperChatFrame
           title={t('Ask this paper')}
