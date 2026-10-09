@@ -11,7 +11,7 @@
 
 The system serves three core personas through dedicated access channels:
 * **🧑‍💼 Manager / Researcher (Frontend User)**: Interacts with the **Next.js Dashboard / SPA** for exploratory literature review, technology scorecards, dynamic parameter matrices, and interactive multi-turn paper Q&A (`Paper Chat`).
-* **⚡ Power User / AI Agent (MCP Client)**: Interacts programmatically via the **FastMCP SSE Server (Port 8001)** from Claude Code, Cursor, Antigravity IDE, or custom agent scripts to trigger autonomous multi-stage SLR runs (`start_research_agent`), check DAG progress, and query extracted scorecards.
+* **⚡ Power User / AI Agent (MCP Client)**: Interacts programmatically via the **FastMCP SSE Server (Port 8001)** from Claude Code, Cursor, Antigravity IDE, or custom agent scripts to trigger autonomous multi-stage Research Scanner runs (`start_research_agent`), check DAG progress, and query extracted scorecards.
 * **🛡️ Administrator / Lead Architect (Django Admin User)**: Manages workspace criteria, RBAC memberships, token/USD spending quotas, operational security audit logs, and file storage via the **Django Admin Portal & Storage Browser**.
 
 ```mermaid
@@ -37,7 +37,7 @@ graph TB
         engine[ResearchAgentRunner & DAG Workflow Engine]
     end
 
-    subgraph PipelineExecution ["8-Stage Systematic Literature Review (SLR) Pipeline"]
+    subgraph PipelineExecution ["8-Stage Research Scanner Pipeline"]
         engine --> Step1[1. Search & Ingestion<br>arXiv, OpenAlex, Lens, PubMed]
         Step1 --> Step2[2. Abstract Screening<br>AI Triage via Gemini 3.7 Flash]
         Step2 --> Step3[3. Parallel PDF Download<br>Only for Abstract-Passed Papers]
@@ -63,7 +63,7 @@ graph TB
 
     frontend ==>|REST Queries / JWT| api
     api ==>|Trigger Runs / Chat| engine
-    mcp ==>|Autonomous SLR Tools| engine
+    mcp ==>|Autonomous Research Scanner Tools| engine
     django_admin ==>|Admin ORM & Config| engine
 
     Step8 --> DB[(PostgreSQL Prod / SQLite Test)]
@@ -154,7 +154,7 @@ graph TD
   - `/api/chat/`, `/api/auth/`, `/api/extraction-definitions/`, `/api/papers/`.
 
 ### 8. The 5 Pipeline Triggering Pathways & Concurrency Controls
-The Systematic Literature Review (SLR) pipeline can be dispatched through **5 distinct, enterprise-grade execution channels**, all converging into the unified `ResearchAgentRunner` and `WorkflowDAG` orchestrator:
+The Research Scanner pipeline can be dispatched through **5 distinct, enterprise-grade execution channels**, all converging into the unified `ResearchAgentRunner` and `WorkflowDAG` orchestrator:
 
 | Pathway | Interface / Entrypoint | Concurrency & Overlap Policy | Async Dispatch Mechanism |
 | :--- | :--- | :--- | :--- |
@@ -296,7 +296,7 @@ Executes complete browser user journeys across `/dashboard`, `/briefing`, `/runs
 ```
 
 ### 2. Backend Live Pipeline E2E Tests
-Executes autonomous multi-agent SLR reviews, screening triage, full multimodal extractions, composite signal scoring, and RBAC matrix validation across all 23 scenarios:
+Executes autonomous multi-agent Research Scanner reviews, screening triage, full multimodal extractions, composite signal scoring, and RBAC matrix validation across all 23 scenarios:
 
 ```bash
 # Run ALL 23 backend E2E scenarios sequentially with immediate workspace cleanup:
@@ -320,6 +320,6 @@ pytest tests_e2e/test_full_pipeline_e2e.py -s -v
 | `E2E_BASE_URL` | `https://research-scanner.schwarz` (prod) | Next.js frontend root URL for Playwright tests. |
 | `E2E_API_URL` | `https://research-scanner.schwarz` (prod) | Django REST API root URL for backend tests. |
 | `E2E_CLEANUP_AFTER` | `false` (flag: `--cleanup-after`) | Automatically deletes test workspaces, runs, and artifacts upon completion. |
-| `E2E_TIMEOUT_SEC` | `900` | Maximum polling timeout (in seconds) for SLR agent completion. |
+| `E2E_TIMEOUT_SEC` | `900` | Maximum polling timeout (in seconds) for Research Scanner agent completion. |
 | `E2E_PAPER_LIMIT` | `10` | Maximum candidate papers fetched per scraper in pipeline test runs. |
 

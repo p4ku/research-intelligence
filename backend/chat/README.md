@@ -18,7 +18,7 @@ Enterprise-grade, multimodal scientific paper interrogation, workspace synthesis
 
 ## 🏛️ 1. Architecture Overview & Purpose
 
-The `chat` module enables interactive, multi-turn interrogation of individual scientific papers or workspace-wide research corpora. It integrates multimodal document processing (PDF/OCR), structured Systematic Literature Review (SLR) screening decisions, dynamic parameter extractions, and custom AST-evaluated mathematical formulas (`signal_score`).
+The `chat` module enables interactive, multi-turn interrogation of individual scientific papers or workspace-wide research corpora. It integrates multimodal document processing (PDF/OCR), structured Research Scanner screening decisions, dynamic parameter extractions, and custom AST-evaluated mathematical formulas (`signal_score`).
 
 ```mermaid
 flowchart TD
@@ -58,7 +58,7 @@ All domain logic is organized in an object-oriented design pattern located withi
 | Component | File | Responsibilities |
 | :--- | :--- | :--- |
 | **`PaperChatEngine`** | [`orchestrator.py`](file:///Users/piotr/git/schwarz_research_inteligence/backend/chat/engine/orchestrator.py) | Coordinates the end-to-end lifecycle: builds context, manages memory, executes inference, extracts citations, runs fact-checking guards, and tracks token costs. |
-| **`PaperContextBuilder`** | [`context_builder.py`](file:///Users/piotr/git/schwarz_research_inteligence/backend/chat/engine/context_builder.py) | Compiles dense, structured knowledge blocks (metadata, OCR Markdown / raw PDF binaries, SLR screening decisions, extracted parameters, AST formula, and composite signal score). |
+| **`PaperContextBuilder`** | [`context_builder.py`](file:///Users/piotr/git/schwarz_research_inteligence/backend/chat/engine/context_builder.py) | Compiles dense, structured knowledge blocks (metadata, OCR Markdown / raw PDF binaries, Research Scanner screening decisions, extracted parameters, AST formula, and composite signal score). |
 | **`GeminiContextCacheManager`** | [`cache_manager.py`](file:///Users/piotr/git/schwarz_research_inteligence/backend/chat/engine/cache_manager.py) | Provisions and manages Google Gemini server-side context caches (`CachedContent`), drastically cutting prompt token ingestion costs for multi-turn sessions. |
 | **`HierarchicalSessionSummarizer`** | [`summarizer.py`](file:///Users/piotr/git/schwarz_research_inteligence/backend/chat/engine/summarizer.py) | Abridges every turn older than the last three (`0` to `N-3`, question cut at 120 characters, answer at 150) into `session.summary`; the last three turns are sent verbatim. |
 | **`VisualCitationExtractor`** | [`citations.py`](file:///Users/piotr/git/schwarz_research_inteligence/backend/chat/engine/citations.py) | Extracts structured JSON citations and inline references matching `[Page X, Figure Y, box_2d: [...], quote: "..."]`. |

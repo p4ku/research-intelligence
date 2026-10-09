@@ -1,7 +1,7 @@
 # 🚀 Schwarz Research Intelligence (SRI)
 ## User Guide & Operational Manual
 
-Welcome to **Schwarz Research Intelligence (SRI)** — an enterprise-grade AI intelligence platform engineered for automated Systematic Literature Reviews (SLR), deep-tech scouting, competitive intelligence, and high-precision parameter extraction.
+Welcome to **Schwarz Research Intelligence (SRI)** — an enterprise-grade AI intelligence platform engineered for automated Research Scanner workflows, deep-tech scouting, competitive intelligence, and high-precision parameter extraction.
 
 ---
 
@@ -32,7 +32,7 @@ SRI automates the entire lifecycle from academic ingestion to custom scorecards 
  └─────────────────────────┘     └─────────────────────────┘       └─────────────────────────┘
                                                                                 │
                                                                                 ▼
- 6. CHAT & DEEP DIVE             5. SCORECARD & RESULTS            4. AUTONOMOUS SLR ENGINE
+ 6. CHAT & DEEP DIVE             5. SCORECARD & RESULTS            4. RESEARCH SCANNER ENGINE
  ┌─────────────────────────┐     ┌─────────────────────────┐       ┌─────────────────────────┐
  │ • Interactive Paper Q&A │ ◄── │ • Parameter Scorecard   │  ◄─── │ • Search & Ingestion    │
  │ • Multimodal Evidence   │     │ • Python Signal Ranking │       │ • Abstract Screening    │

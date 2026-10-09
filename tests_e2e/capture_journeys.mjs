@@ -1,4 +1,4 @@
-import { chromium } from '../frontend/node_modules/playwright';
+import { chromium } from '../frontend/node_modules/playwright/index.mjs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -185,6 +185,102 @@ async function main() {
     await page.waitForTimeout(3000);
     await page.screenshot({ path: join(OUT_DIR, '06_run_details.png'), fullPage: false });
     await page.screenshot({ path: join(OUT_DIR, '06_run_details_fullpage.png'), fullPage: true });
+
+    // 9. Capture Paper Comments & Collaboration (Journey 08)
+    console.log('📸 8. Capturing Paper Comments & Annotator Collaboration...');
+    const commentsTargetUrl = `${BASE_URL}/papers/e44ebd1f-badb-4a42-b48c-646e40cef878?run=156d9041-7c83-4127-82a6-e6329a568d95`;
+    try {
+      await gotoWithRetry(page, commentsTargetUrl);
+    } catch {
+      await gotoWithRetry(page, `${BASE_URL}${paperPath}`);
+    }
+    await page.waitForTimeout(3000);
+
+    // Expand comments console if collapsed
+    let isConsoleOpen = await page.locator('div[data-shape="paper-comments-console"]').isVisible().catch(() => false);
+    if (!isConsoleOpen) {
+      console.log('📂 Opening paper comments console via #comments button...');
+      const expandCommentsBtn = page.locator('#comments button, [data-shape="paper-comments-card"] button').first();
+      if (await expandCommentsBtn.isVisible()) {
+        await expandCommentsBtn.click();
+        await page.waitForTimeout(2000);
+      }
+    }
+
+    // Post 3 structured demo comments
+    const commentsToAdd = [
+      '**Architecture Observation:** ASPIRE state preparation significantly reduces circuit depth compared to standard gate synthesis.',
+      'Key advantages for enterprise deployment:\n* 7.7x shallower circuit depth\n* Native hardware connectivity preservation\n* Validated against Oxford quantum clusters',
+      'Should we upgrade the TRL level from 4 to 5 based on the hardware validation in Section IV?',
+    ];
+
+    const composerTextarea = page.locator('div[data-shape="paper-comments-console"] textarea, textarea[placeholder*="comment" i]').first();
+    const commentSubmitBtn = page.locator('div[data-shape="paper-comments-console"] button[type="submit"], button:has-text("Comment")').first();
+
+    if (await composerTextarea.isVisible({ timeout: 5000 }).catch(() => false)) {
+      console.log('✍️ Posting demo comments with Markdown...');
+      for (const msg of commentsToAdd) {
+        await composerTextarea.fill(msg);
+        await commentSubmitBtn.click();
+        await page.waitForTimeout(1500);
+      }
+
+      // Add emoji reactions to comments
+      console.log('😀 Adding emoji reactions to demo comments...');
+      const emojis = ['👍', '🚀', '💡'];
+      const articles = await page.locator('div[data-shape="paper-comments-console"] article').all();
+      for (let i = 0; i < Math.min(articles.length, emojis.length); i++) {
+        try {
+          const reactBtn = articles[i].locator('button[aria-label="Add reaction"], button[title="Add reaction"]').first();
+          if (await reactBtn.isVisible()) {
+            await reactBtn.click();
+            await page.waitForTimeout(500);
+            const emojiBtn = page.locator(`button:has-text("${emojis[i]}")`).first();
+            if (await emojiBtn.isVisible()) {
+              await emojiBtn.click();
+              await page.waitForTimeout(600);
+            }
+          }
+        } catch (e) {
+          console.log(`Note on reaction ${i}: ${e.message}`);
+        }
+      }
+
+      await page.waitForTimeout(1500);
+      // Capture 08_paper_comments.png showing open comments with reactions
+      console.log('📸 Snapping 08_paper_comments.png with expanded comments and reactions...');
+      await page.screenshot({ path: join(OUT_DIR, '08_paper_comments.png'), fullPage: false });
+
+      // Clean up demo comments
+      console.log('🧹 Cleaning up demo comments...');
+      for (let i = 0; i < commentsToAdd.length; i++) {
+        const deleteBtn = page.locator('button[aria-label="Delete comment"]').first();
+        if (await deleteBtn.isVisible()) {
+          await deleteBtn.click();
+          await page.waitForTimeout(500);
+          const confirmBtn = page.locator('button:has-text("Delete comment"), button:has-text("Delete")').last();
+          if (await confirmBtn.isVisible()) {
+            await confirmBtn.click();
+            await page.waitForTimeout(1000);
+          }
+        }
+      }
+    } else {
+      console.log('⚠️ Composer textarea was not visible, snapping current state...');
+      await page.screenshot({ path: join(OUT_DIR, '08_paper_comments.png'), fullPage: false });
+    }
+
+    // 10. Capture All Papers Directory / Corpus (Journey 09)
+    console.log('📸 9. Capturing All Papers Directory (/papers)...');
+    await gotoWithRetry(page, `${BASE_URL}/papers`);
+    console.log('⏳ Waiting at least 18 seconds for /papers corpus data to arrive...');
+    await page.waitForTimeout(18000);
+    await page.waitForSelector('a[href^="/papers/"]', { timeout: 30000 }).catch(() => {
+      console.log('⚠️ Paper links selector still resolving after 18s...');
+    });
+    await page.waitForTimeout(2000);
+    await page.screenshot({ path: join(OUT_DIR, '09_all_papers.png'), fullPage: false });
+    await page.screenshot({ path: join(OUT_DIR, '09_all_papers_fullpage.png'), fullPage: true });
 
     // Clean up stale part5 screenshot if present
     const { unlink } = await import('node:fs/promises');

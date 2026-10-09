@@ -1,6 +1,6 @@
 # 🐍 Schwarz Research Intelligence - Backend & FastMCP Infrastructure
 
-> **Enterprise-Grade AI Architecture for Systematic Literature Review (SLR) & Deep Tech Intelligence.**  
+> **Enterprise-Grade AI Architecture for Research Scanner & Deep Tech Intelligence.**  
 > Unified backend exposing a **FastMCP SSE Interface (Port 8001)** for AI Agents, a **Django REST API (Port 8000)** for Web Interfaces, and a **Django Admin & Storage Browser** for Administrators.
 
 ---
@@ -53,7 +53,7 @@ backend/
 
 ---
 
-## ⚙️ 2. The SLR Processing Pipeline Stages
+## ⚙️ 2. The Research Scanner Pipeline Stages
 
 The autonomous DAG engine orchestrates the complete literature review lifecycle:
 
@@ -99,7 +99,7 @@ graph TD
 
 ## 🚀 3. Pipeline Triggering Pathways & Concurrency Controls
 
-The Systematic Literature Review (SLR) pipeline can be dispatched through **5 distinct, enterprise-grade execution channels**, all converging into the unified `ResearchAgentRunner` and `WorkflowDAG` orchestrator:
+The Research Scanner pipeline can be dispatched through **5 distinct, enterprise-grade execution channels**, all converging into the unified `ResearchAgentRunner` and `WorkflowDAG` orchestrator:
 
 | Pathway | Interface / Entrypoint | Concurrency & Overlap Policy | Async Dispatch Mechanism |
 | :--- | :--- | :--- | :--- |

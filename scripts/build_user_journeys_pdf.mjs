@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from '../frontend/node_modules/playwright';
+import { chromium } from '../frontend/node_modules/playwright/index.mjs';
 import { marked } from 'marked';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -69,8 +69,9 @@ async function main() {
     { title: 'User Journey 05: Pipeline Runs Overview', file: '05_pipeline_runs.md', id: 'journey-05' },
     { title: 'User Journey 06: Pipeline Run Details & Execution DAG', file: '06_run_details.md', id: 'journey-06' },
     { title: 'User Journey 07: Ask Document Grounded AI Interrogation', file: '07_ask_document.md', id: 'journey-07' },
+    { title: 'User Journey 08: Paper Comments & Annotator Collaboration', file: '08_paper_comments.md', id: 'journey-08' },
+    { title: 'User Journey 09: Cross-Domain Corpus & All Papers Directory', file: '09_all_papers.md', id: 'journey-09' },
     { title: 'Appendix A: User Personas & Access Boundaries', file: 'personas.md', id: 'appendix-a' },
-    { title: 'Appendix B: Route Hierarchy & Context Resolution Matrix', file: 'route_matrix.md', id: 'appendix-b' },
   ];
 
   let bodyHtml = '';
