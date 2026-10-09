@@ -110,4 +110,3 @@ describe('PaperComments component static rendering', () => {
     expect(out).toContain('svg')
   })
 })
-

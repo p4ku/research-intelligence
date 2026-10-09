@@ -754,10 +754,7 @@ export function PaperCommentsSkeleton({ t }: { t?: (key: string) => string }) {
   return (
     <Card flush data-shape="paper-comments-card" className="mt-3 overflow-hidden">
       <div className="flex w-full items-center gap-2 px-4 pt-3 font-mono text-[11px] font-medium tracking-[0.18em] text-foreground uppercase">
-        <ChatBubbleLeftEllipsisIcon
-          aria-hidden="true"
-          className="size-3.5 shrink-0 text-accent"
-        />
+        <ChatBubbleLeftEllipsisIcon aria-hidden="true" className="size-3.5 shrink-0 text-accent" />
         {tr('Comments')}
         <span className="ml-auto font-mono text-[11px] tracking-normal text-zinc-400 tabular-nums dark:text-zinc-500">
           <Bone.Text widths={['1ch']} />
@@ -781,4 +778,3 @@ export function PaperCommentsSkeleton({ t }: { t?: (key: string) => string }) {
     </Card>
   )
 }
-
