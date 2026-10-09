@@ -1,4 +1,4 @@
-import { describe, expect, test, mock } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import type { PapersQuery } from './schema'
 
 describe('papers.list with django source', () => {
