@@ -1,4 +1,7 @@
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, mock, test } from 'bun:test'
+
+mock.module('server-only', () => ({}))
+
 import type { PapersQuery } from './schema'
 
 describe('papers.list with django source', () => {
@@ -35,5 +38,43 @@ describe('papers.list with django source', () => {
     expect(qs).toContain('starred=1')
     expect(qs).toContain('min_score=80')
     expect(qs).toContain('within_days=30')
+  })
+})
+
+describe('papers.neighbours', () => {
+  const origEnv = process.env.BFF_SOURCE_PAPERS
+
+  test('returns ordered neighbours in stub mode', async () => {
+    process.env.BFF_SOURCE_PAPERS = 'stub'
+    try {
+      const { papers } = await import('./service')
+      const { fixturePapers } = await import('./fixtures')
+
+      const singlePassed = fixturePapers[0]!
+      const neighbours = await papers.neighbours(singlePassed.id)
+      expect(neighbours).not.toBeNull()
+      expect(neighbours?.position).toBe(1)
+      expect(neighbours?.prev).toBeNull()
+      expect(neighbours?.next).toBeNull()
+      expect(neighbours?.total).toBe(1)
+
+      // Rejected paper returns null
+      const rejectedPaper = fixturePapers[1]!
+      const rejectedNeighbours = await papers.neighbours(rejectedPaper.id)
+      expect(rejectedNeighbours).toBeNull()
+    } finally {
+      process.env.BFF_SOURCE_PAPERS = origEnv
+    }
+  })
+
+  test('returns null for unknown paper in stub mode', async () => {
+    process.env.BFF_SOURCE_PAPERS = 'stub'
+    try {
+      const { papers } = await import('./service')
+      const neighbours = await papers.neighbours('00000000-0000-0000-0000-000000000000')
+      expect(neighbours).toBeNull()
+    } finally {
+      process.env.BFF_SOURCE_PAPERS = origEnv
+    }
   })
 })

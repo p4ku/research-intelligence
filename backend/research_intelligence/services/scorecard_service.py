@@ -2,7 +2,7 @@ import re
 import uuid
 
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Case, F, OuterRef, Q, Subquery, Value, When
 
 from api.serializers.papers import PaperSerializer
 from api.serializers.comments import get_paper_messages_payload
@@ -1239,4 +1239,101 @@ def build_papers_scorecard_list_data(request) -> dict:
             'truncated': None,
         },
     }
+
+
+def build_paper_neighbours_data(paper: Paper, pipeline_run_id=None, request=None) -> dict:
+    """
+    Computes prev, next, position (1-based), and total count of passed papers
+    in paper.workspace ordered by signal_score desc (nulls last), -created_at, -id.
+    Matches the corpus ordering logic.
+    """
+    workspace = paper.workspace
+    base_papers = Paper.objects.filter(workspace=workspace)
+
+    target_pr_id = None
+    if pipeline_run_id and str(pipeline_run_id).lower() not in ('undefined', 'null', ''):
+        if str(pipeline_run_id).lower() == 'latest':
+            latest_run = (
+                PipelineRun.objects.filter(workspace=workspace)
+                .exclude(status__in=['failed', 'aborted'])
+                .order_by('-started_at', '-id')
+                .first()
+            )
+            if latest_run:
+                target_pr_id = latest_run.id
+        else:
+            try:
+                target_pr_id = uuid.UUID(str(pipeline_run_id))
+            except (ValueError, TypeError):
+                target_pr_id = None
+
+    if target_pr_id:
+        metric_score_qs = PaperMetric.objects.filter(
+            paper=OuterRef('pk'),
+            pipeline_run_id=target_pr_id,
+        ).order_by(
+            Case(When(signal_score__isnull=False, then=Value(0)), default=Value(1)),
+            '-created_at',
+            '-id',
+        )
+        metric_status_qs = PaperMetric.objects.filter(
+            paper=OuterRef('pk'),
+            pipeline_run_id=target_pr_id,
+        ).order_by(
+            Case(When(screening_status='pending', then=Value(1)), default=Value(0)),
+            '-created_at',
+            '-id',
+        )
+    else:
+        metric_score_qs = PaperMetric.objects.filter(
+            paper=OuterRef('pk')
+        ).order_by(
+            Case(When(signal_score__isnull=False, then=Value(0)), default=Value(1)),
+            '-created_at',
+            '-id',
+        )
+        metric_status_qs = PaperMetric.objects.filter(
+            paper=OuterRef('pk')
+        ).order_by(
+            Case(When(screening_status='pending', then=Value(1)), default=Value(0)),
+            '-created_at',
+            '-id',
+        )
+
+    score_subquery = Subquery(metric_score_qs.values('signal_score')[:1])
+    status_subquery = Subquery(metric_status_qs.values('screening_status')[:1])
+
+    annotated_qs = base_papers.annotate(
+        annotated_signal_score=score_subquery,
+        annotated_screening_status=status_subquery,
+    ).filter(
+        annotated_screening_status__in=['abstract_passed', 'full_text_passed', 'accepted']
+    ).order_by(
+        F('annotated_signal_score').desc(nulls_last=True),
+        '-created_at',
+        '-id',
+    )
+
+    id_list = [str(pid) for pid in annotated_qs.values_list('id', flat=True)]
+    target_id = str(paper.id)
+
+    if target_id not in id_list:
+        return {
+            'prev': None,
+            'next': None,
+            'position': None,
+            'total': len(id_list),
+        }
+
+    idx = id_list.index(target_id)
+    prev_id = id_list[idx - 1] if idx > 0 else None
+    next_id = id_list[idx + 1] if idx < len(id_list) - 1 else None
+
+    return {
+        'prev': prev_id,
+        'next': next_id,
+        'position': idx + 1,
+        'total': len(id_list),
+    }
+
 

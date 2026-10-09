@@ -231,6 +231,20 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
     @extend_schema(
         tags=['Literature & Papers'],
         parameters=[
+            OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Optional PipelineRun UUID to scope run metrics'),
+        ],
+        description="Lightweight neighbours (prev, next, position, total) in signal score order for paper navigation.",
+        responses={200: OpenApiResponse(description="Paper neighbours within workspace in signal score order.")}
+    )
+    @action(detail=True, methods=['get'], url_path='neighbours')
+    def neighbours(self, request, pk=None):
+        from .scorecard import build_paper_neighbours_response
+        paper = self.get_object()
+        return build_paper_neighbours_response(paper, request)
+
+    @extend_schema(
+        tags=['Literature & Papers'],
+        parameters=[
             OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Optional PipelineRun UUID to scope run comments'),
         ],
         description="List or create collaboration comments and discussion messages on this paper.",

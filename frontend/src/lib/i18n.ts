@@ -57,11 +57,12 @@ export function localeOf(lang: Lang): string {
 // (`formatNumber(n, lang, undefined, 2)`) for "as many decimals as it has, at
 // most two", the reading the paper page's figures use.
 export function formatNumber(
-  n: number,
+  n: number | null | undefined,
   lang: Lang = 'en',
   digits?: number,
   maxDigits?: number,
 ): string {
+  if (typeof n !== 'number' || !Number.isFinite(n)) return '—'
   return n.toLocaleString(localeOf(lang), {
     minimumFractionDigits: digits,
     maximumFractionDigits: maxDigits ?? digits,
@@ -70,7 +71,8 @@ export function formatNumber(
 
 // Locale-aware percentage: "90%" in English, "90 %" (DIN 5008, narrow no-break
 // space) in German. `n` is already 0–100.
-export function formatPercent(n: number, lang: Lang = 'en', digits = 0): string {
+export function formatPercent(n: number | null | undefined, lang: Lang = 'en', digits = 0): string {
+  if (typeof n !== 'number' || !Number.isFinite(n)) return '—'
   const num = formatNumber(n, lang, digits)
   return lang === 'de' ? `${num}\u202f%` : `${num}%`
 }

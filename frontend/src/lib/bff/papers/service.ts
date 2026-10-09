@@ -16,6 +16,7 @@ import 'server-only'
 import type { PaperDTO } from '@/lib/api/types'
 import { isPassed } from '@/lib/papers/map'
 import { indexRuns, papersOfRun, type RunIndex } from '@/lib/papers/runs'
+import { byValueDesc } from '@/lib/papers/select'
 import { cache } from 'react'
 import * as z from 'zod'
 import { drain } from '../core/drain'
@@ -33,8 +34,11 @@ import { applyPapersQuery, corpusFacets } from './filter'
 import { fixturePapers, fixtureWorkspace } from './fixtures'
 import {
   paperList,
+  paperNeighbours,
   papersQuery,
+  PASSED_STATUSES,
   scoredPaper,
+  type PaperNeighboursResult,
   type PapersList,
   type PapersQuery,
   type ScoredPaper,
@@ -303,4 +307,34 @@ export const papers = {
       }
     },
   ),
+
+  /**
+   * Lightweight neighbours (prev, next, position, total) ordered by signal score.
+   * Cached per request.
+   */
+  neighbours: cache(async (id: string, runId?: string): Promise<PaperNeighboursResult | null> => {
+    if (sourceOf('papers') === 'stub') {
+      const ordered = fixturePapers
+        .filter((p) => PASSED_STATUSES.includes(p.screening_status))
+        .sort((a, b) => byValueDesc(a.signal_score, b.signal_score))
+      const i = ordered.findIndex((p) => p.id === id)
+      if (i < 0) return null
+      return {
+        prev: i > 0 ? ordered[i - 1]!.id : null,
+        next: i < ordered.length - 1 ? ordered[i + 1]!.id : null,
+        position: i + 1,
+        total: ordered.length,
+      }
+    }
+    try {
+      const query = runId ? `?pipeline_run=${encodeURIComponent(runId)}` : ''
+      return await django(
+        `/api/papers/${assertUuid(id, 'paper id')}/neighbours/${query}`,
+        paperNeighbours,
+      )
+    } catch (error) {
+      if (error instanceof ProblemError && error.problem.status === 404) return null
+      throw error
+    }
+  }),
 }

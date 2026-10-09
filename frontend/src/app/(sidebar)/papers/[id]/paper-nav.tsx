@@ -156,7 +156,7 @@ export function PaperNav({
       }
       prev={<Arrow href={n?.prev ?? null} dir="prev" label={t('Previous paper')} />}
       position={
-        n
+        n && typeof n.position === 'number' && typeof n.total === 'number'
           ? fmt(t('{n} of {total}'), {
               n: formatNumber(n.position, lang),
               total: formatNumber(n.total, lang),

@@ -25,6 +25,7 @@ from research_intelligence.services.scorecard_extractors import (
     resolve_field_val,
 )
 from research_intelligence.services.scorecard_service import (
+    build_paper_neighbours_data,
     build_paper_scorecard_data,
     build_papers_scorecard_list_data,
     build_single_scored_paper,
@@ -33,6 +34,8 @@ from research_intelligence.services.scorecard_service import (
 )
 
 __all__ = [
+    'build_paper_neighbours_data',
+    'build_paper_neighbours_response',
     'build_paper_scorecard_response',
     'build_workspace_scorecard_response',
     'build_papers_scorecard_list_response',
@@ -78,4 +81,16 @@ def build_papers_scorecard_list_response(request) -> Response:
     """HTTP view controller for GET /api/papers/scorecard/."""
     data = build_papers_scorecard_list_data(request)
     return Response(data, status=status.HTTP_200_OK)
+
+
+def build_paper_neighbours_response(paper: Paper, request) -> Response:
+    """HTTP view controller for GET /api/papers/{id}/neighbours/."""
+    pipeline_run_param = (
+        request.query_params.get('pipeline_run')
+        or request.query_params.get('pipeline_run_id')
+        or request.query_params.get('run_id')
+    )
+    data = build_paper_neighbours_data(paper, pipeline_run_id=pipeline_run_param, request=request)
+    return Response(data, status=status.HTTP_200_OK)
+
 

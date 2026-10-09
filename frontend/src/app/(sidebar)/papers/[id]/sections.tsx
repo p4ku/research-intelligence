@@ -13,8 +13,8 @@ import { fmt, formatDate, type Lang, type T } from '@/lib/i18n'
 import { paperHref } from '@/lib/papers/href'
 import { arxivIdOf, doiOf } from '@/lib/papers/map'
 import { paperAsRun } from '@/lib/papers/runs'
-import { byValueDesc, trimTitle } from '@/lib/papers/select'
-import { PASSED_STATUSES, type ScoredPaper } from '@/lib/papers/types'
+import { trimTitle } from '@/lib/papers/select'
+import type { ScoredPaper } from '@/lib/papers/types'
 import { ArrowUpRightIcon } from '@heroicons/react/16/solid'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -196,18 +196,14 @@ async function neighboursOf(
       total: ids.length,
     }
   }
-  const corpus = await papers.listAll(paper.workspace_id).catch(() => null)
-  if (!corpus) return null
-  const ordered = corpus.papers
-    .filter((p) => PASSED_STATUSES.includes(p.screening_status))
-    .sort((a, b) => byValueDesc(a.signal_score, b.signal_score))
-  const i = ordered.findIndex((p) => p.id === paper.id)
-  if (i < 0) return null
+  const data = await papers.neighbours(paper.id, ctx?.run?.id).catch(() => null)
+  if (!data || data.position === null) return null
+  const to = (id: string) => paperHref(id, ctx?.run?.id ? { runId: ctx.run.id } : undefined)
   return {
-    prev: i > 0 ? paperHref(ordered[i - 1]!.id) : null,
-    next: i < ordered.length - 1 ? paperHref(ordered[i + 1]!.id) : null,
-    position: i + 1,
-    total: ordered.length,
+    prev: data.prev ? to(data.prev) : null,
+    next: data.next ? to(data.next) : null,
+    position: data.position,
+    total: data.total,
   }
 }
 
