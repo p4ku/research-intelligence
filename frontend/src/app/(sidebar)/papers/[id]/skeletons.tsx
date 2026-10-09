@@ -59,7 +59,7 @@ export function PaperRecordSkeleton({
           <div className="lg:sticky lg:top-8">
             <ScoreRailSkeleton t={t} />
             <PaperChatSkeleton title={t('Ask this paper')} />
-            <PaperCommentsSkeleton t={t} />
+            <PaperCommentsSkeleton label={t('Comments')} />
           </div>
         </div>
       </div>

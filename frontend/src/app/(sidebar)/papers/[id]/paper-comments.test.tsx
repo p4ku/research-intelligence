@@ -108,5 +108,8 @@ describe('PaperComments component static rendering', () => {
     expect(out).toContain('data-shape="paper-comments-card"')
     expect(out).toContain('Comments')
     expect(out).toContain('svg')
+
+    const outCustom = renderToStaticMarkup(<PaperCommentsSkeleton label="Kommentare" />)
+    expect(outCustom).toContain('Kommentare')
   })
 })
