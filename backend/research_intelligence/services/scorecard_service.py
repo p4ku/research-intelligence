@@ -11,7 +11,10 @@ from research_intelligence.models import (
     ExtractionDefinition,
     NarrativeReport,
     Paper,
+    PaperMetric,
     PipelineRun,
+    Star,
+    WorkspaceMember,
 )
 from .scorecard_extractors import (
     extract_metrics_for_extraction,
@@ -945,3 +948,295 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
         res['page'] = page_number
         res['page_size'] = page_size
     return res
+
+
+def build_papers_scorecard_list_data(request) -> dict:
+    """
+    Builds the paginated multi-workspace Papers Scorecard list data matching
+    the frontend ScoredPaperList contract:
+      - count: total matching papers after filters
+      - next: URL string for next page or None
+      - previous: URL string for previous page or None
+      - results: list of ScoredPaper objects
+      - facets:
+          - total: corpus-wide papers count before query filters
+          - score_ceiling: 100
+          - newest: ISO string of newest ingest date
+          - has_trl: boolean
+          - dimension_sorts: list of {key, name}
+          - starred_count: count of user-starred papers
+          - hidden_by_screening: count of candidates excluded by screening filter (only when searching)
+          - truncated: null
+    """
+    from datetime import timedelta
+    from django.db.models import Case, F, Max, OuterRef, Subquery, Value, When
+    from rest_framework.exceptions import NotFound, ValidationError
+
+    user = getattr(request, 'user', None)
+    if not user or not user.is_authenticated:
+        return {
+            'count': 0,
+            'next': None,
+            'previous': None,
+            'results': [],
+            'facets': {
+                'total': 0,
+                'score_ceiling': 100,
+                'newest': None,
+                'has_trl': False,
+                'dimension_sorts': [],
+                'starred_count': 0,
+                'hidden_by_screening': 0,
+                'truncated': None,
+            },
+        }
+
+    user_ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
+    if not user_ws_ids:
+        return {
+            'count': 0,
+            'next': None,
+            'previous': None,
+            'results': [],
+            'facets': {
+                'total': 0,
+                'score_ceiling': 100,
+                'newest': None,
+                'has_trl': False,
+                'dimension_sorts': [],
+                'starred_count': 0,
+                'hidden_by_screening': 0,
+                'truncated': None,
+            },
+        }
+
+    ws_param = request.query_params.get('workspace_id') or request.query_params.get('workspace')
+    if ws_param and str(ws_param).lower() not in ('undefined', 'null', ''):
+        try:
+            target_ws_uuid = uuid.UUID(str(ws_param))
+        except (ValueError, TypeError):
+            raise ValidationError({'detail': 'Invalid workspace_id UUID.'})
+        if target_ws_uuid not in user_ws_ids:
+            raise NotFound({'detail': 'No such workspace in your memberships.'})
+        active_ws_ids = [target_ws_uuid]
+    else:
+        active_ws_ids = user_ws_ids
+
+    base_papers = Paper.objects.filter(workspace_id__in=active_ws_ids)
+    total_corpus = base_papers.count()
+
+    # Newest ingest time
+    newest_dt = base_papers.aggregate(newest=Max('created_at'))['newest']
+    if newest_dt:
+        newest_str = newest_dt.isoformat() if (hasattr(newest_dt, 'tzinfo') and newest_dt.tzinfo) else (newest_dt.isoformat() + "Z")
+    else:
+        newest_str = None
+
+    # Check active definitions in target workspaces
+    active_definitions = list(
+        ExtractionDefinition.objects.filter(workspace_id__in=active_ws_ids, is_active=True)
+        .order_by('order', 'created_at')
+    )
+    has_trl = any(resolve_dimension_scale(d.name)[1] for d in active_definitions)
+
+    # Dimension sorts: deduplicated by key, excluding TRL
+    seen_dim_keys = set()
+    dimension_sorts = []
+    for d in active_definitions:
+        _, is_d_trl = resolve_dimension_scale(d.name)
+        if is_d_trl:
+            continue
+        d_key = d.name.lower().replace(' ', '_').replace('-', '_')
+        if d_key not in seen_dim_keys:
+            seen_dim_keys.add(d_key)
+            dimension_sorts.append({'key': d_key, 'name': d.name})
+
+    # Starred count for base_papers
+    starred_count = Star.objects.filter(user=user, paper_id__in=base_papers.values_list('id', flat=True)).count()
+
+    # Subqueries for signal_score and screening_status
+    metric_score_qs = PaperMetric.objects.filter(paper=OuterRef('pk')).order_by(
+        Case(When(signal_score__isnull=False, then=Value(0)), default=Value(1)),
+        '-created_at',
+        '-id',
+    )
+    metric_status_qs = PaperMetric.objects.filter(paper=OuterRef('pk')).order_by(
+        Case(When(screening_status='pending', then=Value(1)), default=Value(0)),
+        '-created_at',
+        '-id',
+    )
+    score_subquery = Subquery(metric_score_qs.values('signal_score')[:1])
+    status_subquery = Subquery(metric_status_qs.values('screening_status')[:1])
+
+    annotated_qs = base_papers.annotate(
+        annotated_signal_score=score_subquery,
+        annotated_screening_status=status_subquery,
+    )
+
+    # 1. Starred filter
+    starred_param = request.query_params.get('starred')
+    if starred_param == '1':
+        user_starred_ids = Star.objects.filter(user=user).values_list('paper_id', flat=True)
+        annotated_qs = annotated_qs.filter(id__in=user_starred_ids)
+
+    # 2. Min score filter
+    min_score_param = request.query_params.get('min_score') or request.query_params.get('score')
+    if min_score_param:
+        try:
+            min_score_val = float(min_score_param)
+            if min_score_val > 0:
+                annotated_qs = annotated_qs.filter(
+                    annotated_signal_score__isnull=False,
+                    annotated_signal_score__gte=min_score_val,
+                )
+        except (ValueError, TypeError):
+            pass
+
+    # 3. Within days filter (relative to newest paper)
+    within_days_param = request.query_params.get('within_days') or request.query_params.get('days')
+    if within_days_param:
+        try:
+            days_val = int(within_days_param)
+            if days_val > 0 and newest_dt:
+                cutoff = newest_dt - timedelta(days=days_val)
+                annotated_qs = annotated_qs.filter(created_at__gte=cutoff)
+        except (ValueError, TypeError):
+            pass
+
+    # 4. Search query across title, authors, abstract, DOI, arXiv ID
+    search_query = request.query_params.get('search') or request.query_params.get('q')
+    is_searching = bool(search_query and str(search_query).strip())
+    if is_searching:
+        term = str(search_query).strip()
+        annotated_qs = annotated_qs.filter(
+            Q(title__icontains=term) |
+            Q(authors__icontains=term) |
+            Q(abstract__icontains=term) |
+            Q(doi__icontains=term) |
+            Q(arxiv_id__icontains=term)
+        )
+
+    # 5. Screening filter & Hidden-by-screening calculation
+    screening_param = request.query_params.get('screening') or request.query_params.get('screening_status') or 'all'
+    screening_clean = str(screening_param).strip().lower()
+
+    candidates_qs = annotated_qs
+    if is_searching and screening_clean != 'all':
+        if screening_clean == 'passed':
+            passed_q = Q(annotated_screening_status__in=['abstract_passed', 'full_text_passed', 'accepted'])
+            hidden_by_screening = candidates_qs.exclude(passed_q).count()
+            filtered_qs = candidates_qs.filter(passed_q)
+        else:
+            status_q = Q(annotated_screening_status=screening_clean)
+            hidden_by_screening = candidates_qs.exclude(status_q).count()
+            filtered_qs = candidates_qs.filter(status_q)
+    else:
+        hidden_by_screening = 0
+        if screening_clean == 'passed':
+            passed_q = Q(annotated_screening_status__in=['abstract_passed', 'full_text_passed', 'accepted'])
+            filtered_qs = candidates_qs.filter(passed_q)
+        elif screening_clean != 'all':
+            status_q = Q(annotated_screening_status=screening_clean)
+            filtered_qs = candidates_qs.filter(status_q)
+        else:
+            filtered_qs = candidates_qs
+
+    # 6. Ordering
+    ordering_param = request.query_params.get('ordering') or request.query_params.get('sort') or '-signal_score'
+    ord_clean = str(ordering_param).strip().lower()
+
+    if ord_clean in ('signal_score', '+signal_score'):
+        filtered_qs = filtered_qs.order_by(F('annotated_signal_score').asc(nulls_last=True), 'created_at', 'id')
+    elif ord_clean == '-signal_score':
+        filtered_qs = filtered_qs.order_by(F('annotated_signal_score').desc(nulls_last=True), '-created_at', '-id')
+    elif ord_clean in ('created_at', '+created_at', 'recent', '+recent'):
+        filtered_qs = filtered_qs.order_by('created_at', 'id')
+    elif ord_clean in ('-created_at', '-recent'):
+        filtered_qs = filtered_qs.order_by('-created_at', '-id')
+    elif ord_clean in ('title', '+title'):
+        filtered_qs = filtered_qs.order_by('title', 'id')
+    elif ord_clean == '-title':
+        filtered_qs = filtered_qs.order_by('-title', '-id')
+    else:
+        filtered_qs = filtered_qs.order_by(F('annotated_signal_score').desc(nulls_last=True), '-created_at', '-id')
+
+    # 7. Pagination
+    page_number = 1
+    page_size = 8
+    if request.query_params.get('page'):
+        try:
+            page_number = max(1, int(request.query_params['page']))
+        except (ValueError, TypeError):
+            page_number = 1
+    if request.query_params.get('page_size'):
+        try:
+            page_size = max(1, min(200, int(request.query_params['page_size'])))
+        except (ValueError, TypeError):
+            page_size = 8
+
+    paginator = Paginator(filtered_qs, page_size)
+    page_obj = paginator.get_page(page_number)
+    paper_items = list(page_obj.object_list)
+
+    # 8. Sliced paper hydration
+    defs_by_ws = {}
+    for d in active_definitions:
+        defs_by_ws.setdefault(d.workspace_id, []).append(d)
+
+    paper_ids = [p.id for p in paper_items]
+    hydrated_papers = list(
+        Paper.objects.filter(id__in=paper_ids)
+        .select_related('workspace')
+        .prefetch_related(
+            'metrics',
+            'metrics__pipeline_run',
+            'extractions',
+            'extractions__extraction_definition',
+        )
+    )
+    hydrated_by_id = {p.id: p for p in hydrated_papers}
+
+    scored_papers = []
+    for p_stub in paper_items:
+        p = hydrated_by_id.get(p_stub.id, p_stub)
+        ws_defs = defs_by_ws.get(p.workspace_id, [])
+        sp = build_single_scored_paper(
+            paper=p,
+            definitions=ws_defs,
+            metrics_list=list(p.metrics.all()),
+            extractions_list=list(p.extractions.all()),
+            request=request,
+            is_detail=False,
+        )
+        scored_papers.append(sp)
+
+    # 9. Next / Previous URLs (BFF relative format)
+    next_url = None
+    prev_url = None
+    query_dict = request.query_params.copy()
+    if page_obj.has_next():
+        query_dict['page'] = page_number + 1
+        query_dict['page_size'] = page_size
+        next_url = f"/bff/papers?{query_dict.urlencode()}"
+    if page_obj.has_previous():
+        query_dict['page'] = page_number - 1
+        query_dict['page_size'] = page_size
+        prev_url = f"/bff/papers?{query_dict.urlencode()}"
+
+    return {
+        'count': paginator.count,
+        'next': next_url,
+        'previous': prev_url,
+        'results': scored_papers,
+        'facets': {
+            'total': total_corpus,
+            'score_ceiling': 100,
+            'newest': newest_str,
+            'has_trl': has_trl,
+            'dimension_sorts': dimension_sorts,
+            'starred_count': starred_count,
+            'hidden_by_screening': hidden_by_screening,
+            'truncated': None,
+        },
+    }
+

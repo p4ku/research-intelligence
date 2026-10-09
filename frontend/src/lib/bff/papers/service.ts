@@ -32,6 +32,7 @@ import { listPapersRaw } from './compose'
 import { applyPapersQuery, corpusFacets } from './filter'
 import { fixturePapers, fixtureWorkspace } from './fixtures'
 import {
+  paperList,
   papersQuery,
   scoredPaper,
   type PapersList,
@@ -238,6 +239,17 @@ export const papers = {
    * filters themselves are pure (./filter.ts).
    */
   async list(query: PapersQuery): Promise<PapersList> {
+    if (sourceOf('papers') === 'django') {
+      const params = new URLSearchParams()
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined && value !== null && value !== '') {
+          params.set(key, String(value))
+        }
+      }
+      const qs = params.toString()
+      return await django(`/api/papers/scorecard/${qs ? `?${qs}` : ''}`, paperList)
+    }
+
     const corpus = await papers.listEverywhere()
     if (query.workspace_id && !corpus.workspaces.some((w) => w.id === query.workspace_id)) {
       throw problem('not-found', { detail: 'No such workspace in your memberships.' })
