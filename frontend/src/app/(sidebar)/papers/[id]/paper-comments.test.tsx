@@ -6,6 +6,7 @@ import {
   formatCommentDate,
   getReactionEmoji,
   PaperComments,
+  PaperCommentsSkeleton,
   userInitials,
 } from './paper-comments'
 
@@ -101,4 +102,12 @@ describe('PaperComments component static rendering', () => {
     expect(getReactionEmoji('heart')).toBe('❤️')
     expect(getReactionEmoji('unknown_reaction')).toBe('💬')
   })
+
+  test('renders PaperCommentsSkeleton with matching structure in loading state', () => {
+    const out = renderToStaticMarkup(<PaperCommentsSkeleton />)
+    expect(out).toContain('data-shape="paper-comments-card"')
+    expect(out).toContain('Comments')
+    expect(out).toContain('svg')
+  })
 })
+

@@ -747,3 +747,38 @@ export function PaperComments({ paperId, currentUser = null }: PaperCommentsProp
     </>
   )
 }
+
+/** Before the record arrives: the comments collapsed card with bones matching the loaded shape. */
+export function PaperCommentsSkeleton({ t }: { t?: (key: string) => string }) {
+  const tr = t ?? ((k: string) => k)
+  return (
+    <Card flush data-shape="paper-comments-card" className="mt-3 overflow-hidden">
+      <div className="flex w-full items-center gap-2 px-4 pt-3 font-mono text-[11px] font-medium tracking-[0.18em] text-foreground uppercase">
+        <ChatBubbleLeftEllipsisIcon
+          aria-hidden="true"
+          className="size-3.5 shrink-0 text-accent"
+        />
+        {tr('Comments')}
+        <span className="ml-auto font-mono text-[11px] tracking-normal text-zinc-400 tabular-nums dark:text-zinc-500">
+          <Bone.Text widths={['1ch']} />
+        </span>
+      </div>
+
+      <p className="px-4 pt-1.5 pb-2.5 text-xs text-muted-foreground">
+        <Bone.Text widths={['26ch']} />
+      </p>
+
+      <div className="border-t border-line-soft">
+        <div className="flex w-full items-center justify-between gap-2 p-1.5 pr-2.5 pl-4">
+          <span className="min-w-0 flex-1 text-sm">
+            <Bone.Text widths={['14ch']} />
+          </span>
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground/10 text-muted-foreground">
+            <ChatBubbleLeftEllipsisIcon className="size-3.5" />
+          </span>
+        </div>
+      </div>
+    </Card>
+  )
+}
+

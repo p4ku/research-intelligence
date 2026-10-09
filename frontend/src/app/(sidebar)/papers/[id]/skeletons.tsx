@@ -4,6 +4,7 @@ import type { Features } from '@/lib/features'
 import type { T } from '@/lib/i18n'
 import { AssessmentSkeleton } from './assessment'
 import { PaperChatSkeleton } from './paper-chat'
+import { PaperCommentsSkeleton } from './paper-comments'
 import { PaperHeaderSkeleton } from './paper-header'
 import { PaperNavSkeleton } from './paper-nav'
 import { ScoreRailSkeleton } from './score-rail'
@@ -58,6 +59,7 @@ export function PaperRecordSkeleton({
           <div className="lg:sticky lg:top-8">
             <ScoreRailSkeleton t={t} />
             <PaperChatSkeleton title={t('Ask this paper')} />
+            <PaperCommentsSkeleton t={t} />
           </div>
         </div>
       </div>
