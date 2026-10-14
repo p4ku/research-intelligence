@@ -16,6 +16,11 @@
 8. [BFF (Backend-for-Frontend) Contracts & Schemas](#8-bff-backend-for-frontend-contracts--schemas)
 9. [Component Architecture & Directory Mapping](#9-component-architecture--directory-mapping)
 10. [Step-by-Step Implementation Roadmap](#10-step-by-step-implementation-roadmap)
+11. [Master Architecture & Traceability Crosswalk](#11-master-architecture--traceability-crosswalk)
+12. [Access Control Matrix (RBAC: "Kto co może?")](#12-access-control-matrix-rbac-kto-co-może)
+13. [Blind Review Policy & Information Boundaries](#13-blind-review-policy--information-boundaries)
+14. [Operational Edge Cases, Stale Queues & Fallbacks](#14-operational-edge-cases-stale-queues--fallbacks)
+15. [Paper Audit Lifecycle & Status Transitions](#15-paper-audit-lifecycle--status-transitions)
 
 ---
 
@@ -555,4 +560,114 @@ The following matrix connects every stage of the user journey across the stack t
 | **9. Extraction Gate** | AI extracts 30 parameters; hits Gate 2 (if enabled) | Creates `AuditSampleCohort` (`stage='parameter_extraction'`) | `intercept_gate()` sets `status='paused'` again | N/A | `RunStatus` & `AuditQueue` | New row in Audit Queue: `Gate: Parameter extraction` |
 | **10. Extraction Audit** | Reviewer audits 10 parameter tables | Creates `ExtractionReview` (`verify`, `modify`, `reject`) | `check_quorum()` | `POST /bff/audit/cohorts/[cid]/papers/[pid]/submit` | `AuditDecisionPane` (Extraction Mode) | Inline verification of values and quotes |
 | **11. Final Synthesis** | 10/10 extractions verified; pipeline completes | Creates `SLRPRISMAMetrics`, `RiskOfBiasAssessment` | Celery DAG runs RoB, PRISMA, generates report | `GET /bff/briefings/[date]` | `BriefingLedger` & `PaperDetail` | Full SLR briefing published with PRISMA flow counts |
+
+---
+
+## 12. Access Control Matrix (RBAC: "Kto co może?")
+
+The platform maps SLR permissions directly to existing `WorkspaceMember.role` values (`admin`, `manager`, `researcher`) plus the functional role `designated_arbiter` defined in `SLRWorkspaceConfig`:
+
+| Feature / Action | Admin | Manager (PI) | Researcher | Designated Arbiter | Notes |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| **Configure SLR Policy & PICO** | ✅ | ✅ | 👁️ (Read-only) | 👁️ | Sets gates, quorum size, sampling %, and exclusion taxonomy |
+| **Launch SLR Briefing (`run_type='slr'`)** | ✅ | ✅ | ⚠️ (If permitted) | ✅ | Starts Celery pipeline in staged HITL audit mode |
+| **Receive Sampled Audit Assignments** | ✅ | ✅ | ✅ (Primary) | ✅ | Any member can be allocated papers for review |
+| **View Audit Queue (`/audit-queue`)** | ✅ (Assigned) | ✅ (Assigned) | ✅ (Assigned) | ✅ (Assigned) | Strict isolation: users see ONLY their own assigned papers |
+| **Submit Blind Review (`Agree` / `Override`)** | ✅ | ✅ | ✅ | ✅ | Submits binding vote with exclusion reason & notes |
+| **Inspect Peer Reviews (Before Quorum)** | ❌ | ❌ | ❌ | ❌ | **Strict Blind Boundary**: Prevents anchoring bias |
+| **Reassign Stale Audit Tasks** | ✅ | ✅ | ❌ | ❌ | Can reassign papers if an auditor is unavailable/on leave |
+| **Resolve Disagreements (Tie-Break)** | ✅ | ✅ | ❌ | ✅ (Primary) | Resolves `AdjudicationDispute` with side-by-side evidence |
+| **Bypass Gate / Force Resume Run** | ✅ | ✅ | ❌ | ❌ | Emergency unpause (e.g. 9/10 reviewed in time-critical review) |
+| **View / Export PRISMA Flow & RoB Plots** | ✅ | ✅ | ✅ | ✅ | All workspace members can export SVG, CSV, BibTeX |
+
+---
+
+## 13. Blind Review Policy & Information Boundaries
+
+In strict compliance with **Cochrane Handbook (Section 4.6)** and **PRISMA 2020 (Item 9)**:
+
+### 13.1 Pre-Submission Isolation (Anti-Anchoring)
+- While reviewing an assigned paper:
+  - The reviewer **CAN** see: Source PDF/OCR text, article metadata, AI recommendation (`INCLUDE`/`EXCLUDE`), AI confidence score, AI reasoning, and AI evidence quotes.
+  - The reviewer **CANNOT** see: Who the other peer reviewer is, whether the other peer has already submitted their review, or what the peer's verdict/notes are.
+- This ensures that human reviews provide an independent, unanchored ground-truth signal for computing **Cohen's Kappa ($\kappa$)**.
+
+### 13.2 Post-Submission & Consensus Exposure
+- Once a reviewer submits their vote, their decision is **locked**.
+- If `quorum == 1`: The review is finalized immediately.
+- If `quorum >= 2`:
+  - If both reviewers agree: Paper advances to the next stage (`consensus_status = 'agreed'`).
+  - If reviewers disagree (split vote): System generates an `AdjudicationDispute`. Only the `designated_arbiter` gains access to the **Side-by-Side Evidence Comparison Matrix** (`evidence_synthesis`) to break the tie.
+
+---
+
+## 14. Operational Edge Cases, Stale Queues & Fallbacks
+
+Real-world literature reviews encounter operational delays and data anomalies. The frontend accommodates these scenarios natively:
+
+### 1. Auditor Inactivity / Stale Queue (Reviewer on leave)
+- **Problem:** Reviewer A was assigned 10 papers but is sick or on leave, blocking the pipeline from resuming.
+- **Solution:** 
+  - If a cohort remains incomplete beyond `stale_queue_reminder_days` (default: 3 days), the Run Detail page (`/runs/[id]`) and Audit Queue display an amber warning: *"Stale audit assignment (Inactivity > 3 days)"*.
+  - A Manager or Admin can click **`[ Reassign Incomplete Reviews ]`** to reallocate pending papers to an active Researcher.
+
+### 2. Missing PDF Binary (Paywall / Open-Access Failure)
+- **Problem:** The scraper retrieved title and abstract, but the open-access PDF download failed (`pdf_key == null`).
+- **Solution:**
+  - The Left Pane displays an informative fallback notice:
+    ```
+    ⚠️ PDF binary not available in storage.
+    [ Reading from Abstract & Extracted Metadata ]
+    ```
+  - The reviewer can still evaluate the paper based on the abstract, or click **`[ Mark: Full-Text Inaccessible ]`**, which automatically records an exclusion in PRISMA Item 16 under *"Reports not retrieved"*.
+
+### 3. Split Vote Disagreements (1 Include vs 1 Exclude)
+- **Problem:** Two independent reviewers reach contradictory verdicts on an ambiguous paper.
+- **Solution:**
+  - The cohort status transitions to `Pending Senior Adjudication`.
+  - The `designated_arbiter` receives a notification badge on the new **Adjudications** sub-tab in `/audit-queue`.
+  - The Arbiter Workspace displays a side-by-side diff comparing Reviewer 1's highlighted quote vs Reviewer 2's highlighted quote vs AI reasoning. The Arbiter's ruling is final.
+
+### 4. Emergency Gate Bypass (Force Resume)
+- **Problem:** In rapid epidemic situations, the team cannot wait for 100% quorum to complete.
+- **Solution:**
+  - An Admin or Manager has access to **`[ Bypass Gate with Current Consensus ]`** on `/runs/[id]`.
+  - This closes the cohort with an audit log timestamp and forces the Celery pipeline to resume with the accepted papers.
+
+---
+
+## 15. Paper Audit Lifecycle & Status Transitions
+
+Every paper evaluated in an SLR run transitions through a deterministic state machine:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Ingested: Article Harvested
+    Ingested --> AIScreened: AI Full-Text Screening
+    
+    AIScreened --> ExcludedDirect: Not Sampled (AI Exclude)
+    AIScreened --> IncludedDirect: Not Sampled (AI Include)
+    AIScreened --> SampledForAudit: Selected in 10% Cohort
+    
+    state SampledForAudit {
+        [*] --> PendingReview: Assigned to Reviewer
+        PendingReview --> ReviewSubmitted: Auditor votes (Agree / Override)
+        
+        state QuorumResolution <<choice>>
+        ReviewSubmitted --> QuorumResolution: Check Quorum
+        
+        QuorumResolution --> ConsensusReached: Unanimous / Solo Vote
+        QuorumResolution --> SplitVote: Disagreement (1 Include vs 1 Exclude)
+        
+        SplitVote --> ArbiterAdjudication: Escalate to Senior Arbiter
+        ArbiterAdjudication --> ConsensusReached: Arbiter Ruling
+    }
+    
+    ConsensusReached --> FinalIncluded: Verdict = INCLUDE
+    ConsensusReached --> FinalExcluded: Verdict = EXCLUDE
+    
+    FinalIncluded --> ParameterExtraction: Downstream DAG Resumed
+    FinalExcluded --> PRISMAExcludedCounts: Logged with Reason
+```
+
 
