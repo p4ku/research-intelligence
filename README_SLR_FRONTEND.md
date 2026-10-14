@@ -670,4 +670,21 @@ stateDiagram-v2
     FinalExcluded --> PRISMAExcludedCounts: Logged with Reason
 ```
 
+### 15.1 Downstream Pipeline Impact of Human Decisions (Propagation Rules)
+
+The human audit gate is an **authoritative filter**—human quorum decisions strictly override upstream AI predictions before the next DAG stage executes:
+
+1. **When Quorum Decides `EXCLUDE` (AI Override or AI Agree):**
+   - **Immediately Dropped from Downstream Processing:** The paper is **completely excluded from parameter extraction**. The Celery pipeline will *not* dispatch Gemini tool-calling or spending tokens extracting its numerical values, transmission models, or outbreak data.
+   - **PRISMA Accounting:** The paper transitions to `final_screening_status = 'excluded'` and is recorded in `SLRPRISMAMetrics.full_text_exclusion_reasons` under the exact human-selected category (e.g., *"Animal study only"*).
+   - **Dataset Hygiene:** It is excluded from the final evidence synthesis, ensuring published tables and meta-analyses contain zero contaminated records.
+
+2. **When Quorum Decides `INCLUDE` (e.g. AI False Negative Recovered):**
+   - **Resurrected into the Extraction Pool:** If AI originally rejected the paper, but the auditor flagged it as eligible via negative control sampling (`Override ➔ INCLUDE`), the paper is **added back to the active pool**.
+   - It will undergo full 30-parameter extraction alongside other accepted studies, preventing permanent loss of vital scientific evidence.
+
+3. **Reliability & Telemetry Feedback:**
+   - Every human override is logged into the confusion matrix (`metrics_service.py`), dynamically updating the AI's **Sensitivity**, **Specificity**, and **Cohen's Kappa ($\kappa_{ai}$)** reported in the review appendix.
+
+
 
