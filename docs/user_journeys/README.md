@@ -19,6 +19,7 @@ The user journeys are documented in dedicated, modular specifications correspond
 | **07** | **Ask Document** | `/papers/[id]` | Full-text grounded AI interrogation drawer, visual citations, live streaming | 📖 [07_ask_document.md](./07_ask_document.md) |
 | **08** | **Paper Comments & Collaboration** | `/papers/[id]` | Threaded message feed, Markdown annotations, consensus emoji reactions (👍, 💡, 🚀) | 📖 [08_paper_comments.md](./08_paper_comments.md) |
 | **09** | **All Papers Corpus** | `/papers` | Cross-domain literature repository, multi-faceted filtering, sorting, pagination | 📖 [09_all_papers.md](./09_all_papers.md) |
+| **10** | **SLR Audit Queue & Workspace** | `/audit-queue` | Staged HITL review, dual-pane PDF viewer, AI decision verification & auto-resumption | 📖 [10_slr_audit.md](./10_slr_audit.md) |
 
 ---
 
