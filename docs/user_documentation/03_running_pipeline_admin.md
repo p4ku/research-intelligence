@@ -5,8 +5,8 @@ This guide explains how to trigger, monitor, and manage end-to-end autonomous re
 ---
 
 ## 🌐 Quick Access
-* **Admin Portal URL**: [https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/)
-* **Pipeline Runs Direct URL**: [https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/research_intelligence/pipelinerun/](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/research_intelligence/pipelinerun/)
+* **Admin Portal URL**: [https://research-scanner.schwarz/admin/](https://research-scanner.schwarz/admin/) *(or [Cloud Foundry mirror](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/))*
+* **Pipeline Runs Direct URL**: [https://research-scanner.schwarz/admin/research_intelligence/pipelinerun/](https://research-scanner.schwarz/admin/research_intelligence/pipelinerun/)
 
 > [!NOTE]
 > **Unified Architecture**: Research Agent Processes have been fully consolidated into **Pipeline Runs**. All execution tracking, stage transitions, stopped-stage breakpoints, funnel statistics, and bulk resume controls are unified under a single model. Legacy URLs (`/admin/research_intelligence/researchagentprocess/`) automatically redirect to Pipeline Runs.
@@ -63,7 +63,7 @@ When you trigger a run, the SRI Autonomous State Engine coordinates an 8-stage D
 
 ## ⚡ Step-by-Step: Launching a Pipeline Run
 
-1. Log into the [Admin Portal](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/).
+1. Log into the [Admin Portal](https://research-scanner.schwarz/admin/).
 2. In the sidebar under **Research Intelligence**, click **Pipeline runs** ➡️ **+ Add Pipeline run** (or inspect an existing run).
 3. Configure run parameters:
    * **Workspace**: Select your target workspace (e.g. `Hybrid Computing` or `Quantum Computing in Logistics 2026`).
@@ -83,6 +83,9 @@ When you trigger a run, the SRI Autonomous State Engine coordinates an 8-stage D
      * **`end_date`**: ISO date string (`YYYY-MM-DD`). Ingests literature submitted/published on or before this date. Defaults to `now()` if omitted when `start_date` is given.
      * **`n_last_days`**: Number of historical days to crawl (`now() - N days` to `now()`). Defaults to **7 days** if no dates are specified.
 
+![Add Pipeline Run Form](./images/07b_add_research_agent_form.png)
+*Figure 2: Pipeline Run creation modal with configuration override JSON and execution breakpoint controls.*
+
 4. Click **Save**.
 
 The Celery distributed task dispatcher immediately picks up the run, sets `status="running"`, and launches the initial `search` ingestion worker.
@@ -91,7 +94,7 @@ The Celery distributed task dispatcher immediately picks up the run, sets `statu
 Managers can also trigger runs programmatically via REST API with date range parameters:
 * **`POST /api/pipeline-runs/start/`**:
   ```bash
-  curl -X POST https://sri-prod.apps.01.cf.eu01.onstackit.cloud/api/pipeline-runs/start/ \
+  curl -X POST https://research-scanner.schwarz/api/pipeline-runs/start/ \
     -H "Authorization: Bearer <JWT_TOKEN>" \
     -H "Content-Type: application/json" \
     -d '{
@@ -106,7 +109,7 @@ Managers can also trigger runs programmatically via REST API with date range par
 
 
 ![Pipeline Run Execution Details](./images/08b_pipeline_run_detail.png)
-*Figure 2: Active Pipeline Run detail page displaying live stage progress, stage results preview, step history preview, and linked Component Runs.*
+*Figure 3: Active Pipeline Run detail page displaying live stage progress, stage results preview, step history preview, and linked Component Runs.*
 
 ---
 

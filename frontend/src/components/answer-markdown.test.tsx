@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import type { ComponentProps, ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { Components } from 'react-markdown'
-import { AnswerMarkdown, componentsFor } from './answer-markdown'
+import { AnswerMarkdown, componentsFor, normalizeLooseFormatting } from './answer-markdown'
 
 const html = (text: string, streaming = false) =>
   renderToStaticMarkup(<AnswerMarkdown text={text} streaming={streaming} />)
@@ -26,6 +26,40 @@ describe('AnswerMarkdown', () => {
     expect(out).toContain('<ul')
     expect(out).toContain('<ol')
     expect(out).toContain('<hr')
+  })
+
+  test('normalizes loose markdown delimiters with inner whitespace into proper formatting', () => {
+    expect(normalizeLooseFormatting('***comment 3 Bold ***')).toBe('***comment 3 Bold***')
+    expect(normalizeLooseFormatting('*** C ***')).toBe('***C***')
+    expect(normalizeLooseFormatting('** V **')).toBe('**V**')
+    expect(normalizeLooseFormatting('* italic *')).toBe('*italic*')
+
+    const boldWithSpaces = html('** V **')
+    expect(boldWithSpaces).toContain('<strong')
+    expect(boldWithSpaces).toContain('>V</strong>')
+    expect(boldWithSpaces).not.toContain('**')
+
+    const boldItalic = html('***comment 3 Bold ***')
+    expect(boldItalic).toContain('<strong')
+    expect(boldItalic).toContain('<em')
+    expect(boldItalic).toContain('comment 3 Bold')
+    expect(boldItalic).not.toContain('***')
+
+    // Bullet points with * must not be confused with italics
+    const bullets = '* Ala\n* Ma\n* Kota'
+    expect(normalizeLooseFormatting(bullets)).toBe(bullets)
+    const bulletsHtml = html(bullets)
+    expect(bulletsHtml).toContain('<ul')
+    expect(bulletsHtml).toContain('>Ala</li>')
+    expect(bulletsHtml).toContain('>Ma</li>')
+    expect(bulletsHtml).toContain('>Kota</li>')
+    expect(bulletsHtml).not.toContain('<em')
+  })
+
+  test('renders single line breaks within paragraphs as br tags', () => {
+    const out = html('dcssff\nsfsfs\nfsfsfsdf')
+    expect(out).toContain('<br/>')
+    expect(out).toContain('dcssff<br/>\nsfsfs<br/>\nfsfsfsdf')
   })
 
   test('splits paragraphs on blank lines', () => {

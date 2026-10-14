@@ -20,6 +20,7 @@ import { useT } from '@/lib/i18n-client'
 import type { ScoredPaper } from '@/lib/papers/types'
 import {
   ChatBubbleLeftRightIcon,
+  ChevronDownIcon,
   PaperAirplaneIcon,
   PencilSquareIcon,
   StopIcon,
@@ -102,6 +103,7 @@ export function PaperChat({
   // Open from the start when the URL names a thread; the FLIP has nothing to
   // move from then, and the layout effect below sees no `flipFrom`.
   const [open, setOpen] = useState(initialSessionId !== null)
+  const [profileExpanded, setProfileExpanded] = useState(false)
   const [recentsOpen, setRecentsOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const [input, setInput] = useState('')
@@ -368,20 +370,46 @@ export function PaperChat({
         className="lg:flex lg:flex-col"
       >
         <Card flush className="flex min-h-0 flex-col overflow-hidden lg:h-full lg:overflow-y-auto">
-          {/* The profile: the score card as it was — score, bars, radar — pinned, never scrolls, never covered. */}
-          <div data-row="profile" className="shrink-0 border-b border-line-soft p-5 pb-4">
+          {/* The profile: the score card — collapsed by default in open console mode to preserve room */}
+          <div data-row="profile" className="shrink-0 border-b border-line-soft px-5 py-3.5">
             <div className="flex items-baseline justify-between gap-4">
               <span className="font-mono text-[44px] leading-none font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white">
                 {rail.score}
               </span>
-              <span className="text-[11px] font-semibold tracking-[0.18em] text-zinc-400 uppercase dark:text-zinc-500">
-                {rail.label}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold tracking-[0.18em] text-zinc-400 uppercase dark:text-zinc-500">
+                  {rail.label}
+                </span>
+                {rail.bars && (
+                  <button
+                    type="button"
+                    onClick={() => setProfileExpanded((v) => !v)}
+                    aria-expanded={profileExpanded}
+                    aria-label={
+                      profileExpanded ? t('Hide score breakdown') : t('Show score breakdown')
+                    }
+                    title={profileExpanded ? t('Hide score breakdown') : t('Show score breakdown')}
+                    className="inline-flex size-6 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                  >
+                    <ChevronDownIcon
+                      aria-hidden="true"
+                      className={clsx(
+                        'size-3.5 transition-transform duration-200',
+                        profileExpanded && 'rotate-180',
+                      )}
+                    />
+                  </button>
+                )}
+              </div>
             </div>
-            <ul className="mt-4 space-y-0.5">{rail.bars}</ul>
-            {rail.radar && (
-              <div className="mt-4 flex justify-center border-t border-line-soft pt-4">
-                <div ref={radarRef}>{rail.radar}</div>
+            {profileExpanded && (
+              <div data-row="details" className="pt-2">
+                <ul className="mt-2 space-y-0.5">{rail.bars}</ul>
+                {rail.radar && (
+                  <div className="mt-4 flex justify-center border-t border-line-soft pt-4">
+                    <div ref={radarRef}>{rail.radar}</div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -780,18 +808,27 @@ export function PaperChatFrame({
           {count}
         </span>
       </button>
-      <p data-row="hint" className="px-4 pt-1.5 pb-2.5 text-xs text-muted-foreground">
+      <p
+        data-row="hint"
+        onClick={onOpen}
+        className={clsx(
+          'px-4 pt-1.5 pb-2.5 text-xs text-muted-foreground',
+          onOpen && 'group-has-[[data-comments-open]]/record:cursor-pointer',
+        )}
+      >
         {hint}
       </p>
-      {composer}
-      {cont && (
-        <p
-          data-row="continue"
-          className="flex items-center gap-2 border-t border-line-soft px-4 py-2 text-xs text-zinc-600 dark:text-zinc-300"
-        >
-          {cont}
-        </p>
-      )}
+      <div className="transition-all duration-150 group-has-[[data-comments-open]]/record:hidden">
+        {composer}
+        {cont && (
+          <p
+            data-row="continue"
+            className="flex items-center gap-2 border-t border-line-soft px-4 py-2 text-xs text-zinc-600 dark:text-zinc-300"
+          >
+            {cont}
+          </p>
+        )}
+      </div>
     </Card>
   )
 }

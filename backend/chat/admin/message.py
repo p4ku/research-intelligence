@@ -20,7 +20,7 @@ class PaperChatMessageInline(admin.TabularInline):
     message_snippet.short_description = "Answer"
 
 
-@admin.register(PaperChatMessage)
+# PaperChatMessage is hidden from Django admin
 class PaperChatMessageAdmin(admin.ModelAdmin):
     list_display = ('id_snippet', 'session_link', 'sender', 'status_badge', 'llm_model', 'tokens_total', 'usd_cost_display', 'created_at')
     list_filter = ('status', 'sender', 'llm_model', 'created_at')

@@ -36,7 +36,7 @@ export interface FeatureDef {
 }
 
 // 9 Sep 2026: every flag is fixed, so the "Demo features" section of the
-// account menu is empty and does not render. /papers and /ask are hidden;
+// account menu is empty and does not render. /ask is hidden; all_papers and
 // stars stay on.
 export const FEATURES: Record<FeatureKey, FeatureDef> = {
   // exact: /papers/<id> must survive when the *list* is hidden.
@@ -44,7 +44,7 @@ export const FEATURES: Record<FeatureKey, FeatureDef> = {
     key: 'all_papers',
     label: 'All papers',
     route: { href: '/papers', exact: true },
-    fixed: false,
+    fixed: true,
   },
   stars: { key: 'stars', label: 'Stars', fixed: true },
   ask: { key: 'ask', label: 'Ask', ctx: 'nav', route: { href: '/ask', exact: true }, fixed: false },

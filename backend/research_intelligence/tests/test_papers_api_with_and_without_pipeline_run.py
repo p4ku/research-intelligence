@@ -521,4 +521,52 @@ schwarz_fit_postprocessed = (technical_score * 0.7) + (enterprise_score * 0.3)
         self.assertIn("count", pag_data)
         self.assertEqual(len(pag_data["results"]), 1)
 
+    def test_8_paper_neighbours_endpoint(self):
+        """
+        Validates GET /api/papers/{id}/neighbours/ returns lightweight navigation data
+        (prev, next, position, total) scoped to workspace and ordered by signal_score desc.
+        """
+        # Create a second passed paper in the same workspace with lower signal score
+        paper_second = Paper.objects.create(
+            workspace=self.workspace,
+            title="Second Passed Paper in Quantum",
+            hash_id="hash_second_passed",
+            source_database="arxiv"
+        )
+        PaperMetric.objects.create(
+            paper=paper_second,
+            pipeline_run=self.newer_run,
+            workspace=self.workspace,
+            screening_status="accepted",
+            signal_score=60.0
+        )
+
+        # 1. First paper (score 88.5) -> position 1 of 2
+        res1 = self.client.get(f"/api/papers/{self.paper_multi.id}/neighbours/")
+        self.assertEqual(res1.status_code, 200)
+        data1 = res1.json()
+        self.assertIsNone(data1["prev"])
+        self.assertEqual(data1["next"], str(paper_second.id))
+        self.assertEqual(data1["position"], 1)
+        self.assertEqual(data1["total"], 2)
+
+        # 2. Second paper (score 60.0) -> position 2 of 2
+        res2 = self.client.get(f"/api/papers/{paper_second.id}/neighbours/")
+        self.assertEqual(res2.status_code, 200)
+        data2 = res2.json()
+        self.assertEqual(data2["prev"], str(self.paper_multi.id))
+        self.assertIsNone(data2["next"])
+        self.assertEqual(data2["position"], 2)
+        self.assertEqual(data2["total"], 2)
+
+        # 3. Rejected paper -> position is None, but total is 2
+        res_rej = self.client.get(f"/api/papers/{self.paper_older_only.id}/neighbours/")
+        self.assertEqual(res_rej.status_code, 200)
+        data_rej = res_rej.json()
+        self.assertIsNone(data_rej["prev"])
+        self.assertIsNone(data_rej["next"])
+        self.assertIsNone(data_rej["position"])
+        self.assertEqual(data_rej["total"], 2)
+
+
 

@@ -1,7 +1,7 @@
 # 🚀 Schwarz Research Intelligence (SRI)
 ## User Guide & Operational Manual
 
-Welcome to **Schwarz Research Intelligence (SRI)** — an enterprise-grade AI intelligence platform engineered for automated Systematic Literature Reviews (SLR), deep-tech scouting, competitive intelligence, and high-precision parameter extraction.
+Welcome to **Schwarz Research Intelligence (SRI)** — an enterprise-grade AI intelligence platform engineered for automated Research Scanner workflows, deep-tech scouting, competitive intelligence, and high-precision parameter extraction.
 
 ---
 
@@ -9,9 +9,9 @@ Welcome to **Schwarz Research Intelligence (SRI)** — an enterprise-grade AI in
 
 | Target Persona | Service & Access Channel | Endpoint URL | Description |
 | :--- | :--- | :--- | :--- |
-| **🧑‍💼 Manager / Researcher** | **SRI Next.js Web App** | [https://sri-prod.apps.01.cf.eu01.onstackit.cloud/](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/) | Primary dashboard, research matrix, interactive scorecards, and Paper Chat. |
-| **🛡️ Administrator / Lead** | **Django Administration Portal** | [https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/) | Full management panel for Workspaces, RBAC, Quotas, Audit Logs, and Storage Browser. |
-| **⚡ Power User / AI Agent** | **FastMCP SSE API (Claude/Cursor)** | `https://sri-prod.apps.01.cf.eu01.onstackit.cloud/mcp/sse` | MCP endpoint for Claude Code, Cursor, Antigravity IDE, and autonomous agents. |
+| **🧑‍💼 Manager / Researcher** | **SRI Next.js Web App** | [https://research-scanner.schwarz/](https://research-scanner.schwarz/) *(or [Cloud Foundry mirror](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/))* | Primary dashboard, research matrix, interactive scorecards, and Paper Chat. |
+| **🛡️ Administrator / Lead** | **Django Administration Portal** | [https://research-scanner.schwarz/admin/](https://research-scanner.schwarz/admin/) *(or [Cloud Foundry mirror](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/))* | Full management panel for Workspaces, RBAC, Quotas, Audit Logs, and Storage Browser. |
+| **⚡ Power User / AI Agent** | **FastMCP SSE API (Claude/Cursor)** | `https://research-scanner.schwarz/mcp/sse` *(or [Cloud Foundry mirror](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/mcp/sse))* | MCP endpoint for Claude Code, Cursor, Antigravity IDE, and autonomous agents. |
 
 ---
 
@@ -32,7 +32,7 @@ SRI automates the entire lifecycle from academic ingestion to custom scorecards 
  └─────────────────────────┘     └─────────────────────────┘       └─────────────────────────┘
                                                                                 │
                                                                                 ▼
- 6. CHAT & DEEP DIVE             5. SCORECARD & RESULTS            4. AUTONOMOUS SLR ENGINE
+ 6. CHAT & DEEP DIVE             5. SCORECARD & RESULTS            4. RESEARCH SCANNER ENGINE
  ┌─────────────────────────┐     ┌─────────────────────────┐       ┌─────────────────────────┐
  │ • Interactive Paper Q&A │ ◄── │ • Parameter Scorecard   │  ◄─── │ • Search & Ingestion    │
  │ • Multimodal Evidence   │     │ • Python Signal Ranking │       │ • Abstract Screening    │

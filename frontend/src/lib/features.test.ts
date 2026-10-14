@@ -55,12 +55,12 @@ describe('features cookie codec', () => {
 })
 
 describe('fixed flags', () => {
-  /** What the product is today: the list and Ask hidden, stars on, no toggles. */
-  const TODAY: Features = { all_papers: false, stars: true, ask: false }
+  /** What the product is today: Ask hidden, papers list and stars on, no toggles. */
+  const TODAY: Features = { all_papers: true, stars: true, ask: false }
 
   test('the real registry fixes every flag, so the menu has nothing to show', () => {
     expect(FEATURE_KEYS.map((k) => [k, FEATURES[k].fixed])).toEqual([
-      ['all_papers', false],
+      ['all_papers', true],
       ['stars', true],
       ['ask', false],
     ])

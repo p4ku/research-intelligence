@@ -14,6 +14,7 @@ import 'katex/dist/katex.min.css'
 import { Fragment, memo, type ReactNode } from 'react'
 import Markdown, { type Components, type Options } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
+import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import remend from 'remend'
@@ -53,8 +54,10 @@ const CARET_TAIL = / ?$/
 // GFM would read as strikethrough. `remark-math` + `rehype-katex` turn the
 // LaTeX the OCR step writes into the markdown ($…$ inline, $$…$$ display, per
 // `ocr_providers/gemini_provider.py`) into typeset math instead of raw source.
+// `remarkBreaks` renders single line breaks as <br/> (common in chat & comments).
 const REMARK_PLUGINS: NonNullable<Options['remarkPlugins']> = [
   [remarkGfm, { singleTilde: false }],
+  remarkBreaks,
   remarkMath,
 ]
 
@@ -95,6 +98,63 @@ function normalizeMath(text: string): string {
   return fences.length === 0
     ? converted
     : converted.replace(MASK, (_m, i: string) => fences[Number(i)])
+}
+
+/**
+ * CommonMark requires delimiter runs (like `**`, `***`, `~~`) to directly touch
+ * the enclosed content without whitespace on inner sides. However, users commonly
+ * write `** bold **`, `*** text ***`, `* italic *`, or `~~ strike ~~` with
+ * inner spacing. We normalize those loose delimiters so they parse and render
+ * as strong, emphasis, or strikethrough as intended, while strictly preserving
+ * code blocks, inline code, and math formulas.
+ */
+export function normalizeLooseFormatting(text: string): string {
+  if (!text.includes('*') && !text.includes('_') && !text.includes('~')) return text
+
+  const codeBlocks: string[] = []
+  const masked = text
+    .replace(/^```[\s\S]*?^```/gm, (m) => `\u{E002}${codeBlocks.push(m) - 1}\u{E002}`)
+    .replace(/`[^`\n]+`/g, (m) => `\u{E002}${codeBlocks.push(m) - 1}\u{E002}`)
+
+  let s = masked
+  // *** bold italic *** or ___ bold italic ___ (within the same line)
+  s = s.replace(
+    /(?<=^|[ \t(])\*{3}[ \t]*([^*\r\n]+?)[ \t]*\*{3}(?=$|[ \t),.?!:;])/g,
+    (_, inner: string) => `***${inner.trim()}***`,
+  )
+  s = s.replace(
+    /(?<=^|[ \t(])_{3}[ \t]*([^_\r\n]+?)[ \t]*_{3}(?=$|[ \t),.?!:;])/g,
+    (_, inner: string) => `***${inner.trim()}***`,
+  )
+  // ** bold ** or __ bold __ (within the same line)
+  s = s.replace(
+    /(?<=^|[ \t(])\*{2}[ \t]*([^*\r\n]+?)[ \t]*\*{2}(?=$|[ \t),.?!:;])/g,
+    (_, inner: string) => `**${inner.trim()}**`,
+  )
+  s = s.replace(
+    /(?<=^|[ \t(])_{2}[ \t]*([^_\r\n]+?)[ \t]*_{2}(?=$|[ \t),.?!:;])/g,
+    (_, inner: string) => `**${inner.trim()}**`,
+  )
+  // * italic * (within the same line; only when enclosed by asterisks on the same line)
+  s = s.replace(
+    /(?<=^|[ \t(])\*(?!\*)[ \t]*([^*\r\n]+?)[ \t]*\*(?!\*)(?=$|[ \t),.?!:;])/g,
+    (_, inner: string) => `*${inner.trim()}*`,
+  )
+  // _ italic _ (avoiding snake_case or intra-word underscores, within the same line)
+  s = s.replace(
+    /(?<=^|[ \t(])_(?!_)[ \t]*([^_\r\n]+?)[ \t]*_(?!_)(?=$|[ \t),.?!:;])/g,
+    (_, inner: string) => `*${inner.trim()}*`,
+  )
+  // ~~ strikethrough ~~ (within the same line)
+  s = s.replace(
+    /(?<=^|[ \t(])~~(?!\~)[ \t]*([^~\r\n]+?)[ \t]*~~(?!\~)(?=$|[ \t),.?!:;])/g,
+    (_, inner: string) => `~~${inner.trim()}~~`,
+  )
+
+  if (codeBlocks.length > 0) {
+    s = s.replace(/\u{E002}(\d+)\u{E002}/gu, (_, i: string) => codeBlocks[Number(i)])
+  }
+  return s
 }
 
 // Streamed words resolve out of a soft blur. The span stays inline, so filter
@@ -472,7 +532,7 @@ export const AnswerMarkdown = memo(function AnswerMarkdown({
     ? extractCitationMarkers(streaming ? holdBackOpenMarker(text) : text)
     : null
   const refs = extracted?.refs ?? []
-  let source = normalizeMath(extracted ? extracted.text : text)
+  let source = normalizeLooseFormatting(normalizeMath(extracted ? extracted.text : text))
   if (streaming) source = streamingSource(source, caret)
   const opts: RenderOpts = { stats, unveil, caret }
   const cite: CiteCtx | undefined =

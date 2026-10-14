@@ -1,6 +1,6 @@
 # Schwarz Research Intelligence (SRI) — Web Interface User Journeys
 
-Welcome to the comprehensive user journey documentation for the **Schwarz Research Intelligence (SRI)** web platform. This repository section documents the complete end-to-end user workflows, interactive screen topologies, and operational interfaces captured directly from the live production deployment (`https://sri-prod.apps.01.cf.eu01.onstackit.cloud`).
+Welcome to the comprehensive user journey documentation for the **Schwarz Research Intelligence (SRI)** web platform. This repository section documents the complete end-to-end user workflows, interactive screen topologies, and operational interfaces captured directly from the live production deployment (`https://research-scanner.schwarz` / `https://sri-prod.apps.01.cf.eu01.onstackit.cloud`).
 
 ---
 
@@ -17,6 +17,8 @@ The user journeys are documented in dedicated, modular specifications correspond
 | **05** | **Pipeline Runs** | `/runs` | Global KPIs (spend, volume, pass rate), status tabs, complete run audit ledger | 📖 [05_pipeline_runs.md](./05_pipeline_runs.md) |
 | **06** | **Run Details** | `/runs/[id]` | Deep-dive telemetry, token counts, dollar costs, scraper yield & DAG stages | 📖 [06_run_details.md](./06_run_details.md) |
 | **07** | **Ask Document** | `/papers/[id]` | Full-text grounded AI interrogation drawer, visual citations, live streaming | 📖 [07_ask_document.md](./07_ask_document.md) |
+| **08** | **Paper Comments & Collaboration** | `/papers/[id]` | Threaded message feed, Markdown annotations, consensus emoji reactions (👍, 💡, 🚀) | 📖 [08_paper_comments.md](./08_paper_comments.md) |
+| **09** | **All Papers Corpus** | `/papers` | Cross-domain literature repository, multi-faceted filtering, sorting, pagination | 📖 [09_all_papers.md](./09_all_papers.md) |
 
 ---
 
@@ -38,6 +40,10 @@ All screenshots were captured against the live production environment using auto
    - Executive Telemetry & Top Stages: [`./screenshots/06_run_details.png`](./screenshots/06_run_details.png)
    - Complete 9-Stage DAG Breakdown: [`./screenshots/06_run_details_fullpage.png`](./screenshots/06_run_details_fullpage.png)
 7. **Ask Document Interrogation Drawer**: [`./screenshots/07_ask_document.png`](./screenshots/07_ask_document.png)
+8. **Paper Comments & Annotator Collaboration**: [`./screenshots/08_paper_comments.png`](./screenshots/08_paper_comments.png)
+9. **All Papers Directory / Corpus Catalog**:
+   - Executive Viewport: [`./screenshots/09_all_papers.png`](./screenshots/09_all_papers.png)
+   - Full-Page Catalog: [`./screenshots/09_all_papers_fullpage.png`](./screenshots/09_all_papers_fullpage.png)
 
 ---
 

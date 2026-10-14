@@ -1,4 +1,5 @@
 import { Breadcrumbs, SectionLabel } from '@/components/scanner-ui'
+import { getSessionUser } from '@/lib/auth/session'
 import { editionHref } from '@/lib/bff/briefings/href'
 import type { Edition } from '@/lib/bff/briefings/schema'
 import { editionDate } from '@/lib/bff/briefings/select'
@@ -12,8 +13,8 @@ import { fmt, formatDate, type Lang, type T } from '@/lib/i18n'
 import { paperHref } from '@/lib/papers/href'
 import { arxivIdOf, doiOf } from '@/lib/papers/map'
 import { paperAsRun } from '@/lib/papers/runs'
-import { byValueDesc, trimTitle } from '@/lib/papers/select'
-import { PASSED_STATUSES, type ScoredPaper } from '@/lib/papers/types'
+import { trimTitle } from '@/lib/papers/select'
+import type { ScoredPaper } from '@/lib/papers/types'
 import { ArrowUpRightIcon } from '@heroicons/react/16/solid'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -21,6 +22,7 @@ import { cache } from 'react'
 import { formatEditionDate } from '../../briefing/format'
 import { Assessment } from './assessment'
 import { PaperChat } from './paper-chat'
+import { PaperComments } from './paper-comments'
 import { PaperHeader } from './paper-header'
 import { PaperNav, type PaperExit, type PaperNeighbours } from './paper-nav'
 import { railParts } from './score-rail'
@@ -194,18 +196,14 @@ async function neighboursOf(
       total: ids.length,
     }
   }
-  const corpus = await papers.listAll(paper.workspace_id).catch(() => null)
-  if (!corpus) return null
-  const ordered = corpus.papers
-    .filter((p) => PASSED_STATUSES.includes(p.screening_status))
-    .sort((a, b) => byValueDesc(a.signal_score, b.signal_score))
-  const i = ordered.findIndex((p) => p.id === paper.id)
-  if (i < 0) return null
+  const data = await papers.neighbours(paper.id, ctx?.run?.id).catch(() => null)
+  if (!data || data.position === null) return null
+  const to = (id: string) => paperHref(id, ctx?.run?.id ? { runId: ctx.run.id } : undefined)
   return {
-    prev: i > 0 ? paperHref(ordered[i - 1]!.id) : null,
-    next: i < ordered.length - 1 ? paperHref(ordered[i + 1]!.id) : null,
-    position: i + 1,
-    total: ordered.length,
+    prev: data.prev ? to(data.prev) : null,
+    next: data.next ? to(data.next) : null,
+    position: data.position,
+    total: data.total,
   }
 }
 
@@ -226,9 +224,10 @@ export async function PaperRecord({
   lang: Lang
   features: Features
 }) {
-  const [result, ctx] = await Promise.all([
+  const [result, ctx, currentUser] = await Promise.all([
     forPage(papers.get(id, runId)),
     runId ? runContext(id, runId, lang) : null,
+    getSessionUser(),
   ])
   // The shell has already streamed, so this renders (sidebar)/not-found.tsx
   // in place with HTTP 200 — the trade for an instant shell, recorded in
@@ -282,8 +281,9 @@ export async function PaperRecord({
           Sticky as one unit so the scores stay in view while the assessment
           is read.
         */}
-        <div className="lg:sticky lg:top-8">
+        <div className="scrollbar-thin pr-0.5 lg:sticky lg:top-8 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto lg:overscroll-contain">
           <PaperChat paper={paper} rail={railParts(paper, t, lang)} initialSessionId={sessionId} />
+          <PaperComments paperId={paper.id} currentUser={currentUser} />
         </div>
       </div>
     </div>

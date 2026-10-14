@@ -5,9 +5,9 @@ With the **Schwarz Research Intelligence (SRI) Model Context Protocol (MCP)** se
 ---
 
 ## 🌐 Quick Access
-* **Live MCP SSE Endpoint**: `https://sri-prod.apps.01.cf.eu01.onstackit.cloud/mcp/sse`
-* **Web App URL**: [https://sri-prod.apps.01.cf.eu01.onstackit.cloud/](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/)
-* **Admin Portal**: [https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/)
+* **Live MCP SSE Endpoint**: `https://research-scanner.schwarz/mcp/sse` *(or `https://sri-prod.apps.01.cf.eu01.onstackit.cloud/mcp/sse`)*
+* **Web App URL**: [https://research-scanner.schwarz/](https://research-scanner.schwarz/) *(or [Cloud Foundry mirror](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/))*
+* **Admin Portal**: [https://research-scanner.schwarz/admin/](https://research-scanner.schwarz/admin/) *(or [Cloud Foundry mirror](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/))*
 
 ---
 

@@ -418,3 +418,16 @@ export const palette = z
   })
   .meta({ id: 'Palette' })
 export type Palette = z.infer<typeof palette>
+
+/**
+ * Lightweight neighbours response from Django: previous/next IDs, 1-based position, and total count.
+ */
+export const paperNeighbours = z
+  .object({
+    prev: z.string().nullable(),
+    next: z.string().nullable(),
+    position: z.number().int().positive().nullable(),
+    total: z.number().int().min(0),
+  })
+  .meta({ id: 'PaperNeighbours' })
+export type PaperNeighboursResult = z.infer<typeof paperNeighbours>

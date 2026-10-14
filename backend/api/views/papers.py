@@ -191,11 +191,56 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
         description="Full paper scorecard with run-scoped evaluation metrics, complete extraction fields_data, definition schemas/exit metrics, and narrative report context.",
         responses={200: OpenApiResponse(description="Full paper scorecard with run-scoped evaluation metrics, extraction fields_data, dimensions, and narrative report context.")}
     )
+    @extend_schema(
+        tags=['Literature & Papers'],
+        parameters=[
+            OpenApiParameter(name='workspace_id', type=str, location=OpenApiParameter.QUERY, description='Optional Workspace UUID to filter papers'),
+            OpenApiParameter(name='screening', type=str, location=OpenApiParameter.QUERY, description='Filter by screening status (passed, all, or specific status)'),
+            OpenApiParameter(name='ordering', type=str, location=OpenApiParameter.QUERY, description='Sort field (-signal_score, signal_score, -created_at, etc.)'),
+            OpenApiParameter(name='search', type=str, location=OpenApiParameter.QUERY, description='Search query across title, authors, abstract, DOI, arXiv ID'),
+            OpenApiParameter(name='starred', type=str, location=OpenApiParameter.QUERY, description='1 for starred only, 0 for all'),
+            OpenApiParameter(name='min_score', type=float, location=OpenApiParameter.QUERY, description='Minimum signal score'),
+            OpenApiParameter(name='within_days', type=int, location=OpenApiParameter.QUERY, description='Ingested within N days of newest paper'),
+            OpenApiParameter(name='min_trl', type=int, location=OpenApiParameter.QUERY, description='Minimum TRL level (1-9)'),
+            OpenApiParameter(name='max_trl', type=int, location=OpenApiParameter.QUERY, description='Maximum TRL level (1-9)'),
+            OpenApiParameter(name='page', type=int, location=OpenApiParameter.QUERY, description='Page number'),
+            OpenApiParameter(name='page_size', type=int, location=OpenApiParameter.QUERY, description='Items per page'),
+        ],
+        description="Paginated list of papers in full ScoredPaper scorecard format across workspaces with corpus-wide facets.",
+        responses={200: OpenApiResponse(description="Paginated scorecard list with facets.")}
+    )
+    @action(detail=False, methods=['get'], url_path='scorecard')
+    def scorecard_list(self, request):
+        from .scorecard import build_papers_scorecard_list_response
+        return build_papers_scorecard_list_response(request)
+
+    @extend_schema(
+        tags=['Literature & Papers'],
+        parameters=[
+            OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Optional PipelineRun UUID to scope run metrics'),
+        ],
+        description="Full paper scorecard with run-scoped evaluation metrics, complete extraction fields_data, definition schemas/exit metrics, and narrative report context.",
+        responses={200: OpenApiResponse(description="Full paper scorecard with run-scoped evaluation metrics, extraction fields_data, dimensions, and narrative report context.")}
+    )
     @action(detail=True, methods=['get'], url_path='scorecard')
     def scorecard(self, request, pk=None):
         from .scorecard import build_paper_scorecard_response
         paper = self.get_object()
         return build_paper_scorecard_response(paper, request)
+
+    @extend_schema(
+        tags=['Literature & Papers'],
+        parameters=[
+            OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Optional PipelineRun UUID to scope run metrics'),
+        ],
+        description="Lightweight neighbours (prev, next, position, total) in signal score order for paper navigation.",
+        responses={200: OpenApiResponse(description="Paper neighbours within workspace in signal score order.")}
+    )
+    @action(detail=True, methods=['get'], url_path='neighbours')
+    def neighbours(self, request, pk=None):
+        from .scorecard import build_paper_neighbours_response
+        paper = self.get_object()
+        return build_paper_neighbours_response(paper, request)
 
     @extend_schema(
         tags=['Literature & Papers'],

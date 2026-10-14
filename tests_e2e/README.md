@@ -137,7 +137,7 @@ npm run test:prod                    # Runs against Production
 
 ## 🚀 Running E2E Scenarios via CLI
 
-### 1. Run the Complete SLR Review & Chat (Default):
+### 1. Run the Complete Research Scanner Review & Chat (Default):
 ```bash
 ./tests_e2e/run_e2e.sh
 ```
@@ -215,7 +215,7 @@ npm run test:prod                    # Runs against Production
 | `E2E_BASE_URL` | `https://research-scanner.schwarz` (prod) | Next.js frontend root URL for Playwright tests. |
 | `E2E_API_URL` | `https://research-scanner.schwarz` (prod) | Django REST API root URL for backend tests. |
 | `E2E_CLEANUP_AFTER` | `false` (flag: `--cleanup-after`) | Automatically deletes test workspaces, runs, and artifacts upon completion. |
-| `E2E_TIMEOUT_SEC` | `900` | Maximum polling timeout (in seconds) for SLR agent completion. |
+| `E2E_TIMEOUT_SEC` | `900` | Maximum polling timeout (in seconds) for Research Scanner agent completion. |
 | `E2E_PAPER_LIMIT` | `10` | Maximum candidate papers fetched per scraper in pipeline test runs. |
 
 ### 5. Run with Pytest:
