@@ -45,7 +45,7 @@ describe('PdfViewerPane Component Rendering', () => {
     expect(html).toContain('Markdown / Text Mode')
     expect(html).toContain('Download PDF ↗')
     expect(html).toContain(
-      'src="/api/papers/d0a80123-0000-4000-8000-000000000001/pdf/#toolbar=1&amp;navpanes=0"',
+      'src="/bff/papers/d0a80123-0000-4000-8000-000000000001/pdf#toolbar=1&amp;navpanes=0"',
     )
     expect(html).toContain('title="PDF viewer for Clinical Evaluation of Antiviral Therapies in Lassa Fever"')
   })

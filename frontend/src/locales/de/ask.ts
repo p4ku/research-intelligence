@@ -5,6 +5,7 @@ export const dict: Record<string, string> = {
   // page.tsx
   Assistant: 'Assistent',
   'Ask Research Intelligence': 'Research Intelligence fragen',
+  'Ask {appName}': '{appName} fragen',
   // Tab title. The nav's 'Ask' translates via the 'nav' context in chrome.ts.
   'Ask the scanner': 'Research Intelligence fragen',
 

@@ -19,4 +19,4 @@ FAILED COMPONENTS:
 {% endif %}
 
 ================================================================================
-Schwarz Research Intelligence • Workspace ID: {{ workspace_id }}
+{{ app_name|default:"Schwarz Research Intelligence" }} • Workspace ID: {{ workspace_id }}

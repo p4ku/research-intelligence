@@ -1,6 +1,8 @@
 import { PageHeader } from '@/components/scanner-ui'
 import { WorkspaceNotice } from '@/components/workspace-notice'
+import { APP_NAME } from '@/lib/config'
 import { hasFeature, requireFeature } from '@/lib/features-server'
+import { fmt } from '@/lib/i18n'
 import { getT } from '@/lib/i18n-server'
 import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
@@ -46,7 +48,7 @@ export default async function AskPage({
   if (state.kind !== 'ok') {
     return (
       <div className="space-y-8">
-        <PageHeader eyebrow={t('Assistant')} title={t('Ask Research Intelligence')} />
+        <PageHeader eyebrow={t('Assistant')} title={fmt(t('Ask {appName}'), { appName: APP_NAME })} />
         <WorkspaceNotice kind={state.kind} />
       </div>
     )
@@ -55,7 +57,7 @@ export default async function AskPage({
   // sidebar-layout.tsx), so the page does not scroll — the transcript does.
   return (
     <div data-canvas className="flex min-h-0 flex-1 flex-col">
-      <h1 className="sr-only">{t('Ask Research Intelligence')}</h1>
+      <h1 className="sr-only">{fmt(t('Ask {appName}'), { appName: APP_NAME })}</h1>
       <Suspense
         fallback={
           <ViewTransition exit="bone-exit" default="none">

@@ -17,18 +17,22 @@ export function ScannerMark({ className }: { className?: string }) {
   )
 }
 
+import { APP_NAME } from '@/lib/config'
+
 export function ScannerWordmark({
   className,
   markClassName,
+  name,
 }: {
   className?: string
   markClassName?: string
+  name?: string
 }) {
   return (
     <span className={clsx('inline-flex items-center gap-2', className)}>
       <ScannerMark className={clsx('size-7', markClassName)} />
       <span className="text-sm font-semibold tracking-[0.14em] text-foreground uppercase">
-        Research Intelligence
+        {name ?? APP_NAME}
       </span>
     </span>
   )

@@ -3,6 +3,8 @@ export const dict: Record<string, string> = {
   Settings: 'Einstellungen',
   'Your profile and how you sign in to Research Intelligence.':
     'Ihr Profil und wie Sie sich bei Research Intelligence anmelden.',
+  'Your profile and how you sign in to {appName}.':
+    'Ihr Profil und wie Sie sich bei {appName} anmelden.',
   Profile: 'Profil',
   Name: 'Name',
   'First name': 'Vorname',

@@ -195,11 +195,15 @@ class HealthCheckView(APIView):
         tags=['Health & Diagnostics']
     )
     def get(self, request, *args, **kwargs):
+        app_name = getattr(settings, 'APP_NAME', 'Schwarz Research Intelligence')
+        app_short_name = getattr(settings, 'APP_SHORT_NAME', 'SRI')
         return Response(
             {
                 "status": "ok",
                 "timestamp": time.time(),
-                "service": "schwarz_research_intelligence_api",
+                "service": "research_intelligence_api",
+                "app_name": app_name,
+                "app_short_name": app_short_name,
             },
             status=status.HTTP_200_OK,
         )

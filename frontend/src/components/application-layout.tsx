@@ -27,6 +27,7 @@ import { SidebarLayout } from '@/components/sidebar-layout'
 import { Switch } from '@/components/switch'
 import { Spinner } from '@/components/ui/spinner'
 import { VersionStamp } from '@/components/version-stamp'
+import { APP_NAME } from '@/lib/config'
 import type { SessionUser } from '@/lib/auth/cookies'
 import { performSignOut } from '@/lib/auth/leave'
 import { FEATURES, isVisible, TOGGLE_KEYS, type FeatureKey, type Features } from '@/lib/features'
@@ -321,7 +322,7 @@ function ApplicationLayoutInner({ user, children, area = 'core' }: ShellProps) {
               <ScannerMark className="size-7 text-foreground" />
               <div className="flex min-w-0 flex-col">
                 <div className="flex items-center gap-1.5 text-xs leading-snug font-semibold tracking-[0.14em] text-foreground uppercase">
-                  <span className="truncate">Research Intelligence</span>
+                  <span className="truncate">{APP_NAME}</span>
                   {/* Names the area so it is obvious which tool you are in —
                       the reading app and the Studio share this chrome. */}
                   {areaBadge && (

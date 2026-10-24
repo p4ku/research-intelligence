@@ -27,7 +27,16 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
 FROM base AS build
 ARG BUILD_ID=local
 ARG APP_VERSION
-ENV BUILD_ID=$BUILD_ID APP_VERSION=$APP_VERSION NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production
+ARG NEXT_PUBLIC_APP_NAME="Research Intelligence"
+ARG NEXT_PUBLIC_APP_SHORT_NAME="SRI"
+ARG NEXT_PUBLIC_APP_DESCRIPTION
+ENV BUILD_ID=$BUILD_ID \
+    APP_VERSION=$APP_VERSION \
+    NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME \
+    NEXT_PUBLIC_APP_SHORT_NAME=$NEXT_PUBLIC_APP_SHORT_NAME \
+    NEXT_PUBLIC_APP_DESCRIPTION=$NEXT_PUBLIC_APP_DESCRIPTION \
+    NEXT_TELEMETRY_DISABLED=1 \
+    NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN --mount=type=cache,target=/app/.next/cache \
@@ -35,8 +44,13 @@ RUN --mount=type=cache,target=/app/.next/cache \
 
 FROM node:22-alpine AS run
 ARG BUILD_ID=local
-# Runtime copy of the build id so /bff/status can report it.
-ENV BUILD_ID=$BUILD_ID
+ARG NEXT_PUBLIC_APP_NAME="Research Intelligence"
+ARG NEXT_PUBLIC_APP_SHORT_NAME="SRI"
+# Runtime copy of the build id and app branding so /bff/status and SSR can report it.
+ENV BUILD_ID=$BUILD_ID \
+    APP_NAME=$NEXT_PUBLIC_APP_NAME \
+    NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME \
+    NEXT_PUBLIC_APP_SHORT_NAME=$NEXT_PUBLIC_APP_SHORT_NAME
 WORKDIR /app
 # Cloud Foundry injects PORT; the standalone server honours it.
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1

@@ -22,4 +22,4 @@ STAGES TIMELINE:
 {% endif %}
 
 ================================================================================
-Schwarz Research Intelligence • Run ID: {{ pipeline_run_id }}
+{{ app_name|default:"Schwarz Research Intelligence" }} • Run ID: {{ pipeline_run_id }}

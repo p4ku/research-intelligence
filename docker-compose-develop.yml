@@ -66,6 +66,9 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - APP_NAME=${APP_NAME:-Schwarz Research Intelligence}
+      - APP_SHORT_NAME=${APP_SHORT_NAME:-SRI}
+      - APP_DESCRIPTION=${APP_DESCRIPTION:-Enterprise Systematic Literature Review (SLR), Deep-Tech Scouting, and Multimodal Extraction Platform.}
       - DEBUG=${DEBUG:-True}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,api,sri.soinventive.co.uk}
       - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-https://sri.soinventive.co.uk}
@@ -132,6 +135,9 @@ services:
     ports:
       - "8001:8001"
     environment:
+      - APP_NAME=${APP_NAME:-Schwarz Research Intelligence}
+      - APP_SHORT_NAME=${APP_SHORT_NAME:-SRI}
+      - APP_DESCRIPTION=${APP_DESCRIPTION:-Enterprise Systematic Literature Review (SLR), Deep-Tech Scouting, and Multimodal Extraction Platform.}
       - DEBUG=${DEBUG:-True}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,api,sri.soinventive.co.uk}
       - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-https://sri.soinventive.co.uk}
@@ -194,6 +200,9 @@ services:
     volumes:
       - ./backend:/app
     environment:
+      - APP_NAME=${APP_NAME:-Schwarz Research Intelligence}
+      - APP_SHORT_NAME=${APP_SHORT_NAME:-SRI}
+      - APP_DESCRIPTION=${APP_DESCRIPTION:-Enterprise Systematic Literature Review (SLR), Deep-Tech Scouting, and Multimodal Extraction Platform.}
       - DEBUG=${DEBUG:-True}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,api,sri.soinventive.co.uk}
       - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-https://sri.soinventive.co.uk}
@@ -244,6 +253,9 @@ services:
     volumes:
       - ./backend:/app
     environment:
+      - APP_NAME=${APP_NAME:-Schwarz Research Intelligence}
+      - APP_SHORT_NAME=${APP_SHORT_NAME:-SRI}
+      - APP_DESCRIPTION=${APP_DESCRIPTION:-Enterprise Systematic Literature Review (SLR), Deep-Tech Scouting, and Multimodal Extraction Platform.}
       - DEBUG=${DEBUG:-True}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,api,sri.soinventive.co.uk}
       - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-https://sri.soinventive.co.uk}
@@ -279,6 +291,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_APP_NAME=${APP_NAME:-Schwarz Research Intelligence}
+        - NEXT_PUBLIC_APP_SHORT_NAME=${APP_SHORT_NAME:-SRI}
+        - NEXT_PUBLIC_APP_DESCRIPTION=${APP_DESCRIPTION:-Enterprise Systematic Literature Review (SLR), Deep-Tech Scouting, and Multimodal Extraction Platform.}
     container_name: sri_frontend
     restart: always
     ports:
@@ -286,6 +302,11 @@ services:
     environment:
       - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL:-http://api:8000}
       - SITE_URL=${SITE_URL:-https://sri.soinventive.co.uk}
+      - APP_NAME=${APP_NAME:-Schwarz Research Intelligence}
+      - APP_SHORT_NAME=${APP_SHORT_NAME:-SRI}
+      - NEXT_PUBLIC_APP_NAME=${APP_NAME:-Schwarz Research Intelligence}
+      - NEXT_PUBLIC_APP_SHORT_NAME=${APP_SHORT_NAME:-SRI}
+      - NEXT_PUBLIC_APP_DESCRIPTION=${APP_DESCRIPTION:-Enterprise Systematic Literature Review (SLR), Deep-Tech Scouting, and Multimodal Extraction Platform.}
     depends_on:
       - api
     networks:

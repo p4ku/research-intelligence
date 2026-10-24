@@ -1,5 +1,6 @@
 import { Bone, Skeleton } from '@/components/skeleton'
-import type { T } from '@/lib/i18n'
+import { APP_NAME } from '@/lib/config'
+import { fmt, type T } from '@/lib/i18n'
 import { PlusIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import {
@@ -77,7 +78,7 @@ export function AskConsoleSkeleton({ t }: { t: T }) {
 export function AskPageSkeleton({ t }: { t: T }) {
   return (
     <div data-canvas className="flex min-h-0 flex-1 flex-col">
-      <h1 className="sr-only">{t('Ask Research Intelligence')}</h1>
+      <h1 className="sr-only">{fmt(t('Ask {appName}'), { appName: APP_NAME })}</h1>
       <AskConsoleSkeleton t={t} />
     </div>
   )

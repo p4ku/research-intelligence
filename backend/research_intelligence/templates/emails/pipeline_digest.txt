@@ -1,5 +1,5 @@
 ================================================================================
-SCHWARZ RESEARCH INTELLIGENCE - SYSTEMATIC LITERATURE REVIEW DIGEST
+{{ app_name|default:"Schwarz Research Intelligence"|upper }} - SYSTEMATIC LITERATURE REVIEW DIGEST
 ================================================================================
 Workspace: {{ workspace_name }}
 Agent Name: {{ agent_title }}
@@ -58,4 +58,4 @@ No accepted papers passed criteria in this execution run.
 {% endfor %}
 
 --------------------------------------------------------------------------------
-Automated notification from Schwarz Research Intelligence Platform.
+Automated notification from {{ app_name|default:"Schwarz Research Intelligence" }} Platform.

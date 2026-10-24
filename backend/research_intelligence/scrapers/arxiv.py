@@ -8,9 +8,15 @@ import re
 import threading
 from datetime import datetime, date
 from typing import Optional, Union, List, Dict, Any, Tuple
+from django.conf import settings
 from .base import BaseScraperProvider
 
 logger = logging.getLogger(__name__)
+
+def _get_user_agent() -> str:
+    app_slug = getattr(settings, "APP_SHORT_NAME", "SRI")
+    contact_email = getattr(settings, "DEFAULT_FROM_EMAIL", "bot@localhost")
+    return f"Mozilla/5.0 (compatible; {app_slug}Scraper/1.0; +mailto:{contact_email})"
 
 # Global rate limiting lock and timestamp to enforce >= 3.0s between consecutive arXiv calls
 _arxiv_lock = threading.Lock()
@@ -170,7 +176,7 @@ class ArxivScraperProvider(BaseScraperProvider):
                 req = urllib.request.Request(
                     url,
                     headers={
-                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 (SchwarzResearchIntelligence/1.0; mailto:research@soinventive.co.uk)'
+                        'User-Agent': _get_user_agent(),
                     }
                 )
                 with urllib.request.urlopen(req, timeout=timeout_sec) as response:
@@ -371,7 +377,7 @@ class ArxivScraperProvider(BaseScraperProvider):
         try:
             req = urllib.request.Request(
                 url,
-                headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7); mailto:research@soinventive.co.uk'}
+                headers={'User-Agent': _get_user_agent()}
             )
             with urllib.request.urlopen(req, timeout=20) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
@@ -442,7 +448,7 @@ class ArxivScraperProvider(BaseScraperProvider):
         try:
             req = urllib.request.Request(
                 url,
-                headers={'User-Agent': 'SchwarzResearchIntelligence/1.0 (mailto:research@soinventive.co.uk)'}
+                headers={'User-Agent': _get_user_agent()}
             )
             with urllib.request.urlopen(req, timeout=30) as resp:
                 xml_data = resp.read()

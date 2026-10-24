@@ -2,6 +2,7 @@
 
 import { ScannerMark } from '@/components/brand'
 import { ErrorNote } from '@/components/scanner-ui'
+import { APP_NAME } from '@/lib/config'
 import { fmt, makeT, type Lang } from '@/lib/i18n'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { LoginErrorCode } from './auth/login/route'
@@ -79,7 +80,7 @@ export function LoginPanel({ next, notice, lang }: { next?: string; notice?: str
       <div className="flex items-center gap-2.5">
         <ScannerMark className="size-9 text-foreground" />
         <span className="text-base font-semibold tracking-[0.14em] text-foreground uppercase">
-          Research Intelligence
+          {APP_NAME}
         </span>
       </div>
 
@@ -151,8 +152,9 @@ export function LoginPanel({ next, notice, lang }: { next?: string; notice?: str
       </form>
 
       <p className="mt-10 text-xs text-zinc-400 dark:text-zinc-500">
-        {t(
-          'Research Intelligence is an internal tool. Access is restricted to authorized accounts.',
+        {fmt(
+          t('{appName} is an internal tool. Access is restricted to authorized accounts.'),
+          { appName: APP_NAME },
         )}
       </p>
     </div>

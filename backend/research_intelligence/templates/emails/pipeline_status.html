@@ -82,7 +82,7 @@
       {% endif %}
     </div>
     <div class="footer">
-      Schwarz Research Intelligence &bull; Execution Digest &bull; Run ID: {{ pipeline_run_id }}
+      {{ app_name|default:"Schwarz Research Intelligence" }} &bull; Execution Digest &bull; Run ID: {{ pipeline_run_id }}
     </div>
   </div>
 </body>

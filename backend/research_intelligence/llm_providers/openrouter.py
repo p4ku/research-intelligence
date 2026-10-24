@@ -22,11 +22,17 @@ class OpenRouterAPIProvider(BaseLLMProvider):
         model: str = None,
         **kwargs
     ):
+        app_name = getattr(settings, 'APP_NAME', 'Schwarz Research Intelligence')
+        referer_url = (
+            os.getenv("OPENROUTER_HTTP_REFERER")
+            or getattr(settings, 'SITE_URL', None)
+            or "http://localhost:8000"
+        )
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://schwarz-group.com/research-intelligence",
-            "X-Title": "Schwarz Research Intelligence MVP"
+            "HTTP-Referer": referer_url,
+            "X-Title": app_name,
         }
         
         messages = []

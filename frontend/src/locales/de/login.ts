@@ -9,6 +9,8 @@ export const dict: Record<string, string> = {
   'Signing in…': 'Anmeldung läuft…',
   'Research Intelligence is an internal tool. Access is restricted to authorized accounts.':
     'Research Intelligence ist ein internes Tool. Der Zugriff ist autorisierten Konten vorbehalten.',
+  '{appName} is an internal tool. Access is restricted to authorized accounts.':
+    '{appName} ist ein internes Tool. Der Zugriff ist autorisierten Konten vorbehalten.',
   'Your session expired. Please sign in again.':
     'Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.',
   'You have been signed out.': 'Sie wurden abgemeldet.',

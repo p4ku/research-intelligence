@@ -223,8 +223,13 @@ def with_db_connection(func):
 # 2. FastMCP Server Initialization & Directives
 # ==========================================
 
-SERVER_INSTRUCTIONS = """
-You are an intelligent AI agent connected to the Schwarz Research Intelligence Platform MCP Server.
+from django.conf import settings
+
+_app_name = getattr(settings, 'APP_NAME', 'Schwarz Research Intelligence')
+_app_slug = getattr(settings, 'APP_SHORT_NAME', 'sri').lower() + '-mcp'
+
+SERVER_INSTRUCTIONS = f"""
+You are an intelligent AI agent connected to the {_app_name} Platform MCP Server.
 This platform manages multi-agent systematic literature reviews, automated data scraping, paper screening, parameter extraction, and report generation.
 
 =======================================================
@@ -390,7 +395,7 @@ CRITICAL LANGUAGE & RENDERING CONSTRAINTS:
 - When rendering paper details or fetched paper lists, ALWAYS display the Title, Authors, PDF URL, Full Abstract, and Signal Score for each paper.
 """
 
-mcp = FastMCP("schwarz-research-intelligence", version="1.0.0", instructions=SERVER_INSTRUCTIONS)
+mcp = FastMCP(_app_slug, version="1.0.0", instructions=SERVER_INSTRUCTIONS)
 
 
 from .session_cache import FastMCPSessionCache
@@ -448,7 +453,7 @@ def systematic_review_playbook(
     return f"""
 # 🚀 Systematic Literature Review (SLR) & Deep Tech Scouting Playbook
 
-You are executing a systematic literature review on the Schwarz Research Intelligence platform.
+You are executing a systematic literature review on the {_app_name} platform.
 Follow this standard 5-step operational protocol:
 
 ### 1. Discover or Create Workspace

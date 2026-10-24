@@ -91,6 +91,15 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = True
 
+# Canonical Site URL (used for external headers, OpenRouter referer, webhooks, absolute email links)
+SITE_URL = os.getenv("SITE_URL", "")
+if not SITE_URL:
+    first_host = next((h for h in ALLOWED_HOSTS if h and h != '*'), None)
+    if first_host:
+        SITE_URL = f"https://{first_host}"
+    else:
+        SITE_URL = "http://localhost:8000"
+
 # Security Hardening Settings
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'SAMEORIGIN'
@@ -294,9 +303,21 @@ REST_FRAMEWORK = {
     'EXCEPTION_HANDLER': 'api.exceptions.custom_exception_handler',
 }
 
+# ==============================================================================
+# System Branding & Platform Naming
+# Configurable via environment variables for custom deployment whitelabeling
+# (e.g. "Systematic Literature Review" or "Intelligence Systematic Literature Review").
+# ==============================================================================
+APP_NAME = os.getenv("APP_NAME", "Schwarz Research Intelligence")
+APP_SHORT_NAME = os.getenv("APP_SHORT_NAME", "SRI")
+APP_DESCRIPTION = os.getenv(
+    "APP_DESCRIPTION",
+    "Enterprise Systematic Literature Review (SLR), Deep-Tech Scouting, and Multimodal Extraction Platform API.",
+)
+
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Schwarz Research Intelligence REST API',
-    'DESCRIPTION': 'Enterprise Systematic Literature Review (SLR), Deep-Tech Scouting, and Multimodal Extraction Platform API.',
+    'TITLE': f'{APP_NAME} REST API',
+    'DESCRIPTION': APP_DESCRIPTION,
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'SWAGGER_UI_DIST': 'SIDECAR',

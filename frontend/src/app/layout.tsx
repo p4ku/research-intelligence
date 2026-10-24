@@ -21,11 +21,12 @@ const plexMono = localFont({
   display: 'swap',
 })
 
-// Runtime env (not NEXT_PUBLIC_*): the image is built once and deployed anywhere.
+import { APP_NAME, APP_DESCRIPTION } from '@/lib/config'
+
+// Runtime env: the image is built once and deployed anywhere.
 const siteUrl = process.env.SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
-const siteName = 'Research Intelligence'
-const siteDescription =
-  'Research Intelligence reads new papers as they land, scores them across the dimensions that matter, and surfaces what deserves attention.'
+const siteName = APP_NAME
+const siteDescription = APP_DESCRIPTION
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

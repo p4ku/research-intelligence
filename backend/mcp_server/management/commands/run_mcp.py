@@ -1,10 +1,11 @@
 import os
 import uvicorn
+from django.conf import settings
 from django.core.management.base import BaseCommand
 
 
 class Command(BaseCommand):
-    help = "Run the Schwarz Research Intelligence FastMCP Server (SSE / JSON-RPC over HTTP)"
+    help = "Run the FastMCP Server (SSE / JSON-RPC over HTTP)"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -29,8 +30,9 @@ class Command(BaseCommand):
         port = options['port']
         host = options['host']
         reload = options['reload']
+        app_name = getattr(settings, 'APP_NAME', 'Schwarz Research Intelligence')
         self.stdout.write(
-            self.style.SUCCESS(f"🚀 Starting Schwarz Research Intelligence FastMCP Server on {host}:{port}...")
+            self.style.SUCCESS(f"🚀 Starting {app_name} FastMCP Server on {host}:{port}...")
         )
         uvicorn.run(
             "mcp_server.server.app:app",

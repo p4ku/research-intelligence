@@ -26,8 +26,12 @@ logger = logging.getLogger(__name__)
 
 SERPAPI_ENDPOINT = "https://serpapi.com/search.json"
 SERPAPI_DOCS_URL = "https://serpapi.com/google-patents-api"
-USER_AGENT = "SchwarzResearchIntelligencePatentRetriever/1.0 (+https://serpapi.com/google-patents-api)"
 MAX_SERPAPI_PAGES = 100
+
+
+def _get_user_agent() -> str:
+    app_slug = getattr(settings, "APP_SHORT_NAME", "SRI")
+    return f"{app_slug}PatentRetriever/1.0 (+{SERPAPI_DOCS_URL})"
 
 
 def clean_text(value: Any) -> str:
@@ -356,7 +360,7 @@ class GooglePatentPageParser:
             raise ValueError(f"Disallowed private/internal IP URL: '{url}'")
         page_bytes = safe_download_url(
             url,
-            headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml,*/*"},
+            headers={"User-Agent": _get_user_agent(), "Accept": "text/html,application/xhtml+xml,*/*"},
             max_bytes=10 * 1024 * 1024,
             timeout=timeout,
         )
@@ -478,7 +482,7 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
                 req = urllib.request.Request(
                     url,
                     headers={
-                        "User-Agent": USER_AGENT,
+                        "User-Agent": _get_user_agent(),
                         "Accept": "application/json",
                     },
                 )
@@ -815,7 +819,7 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
             return safe_download_url(
                 target_url,
                 headers={
-                    "User-Agent": USER_AGENT,
+                    "User-Agent": _get_user_agent(),
                     "Accept": "application/pdf,application/octet-stream;q=0.9,*/*;q=0.5",
                 },
                 max_bytes=100 * 1024 * 1024,
@@ -852,7 +856,7 @@ class GooglePatentsScraperProvider(BaseScraperProvider):
             if patent_data.pdf_url and is_safe_external_url(patent_data.pdf_url):
                 pdf_bytes = safe_download_url(
                     patent_data.pdf_url,
-                    headers={"User-Agent": USER_AGENT, "Accept": "application/pdf,*/*"},
+                    headers={"User-Agent": _get_user_agent(), "Accept": "application/pdf,*/*"},
                     max_bytes=100 * 1024 * 1024,
                     timeout=30.0,
                 )

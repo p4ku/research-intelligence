@@ -237,7 +237,7 @@ def generate_executive_narrative_report(pipeline_run: PipelineRun) -> Dict[str, 
             f"- **Estimated USD Cost**: ${float(pipeline_run.usd_cost or 0.0):.4f}",
             "",
             "---",
-            "*Generated automatically by Schwarz Research Intelligence Platform.*",
+            f"*Generated automatically by {getattr(settings, 'APP_NAME', 'Schwarz Research Intelligence')} Platform.*",
         ])
 
         report_markdown = "\n".join(lines)

@@ -2,6 +2,8 @@ import { Card, PageHeader, SectionLabel } from '@/components/scanner-ui'
 import { WorkspaceNotice } from '@/components/workspace-notice'
 import { forPage } from '@/lib/bff/core/page'
 import { settings } from '@/lib/bff/settings/service'
+import { APP_NAME } from '@/lib/config'
+import { fmt } from '@/lib/i18n'
 import { getT } from '@/lib/i18n-server'
 import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
@@ -30,7 +32,10 @@ export default async function SettingsPage() {
     <div className="max-w-3xl space-y-8">
       <PageHeader
         title={t('Settings')}
-        description={t('Your profile and how you sign in to Research Intelligence.')}
+        description={fmt(
+          t('Your profile and how you sign in to {appName}.'),
+          { appName: APP_NAME },
+        )}
       />
 
       <ProfileForm profile={profile} />

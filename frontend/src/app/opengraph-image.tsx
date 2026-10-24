@@ -1,6 +1,7 @@
+import { APP_NAME } from '@/lib/config'
 import { ImageResponse } from 'next/og'
 
-export const alt = 'Research Intelligence'
+export const alt = APP_NAME
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
@@ -30,7 +31,7 @@ export default function OpengraphImage() {
             textTransform: 'uppercase',
           }}
         >
-          Research Intelligence
+          {APP_NAME}
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>

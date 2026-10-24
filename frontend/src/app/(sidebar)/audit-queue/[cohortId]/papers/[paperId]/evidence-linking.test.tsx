@@ -243,7 +243,7 @@ describe('Evidence & Grounding Linking Integration Tests', () => {
       )
 
       expect(html).toContain(
-        'src="/api/papers/d0a80123-0000-4000-8000-000000000002/pdf/#toolbar=1&amp;navpanes=0"',
+        'src="/bff/papers/d0a80123-0000-4000-8000-000000000002/pdf#toolbar=1&amp;navpanes=0"',
       )
       expect(html).not.toContain('#page=')
       expect(html).not.toContain('&amp;search=')

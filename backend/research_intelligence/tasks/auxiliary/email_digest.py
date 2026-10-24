@@ -241,6 +241,9 @@ def build_pipeline_run_digest_payload(
     status_val = (agent_process.status if agent_process else (pipeline_run.status if pipeline_run else 'completed')).upper()
     error_msg = (agent_process.error_message if agent_process else None)
 
+    app_name = getattr(settings, "APP_NAME", "Schwarz Research Intelligence")
+    app_short_name = getattr(settings, "APP_SHORT_NAME", "SRI")
+
     # 5. Context for Django Template Rendering
     context = {
         "workspace": workspace,
@@ -264,6 +267,8 @@ def build_pipeline_run_digest_payload(
         "has_definitions": bool(definition_names),
         "papers_data": papers_data,
         "has_gated": has_gated,
+        "app_name": app_name,
+        "app_short_name": app_short_name,
     }
 
     # 6. Render via Django Template Loader
@@ -271,9 +276,9 @@ def build_pipeline_run_digest_payload(
     text_content = render_to_string("emails/pipeline_digest.txt", context)
 
     if agent_process:
-        subject = f"[{status_val}] Research Intelligence Pipeline: {agent_title} ({ws_name})"
+        subject = f"[{status_val}] {app_name} Pipeline: {agent_title} ({ws_name})"
     else:
-        subject = f"[Research Digest] {ws_name} - Review Complete ({len(accepted_papers)} accepted papers)"
+        subject = f"[{app_short_name} Digest] {ws_name} - Review Complete ({len(accepted_papers)} accepted papers)"
 
     return {
         "subject": subject,
