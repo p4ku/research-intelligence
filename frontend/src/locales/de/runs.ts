@@ -149,4 +149,9 @@ export const dict: Record<string, string> = {
   'Report generated': 'Bericht erstellt',
   'No report': 'Kein Bericht',
   'No metrics recorded': 'Keine Metriken erfasst',
+
+  // SLR Checkpoint Gate banner
+  'Paused at Checkpoint Gate': 'Am Prüfpunkt pausiert',
+  'Human audit in progress.': 'Menschliche Überprüfung läuft.',
+  'Open in Audit Queue': 'In Prüf-Warteschlange öffnen',
 }

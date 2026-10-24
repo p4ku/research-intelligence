@@ -290,21 +290,31 @@ Executes complete browser user journeys across `/dashboard`, `/briefing`, `/runs
 # Visible browser window (--headed):
 ./tests_e2e/run_frontend_e2e.sh prod --headed
 
+# Run SLR Checkpoint Gates journey (Audit Queue -> Split-Pane Review -> Consensus -> RoB & PRISMA):
+./tests_e2e/run_frontend_e2e.sh prod slr
+./tests_e2e/run_frontend_e2e.sh slr.soinventive.co.uk slr
+
 # Run specific user journey specs:
 ./tests_e2e/run_frontend_e2e.sh prod specs/08_multi_persona_and_full_lifecycle.journey.spec.ts
 ./tests_e2e/run_frontend_e2e.sh prod specs/09_run_admission_and_stop_rbac.journey.spec.ts
+./tests_e2e/run_frontend_e2e.sh prod specs/10_slr_review_gates.journey.spec.ts
 ```
 
 ### 2. Backend Live Pipeline E2E Tests
-Executes autonomous multi-agent Research Scanner reviews, screening triage, full multimodal extractions, composite signal scoring, and RBAC matrix validation across all 23 scenarios:
+Executes autonomous multi-agent Research Scanner reviews, screening triage, full multimodal extractions, composite signal scoring, SLR checkpoint audit gates (abstract, full-text, extraction), and RBAC matrix validation across all 24 scenarios:
 
 ```bash
-# Run ALL 23 backend E2E scenarios sequentially with immediate workspace cleanup:
+# Run SLR Checkpoint Gates Live E2E (Abstract Gate -> Quorum -> Full-Text Gate -> Extraction Gate -> Completion):
+./tests_e2e/run_e2e.sh prod slr_gates
+./tests_e2e/run_e2e.sh slr.soinventive.co.uk slr_gates
+
+# Run ALL 24 backend E2E scenarios sequentially with immediate workspace cleanup:
 ./tests_e2e/run_e2e.sh prod all --cleanup-after
 
-# Run against Staging or Local dev:
+# Run against Staging, Local dev, or custom SLR domain:
 ./tests_e2e/run_e2e.sh staging all --cleanup-after
 ./tests_e2e/run_e2e.sh local all --cleanup-after
+./tests_e2e/run_e2e.sh slr.soinventive.co.uk all --cleanup-after
 
 # Run via Pytest:
 pytest tests_e2e/test_full_pipeline_e2e.py -s -v

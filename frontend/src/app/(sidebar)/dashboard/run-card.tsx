@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState, useTransition, type ReactNode } from 'react'
 import { shiftDays } from './format'
 import { isConflict } from './ledger'
+import clsx from 'clsx'
 
 /**
  * New briefing: a domain, a search window, one button — always on
@@ -94,9 +95,11 @@ function Field({
 // Every layout class lives here so RunCardSkeleton cannot drift.
 function RunCardFrame({
   title,
+  typeSelector,
   domain,
   from,
   to,
+  slrPolicy,
   button,
   error,
   note,
@@ -104,9 +107,11 @@ function RunCardFrame({
   state,
 }: {
   title: ReactNode
+  typeSelector?: ReactNode
   domain: ReactNode
   from: ReactNode
   to: ReactNode
+  slrPolicy?: ReactNode
   button: ReactNode
   error?: ReactNode
   note: ReactNode
@@ -117,11 +122,13 @@ function RunCardFrame({
     <Card data-shape="home-run-card" data-state={state}>
       <SectionLabel>{title}</SectionLabel>
       <form className="mt-4 space-y-4" onSubmit={onSubmit}>
+        {typeSelector && <div data-row="type-selector">{typeSelector}</div>}
         <div data-row="domain">{domain}</div>
         <div className="grid grid-cols-2 gap-3">
           <div data-row="from">{from}</div>
           <div data-row="to">{to}</div>
         </div>
+        {slrPolicy && <div data-row="slr-policy">{slrPolicy}</div>}
         <div data-row="button">{button}</div>
         {error}
         <p data-row="note" className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -146,6 +153,7 @@ export function RunCard({
   const t = useT()
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const [briefingType, setBriefingType] = useState<'intelligence' | 'slr'>('intelligence')
   const [domain, setDomain] = useState(domains[0]?.id ?? '')
   const [from, setFrom] = useState(() => shiftDays(today, -DEFAULT_WINDOW_DAYS))
   const [to, setTo] = useState(today)
@@ -187,7 +195,12 @@ export function RunCard({
     try {
       await bffFetch('/bff/pipeline-runs/start', {
         method: 'POST',
-        body: JSON.stringify({ workspace_id: domain, start_date: from, end_date: to }),
+        body: JSON.stringify({
+          workspace_id: domain,
+          start_date: from,
+          end_date: to,
+          run_type: briefingType,
+        }),
       })
       // Django lists the run before it answers: re-read the page for the row.
       startTransition(() => router.refresh())
@@ -211,6 +224,40 @@ export function RunCard({
       state="loaded"
       onSubmit={submit}
       title={t('New briefing')}
+      typeSelector={
+        <div>
+          <span className="mb-1.5 block text-xs font-medium text-zinc-600 dark:text-zinc-300">
+            {t('Briefing type')}
+          </span>
+          <div className="flex rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">
+            <button
+              type="button"
+              onClick={() => setBriefingType('intelligence')}
+              className={clsx(
+                'flex-1 rounded-md py-1.5 text-xs font-semibold transition-colors',
+                briefingType === 'intelligence'
+                  ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white'
+                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200',
+              )}
+            >
+              {t('Intelligence')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setBriefingType('slr')}
+              className={clsx(
+                'flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-colors',
+                briefingType === 'slr'
+                  ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white'
+                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200',
+              )}
+            >
+              <span className="text-amber-500 dark:text-amber-400">★</span>
+              {t('SLR Review')}
+            </button>
+          </div>
+        </div>
+      }
       domain={
         <Field label={t('Domain')} error={errors.workspace_id}>
           <Select name="workspace_id" value={domain} onChange={(e) => setDomain(e.target.value)}>
@@ -246,9 +293,27 @@ export function RunCard({
           />
         </Field>
       }
+      slrPolicy={
+        briefingType === 'slr' ? (
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-zinc-700 dark:border-amber-400/20 dark:bg-amber-400/5 dark:text-zinc-300">
+            <div className="font-semibold text-amber-800 dark:text-amber-300">
+              {t('SLR Policy Active')}
+            </div>
+            <ul className="mt-1.5 space-y-1 text-zinc-600 dark:text-zinc-400">
+              <li>• Checkpoint: Full-text screening gate</li>
+              <li>• Quorum: 1 reviewer • Sample rate: 10%</li>
+              <li>• Reviewer: Current user (Auto-assigned)</li>
+            </ul>
+          </div>
+        ) : null
+      }
       button={
         <Button type="submit" className="w-full" disabled={disabled}>
-          {busy || pending ? t('Starting…') : t('Start')}
+          {busy || pending
+            ? t('Starting…')
+            : briefingType === 'slr'
+              ? t('Start SLR Briefing')
+              : t('Start')}
         </Button>
       }
       error={
@@ -259,7 +324,11 @@ export function RunCard({
           </p>
         )
       }
-      note={runCardNote(verdict, inFlight, t)}
+      note={
+        briefingType === 'slr'
+          ? t('1 briefing will run with staged audit pause.')
+          : runCardNote(verdict, inFlight, t)
+      }
     />
   )
 }

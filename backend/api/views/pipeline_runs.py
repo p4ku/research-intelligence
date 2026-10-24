@@ -208,7 +208,8 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             autonomous=data.get('autonomous', True),
             start_date=data.get('start_date'),
             end_date=data.get('end_date'),
-            n_last_days=n_last_days
+            n_last_days=n_last_days,
+            run_type=data.get('run_type', 'intelligence')
         )
         try:
             res_data = json.loads(res_json)

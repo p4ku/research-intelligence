@@ -120,11 +120,16 @@ npm run test:prod                    # Runs against Production
 
 ### 4. Run a specific user journey spec:
 ```bash
+# Systematic Literature Review (SLR) Checkpoint Gates & Audit Queue:
+./tests_e2e/run_frontend_e2e.sh prod slr
+./tests_e2e/run_frontend_e2e.sh slr.soinventive.co.uk slr
+
 # Multi-persona setup, dashboard, runs, dynamic sliders, and screening log:
 ./tests_e2e/run_frontend_e2e.sh prod specs/08_multi_persona_and_full_lifecycle.journey.spec.ts
 
 # Persona permission checks (launch blocked -> UI start -> Admin stop -> Admin rerun):
 ./tests_e2e/run_frontend_e2e.sh prod specs/09_run_admission_and_stop_rbac.journey.spec.ts
+./tests_e2e/run_frontend_e2e.sh prod specs/10_slr_review_gates.journey.spec.ts
 
 # Classic journey specs:
 ./tests_e2e/run_frontend_e2e.sh prod specs/01_auth_session_lifecycle.journey.spec.ts
@@ -137,12 +142,21 @@ npm run test:prod                    # Runs against Production
 
 ## 🚀 Running E2E Scenarios via CLI
 
-### 1. Run the Complete Research Scanner Review & Chat (Default):
+### 1. Run SLR Checkpoint Gates Lifecycle (Full Cycle):
+```bash
+# Target Production:
+./tests_e2e/run_e2e.sh prod slr_gates
+
+# Target custom SLR domain (e.g. slr.soinventive.co.uk):
+./tests_e2e/run_e2e.sh slr.soinventive.co.uk slr_gates
+```
+
+### 2. Run the Autonomous Research Scanner Review & Chat (Default):
 ```bash
 ./tests_e2e/run_e2e.sh
 ```
 
-### 2. Run Specific Orthogonal Scenarios:
+### 3. Run Specific Orthogonal Scenarios:
 ```bash
 # 1. Multi-Tenancy & RBAC Security Isolation:
 ./tests_e2e/run_e2e.sh --scenario=isolation

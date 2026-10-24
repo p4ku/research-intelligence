@@ -8,6 +8,7 @@ from .agent_service import AgentService
 from .pipeline_service import PipelineService
 from .chat_service import ChatService
 from .schedule_service import ScheduleService
+from .slr_service import SLRService
 from .validator import DataConsistencyValidator
 
 __all__ = [
@@ -18,5 +19,6 @@ __all__ = [
     "PipelineService",
     "ChatService",
     "ScheduleService",
+    "SLRService",
     "DataConsistencyValidator",
 ]

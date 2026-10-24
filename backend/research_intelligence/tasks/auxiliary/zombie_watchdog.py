@@ -80,6 +80,17 @@ def reap_zombie_tasks(
 
     for comp in stale_comps_qs:
         with transaction.atomic():
+            # HITL SLR Audit Guard: Never reap components for runs awaiting human audit/input
+            pr = comp.pipeline_run
+            if pr:
+                is_awaiting_audit = (
+                    pr.status == 'paused' or
+                    bool(pr.current_stage and pr.current_stage.startswith('awaiting_')) or
+                    (hasattr(pr, 'slr_audit_cohorts') and pr.slr_audit_cohorts.filter(is_audit_complete=False).exists())
+                )
+                if is_awaiting_audit:
+                    continue
+
             age_min = round((now - comp.started_at).total_seconds() / 60.0, 1) if comp.started_at else 0
             m = comp.metrics or {}
 
@@ -160,6 +171,16 @@ def reap_zombie_tasks(
     running_pipelines = PipelineRun.objects.filter(status='running')
     for pr in running_pipelines:
         with transaction.atomic():
+            # HITL SLR Audit Guard: Never reap runs that are paused, awaiting human audit,
+            # or waiting for human reviewers on active audit cohorts (human input may take days/weeks).
+            is_awaiting_audit = (
+                pr.status == 'paused' or
+                bool(pr.current_stage and pr.current_stage.startswith('awaiting_')) or
+                (hasattr(pr, 'slr_audit_cohorts') and pr.slr_audit_cohorts.filter(is_audit_complete=False).exists())
+            )
+            if is_awaiting_audit:
+                continue
+
             has_active_comps = pr.component_runs.filter(status__in=['running', 'pending']).exists()
             has_comps = pr.component_runs.exists()
             pr_age_min = round((now - pr.started_at).total_seconds() / 60.0, 1) if pr.started_at else 0
@@ -225,6 +246,15 @@ def reap_zombie_tasks(
     for agent in running_agents:
         with transaction.atomic():
             pr = agent.pipeline_run
+            if pr:
+                is_awaiting_audit = (
+                    pr.status == 'paused' or
+                    bool(pr.current_stage and pr.current_stage.startswith('awaiting_')) or
+                    (hasattr(pr, 'slr_audit_cohorts') and pr.slr_audit_cohorts.filter(is_audit_complete=False).exists())
+                )
+                if is_awaiting_audit:
+                    continue
+
             agent_age_min = round((now - agent.started_at).total_seconds() / 60.0, 1) if agent.started_at else 0
             should_reap_agent = False
             agent_final_status = 'failed'

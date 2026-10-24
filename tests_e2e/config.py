@@ -12,13 +12,36 @@ ENV_TARGETS = {
     "prod": "https://research-scanner.schwarz",
     "production": "https://research-scanner.schwarz",
     "local": "http://localhost:8000",
+    "slr": "https://slr.soinventive.co.uk",
 }
+
+
+def resolve_target_url(target: Optional[str]) -> str:
+    """
+    Resolves environment name or arbitrary URL/hostname to a fully qualified API base URL.
+    Supports:
+      - Named environments: 'prod', 'staging', 'local', 'slr'
+      - Full URLs: 'https://slr.soinventive.co.uk', 'http://127.0.0.1:8000'
+      - Hostnames/Domains: 'slr.soinventive.co.uk', 'localhost:8000'
+    """
+    raw = (target or os.getenv("E2E_TARGET_ENV", "prod")).strip()
+    if not raw:
+        raw = "prod"
+    raw_lower = raw.lower()
+    if raw_lower in ENV_TARGETS:
+        return ENV_TARGETS[raw_lower]
+    if raw.startswith("http://") or raw.startswith("https://"):
+        return raw.rstrip("/")
+    if "." in raw or ":" in raw:
+        scheme = "http" if ("localhost" in raw or "127.0.0.1" in raw) else "https"
+        return f"{scheme}://{raw.rstrip('/')}"
+    return os.getenv("E2E_API_URL", "https://research-scanner.schwarz").rstrip("/")
 
 
 @dataclass
 class E2EConfig:
     target_env: str = os.getenv("E2E_TARGET_ENV", "prod").lower()
-    base_url: str = os.getenv("E2E_API_URL", ENV_TARGETS.get(os.getenv("E2E_TARGET_ENV", "prod").lower(), "https://research-scanner.schwarz"))
+    base_url: str = resolve_target_url(os.getenv("E2E_TARGET_ENV", "prod"))
     username: str = os.getenv("E2E_USERNAME", os.getenv("TEST_USERNAME", os.getenv("ADMIN_USERNAME", "test_e2e")))
     password: str = os.getenv("E2E_PASSWORD", os.getenv("TEST_PASSWORD", os.getenv("ADMIN_PASSWORD", "t4st_pa55w0rD!#")))
     provider: str = os.getenv("E2E_PROVIDER", "arxiv").lower()
@@ -44,8 +67,8 @@ class E2EConfig:
         cleanup_after: Optional[bool] = None,
         reprocess_existing: Optional[bool] = None,
     ):
-        self.target_env = target_env if target_env is not None else os.getenv("E2E_TARGET_ENV", "prod").lower()
-        self.base_url = base_url if base_url is not None else os.getenv("E2E_API_URL", ENV_TARGETS.get(self.target_env, "https://research-scanner.schwarz"))
+        self.target_env = (target_env if target_env is not None else os.getenv("E2E_TARGET_ENV", "prod")).strip().lower()
+        self.base_url = (base_url if base_url is not None else os.getenv("E2E_API_URL", resolve_target_url(self.target_env))).rstrip("/")
         self.username = username if username is not None else os.getenv("E2E_USERNAME", os.getenv("TEST_USERNAME", os.getenv("ADMIN_USERNAME", "test_e2e")))
         self.password = password if password is not None else os.getenv("E2E_PASSWORD", os.getenv("TEST_PASSWORD", os.getenv("ADMIN_PASSWORD", "t4st_pa55w0rD!#")))
         self.provider = provider if provider is not None else os.getenv("E2E_PROVIDER", "arxiv").lower()
@@ -87,11 +110,11 @@ class E2EConfig:
 
     @classmethod
     def from_env(cls, target: str = None) -> "E2EConfig":
-        env_name = (target or os.getenv("E2E_TARGET_ENV", "prod")).lower()
-        url = ENV_TARGETS.get(env_name, os.getenv("E2E_API_URL", "https://research-scanner.schwarz"))
+        env_name = (target or os.getenv("E2E_TARGET_ENV", "prod")).strip()
+        url = resolve_target_url(env_name)
         return cls(
-            target_env=env_name,
-            base_url=url.rstrip("/"),
+            target_env=env_name.lower(),
+            base_url=url,
             username=os.getenv("E2E_USERNAME", os.getenv("TEST_USERNAME", os.getenv("ADMIN_USERNAME", "test_e2e"))),
             password=os.getenv("E2E_PASSWORD", os.getenv("TEST_PASSWORD", os.getenv("ADMIN_PASSWORD", "t4st_pa55w0rD!#"))),
             provider=os.getenv("E2E_PROVIDER", "arxiv").lower(),

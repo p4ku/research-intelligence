@@ -6,6 +6,11 @@ from .crud import (
     update_workspace_logic,
 )
 from .members import add_workspace_member_logic
+from .slr import (
+    configure_slr_workspace_logic,
+    get_slr_workspace_config_logic,
+    serialize_slr_config,
+)
 
 __all__ = [
     "check_workspace_access",
@@ -14,5 +19,8 @@ __all__ = [
     "create_workspace_logic",
     "update_workspace_logic",
     "add_workspace_member_logic",
+    "configure_slr_workspace_logic",
+    "get_slr_workspace_config_logic",
+    "serialize_slr_config",
 ]
 

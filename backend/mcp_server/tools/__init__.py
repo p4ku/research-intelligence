@@ -9,6 +9,9 @@ from .workspaces import (
     create_workspace_logic,
     update_workspace_logic,
     add_workspace_member_logic,
+    configure_slr_workspace_logic,
+    get_slr_workspace_config_logic,
+    serialize_slr_config,
 )
 from .scrapers import (
     list_scrapers_logic,
@@ -165,4 +168,7 @@ __all__ = [
     "test_google_llm_logic",
     "list_user_activity_logs_logic",
     "send_pipeline_run_digest_email_logic",
+    "configure_slr_workspace_logic",
+    "get_slr_workspace_config_logic",
+    "serialize_slr_config",
 ]

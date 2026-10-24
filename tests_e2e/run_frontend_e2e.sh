@@ -30,6 +30,7 @@ fi
 
 # 2. Parse target environment and arguments
 TARGET="local"
+TARGET_SET=false
 SPEC_FILTER=""
 EXTRA_ARGS=()
 UI_MODE=false
@@ -40,12 +41,27 @@ for arg in "$@"; do
     case "${arg_lower}" in
         prod|production)
             TARGET="prod"
+            TARGET_SET=true
             ;;
         staging|stage)
             TARGET="staging"
+            TARGET_SET=true
             ;;
         local|localhost|dev)
             TARGET="local"
+            TARGET_SET=true
+            ;;
+        slr.soinventive.co.uk|http://*|https://*|*.*|*:*)
+            TARGET="$arg"
+            TARGET_SET=true
+            ;;
+        slr)
+            if [ "$TARGET_SET" = true ]; then
+                SPEC_FILTER="specs/10_slr_review_gates.journey.spec.ts"
+            else
+                TARGET="slr"
+                TARGET_SET=true
+            fi
             ;;
         --ui)
             UI_MODE=true
@@ -59,6 +75,9 @@ for arg in "$@"; do
             ;;
         --debug)
             EXTRA_ARGS+=("--debug")
+            ;;
+        slr_gates|slr_audit|slr_review|audit|audit_queue|specs/10*|10|--scenario=slr*)
+            SPEC_FILTER="specs/10_slr_review_gates.journey.spec.ts"
             ;;
         settings|--scenario=settings|specs/settings.spec.ts)
             SPEC_FILTER="specs/settings.spec.ts"

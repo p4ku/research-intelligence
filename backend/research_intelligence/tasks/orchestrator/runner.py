@@ -80,7 +80,8 @@ class PipelineRunner:
         if not pipeline_run_id_or_obj:
             return
         try:
-            if isinstance(pipeline_run_id_or_obj, str):
+            import uuid
+            if isinstance(pipeline_run_id_or_obj, (str, uuid.UUID)):
                 pipeline_run = PipelineRun.objects.get(pk=pipeline_run_id_or_obj)
             else:
                 pipeline_run = pipeline_run_id_or_obj
@@ -94,6 +95,21 @@ class PipelineRunner:
             if comp_costs > float(pipeline_run.usd_cost or 0.0):
                 pipeline_run.usd_cost = comp_costs
                 pipeline_run.save(update_fields=['usd_cost'])
+
+            # Check if an SLR audit gate should halt automated DAG progression
+            try:
+                from slr_review.tasks.orchestrator_hooks import intercept_component_completion
+                recent_completed = [cr for cr in comp_runs if cr.status == 'completed']
+                if recent_completed:
+                    recent_completed.sort(key=lambda r: (r.completed_at or timezone.now(), getattr(r, 'id', 0) or 0), reverse=True)
+                    last_comp = recent_completed[0]
+                    comp_identifier = getattr(last_comp, 'component_name', None) or last_comp.step_type
+                    gate_result = intercept_component_completion(pipeline_run, comp_identifier)
+                    if gate_result.get("halt"):
+                        logger.info(f"SLR Audit gate halted PipelineRun {pipeline_run.id} at stage '{gate_result.get('stage')}'.")
+                        return
+            except Exception as slr_err:
+                logger.warning(f"SLR audit gate check encountered an error: {slr_err}")
 
             running_agents = list(pipeline_run.agent_processes.filter(status='running'))
             from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit

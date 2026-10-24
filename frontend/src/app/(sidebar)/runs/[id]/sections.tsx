@@ -5,6 +5,7 @@ import { ProblemError } from '@/lib/bff/core/problem'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
 import { fmt, formatNumber, formatPercent, type Lang, type T } from '@/lib/i18n'
 import { getWorkspacesState } from '@/lib/workspace-server'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { LiveRefresh } from '../../dashboard/live-refresh'
 import { inFlightIds } from '../../dashboard/recent'
@@ -69,6 +70,28 @@ export async function RunHead({ id, t, lang }: { id: string; t: T; lang: Lang })
         }
       />
       {watched && <LiveRefresh processingIds={watched} />}
+
+      {run.status === 'paused' && (
+        <div className="flex flex-col gap-3 rounded-lg border border-amber-300/80 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-amber-400/25 dark:bg-amber-500/10">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-base" aria-hidden="true">⏸</span>
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                {t('Paused at Checkpoint Gate')}
+              </p>
+            </div>
+            <p className="mt-0.5 text-xs text-amber-800 dark:text-amber-300">
+              {run.status_message ?? t('Human audit in progress.')}
+            </p>
+          </div>
+          <Link
+            href="/audit-queue"
+            className="inline-flex items-center justify-center rounded-md bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-amber-500 dark:bg-amber-500 dark:hover:bg-amber-400"
+          >
+            → {t('Open in Audit Queue')}
+          </Link>
+        </div>
+      )}
 
       <StatBand
         flow

@@ -34,18 +34,37 @@ fi
 # Detect first argument target shortcut (prod, staging, local)
 TARGET="prod"
 EXTRA_ARGS=()
+TARGET_SET=false
 
 for arg in "$@"; do
     arg_lower=$(echo "$arg" | tr '[:upper:]' '[:lower:]')
     case "${arg_lower}" in
         prod|production)
             TARGET="prod"
+            TARGET_SET=true
             ;;
         staging|stage|dev)
             TARGET="staging"
+            TARGET_SET=true
             ;;
         local|localhost)
             TARGET="local"
+            TARGET_SET=true
+            ;;
+        slr.soinventive.co.uk|http://*|https://*|*.*|*:*)
+            TARGET="$arg"
+            TARGET_SET=true
+            ;;
+        slr)
+            if [ "$TARGET_SET" = true ]; then
+                EXTRA_ARGS+=("--scenario=slr_gates")
+            else
+                TARGET="slr"
+                TARGET_SET=true
+            fi
+            ;;
+        slr_gates|slr_audit|slr_review|slr-gates|slr-audit|slr-review)
+            EXTRA_ARGS+=("--scenario=slr_gates")
             ;;
         all)
             EXTRA_ARGS+=("--scenario=all")

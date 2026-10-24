@@ -57,7 +57,7 @@ def dispatch_due_workflow_schedules(dry_run: bool = False) -> Dict[str, Any]:
                     # Overlap Guard: Skip if previous run is still active
                     if locked_sched.prevent_overlap and locked_sched.last_pipeline_run:
                         current_status = locked_sched.current_execution_status
-                        if current_status in ('running', 'pending'):
+                        if current_status in ('running', 'pending', 'paused'):
                             logger.warning(
                                 f"⚠️ [SCHEDULE OVERLAP PREVENTED] Schedule '{locked_sched.name}' ({locked_sched.id}) "
                                 f"skipped: previous PipelineRun '{locked_sched.last_pipeline_run.id}' is still in status '{current_status}'."

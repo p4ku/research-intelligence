@@ -4,6 +4,7 @@
 // Chrome only: content from the backend (titles, abstracts, briefs, answers,
 // screening reasons, dimension names) is never translated.
 import { dict as ask } from './ask'
+import { dict as audit } from './audit'
 import { dict as briefing } from './briefing'
 import { dict as chrome } from './chrome'
 import { dict as components } from './components'
@@ -17,6 +18,7 @@ import { dict as tuning } from './tuning'
 
 export const de: Record<string, string> = {
   ...ask,
+  ...audit,
   ...briefing,
   ...chrome,
   ...components,

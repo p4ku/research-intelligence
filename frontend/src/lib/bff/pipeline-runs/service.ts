@@ -141,6 +141,7 @@ export const runs = {
         start_date: input.start_date ?? null,
         end_date: input.end_date ?? null,
         n_last_days: input.lookback_days ?? null,
+        run_type: input.run_type ?? 'intelligence',
         autonomous: true,
       }),
     })

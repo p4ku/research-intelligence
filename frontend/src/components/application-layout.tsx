@@ -40,6 +40,7 @@ import {
 } from '@heroicons/react/16/solid'
 import {
   ChatBubbleLeftRightIcon,
+  ClipboardDocumentCheckIcon,
   Cog6ToothIcon,
   DocumentTextIcon,
   HomeIcon,
@@ -61,14 +62,14 @@ interface ShellNavItem {
   feature?: FeatureKey
 }
 
-// The spec's header — Home | Briefings | Papers | Ask — plus Runs. Tuning is
-// per domain and left the nav with the domain switcher; Settings links to it.
+// The spec's header — Home | Briefings | Papers | Ask — plus Runs and SLR Audit Queue.
 const coreNav: ShellNavItem[] = [
   { href: '/dashboard', label: 'Home', Icon: HomeIcon, exact: true },
   { href: '/briefing', label: 'Briefings', Icon: NewspaperIcon },
   { href: '/papers', label: 'Papers', Icon: DocumentTextIcon, feature: 'all_papers' },
   { href: '/ask', label: 'Ask', Icon: ChatBubbleLeftRightIcon, feature: 'ask' },
   { href: '/runs', label: 'Runs', Icon: PlayCircleIcon },
+  { href: '/audit-queue', label: 'Audit Queue', Icon: ClipboardDocumentCheckIcon },
 ]
 
 const studioNav: ShellNavItem[] = [
@@ -259,6 +260,23 @@ function ApplicationLayoutInner({ user, children, area = 'core' }: ShellProps) {
   const userImage = user.image
 
   const [signingOut, setSigningOut] = useState(false)
+  const [pendingAuditCount, setPendingAuditCount] = useState<number>(0)
+
+  useEffect(() => {
+    let ignore = false
+    fetch('/bff/audit/queue')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((items: Array<{ remaining_count?: number }>) => {
+        if (!ignore && Array.isArray(items)) {
+          const total = items.reduce((acc, curr) => acc + (curr.remaining_count ?? 0), 0)
+          setPendingAuditCount(total)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      ignore = true
+    }
+  }, [pathname])
 
   async function handleSignOut() {
     // performSignOut guarantees the outcome on every path (fallback GET
@@ -327,6 +345,11 @@ function ApplicationLayoutInner({ user, children, area = 'core' }: ShellProps) {
                 >
                   <NavIcon Icon={Icon} />
                   <SidebarLabel>{t(label, 'nav')}</SidebarLabel>
+                  {href === '/audit-queue' && pendingAuditCount > 0 && (
+                    <span className="ml-auto inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-400/15 dark:text-amber-300">
+                      {pendingAuditCount}
+                    </span>
+                  )}
                 </SidebarItem>
               ))}
             </SidebarSection>

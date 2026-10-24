@@ -26,6 +26,7 @@ export type ResourceName =
   | 'scoring'
   | 'stars'
   | 'search'
+  | 'audit'
 
 export interface ResourceDef {
   name: ResourceName
@@ -58,6 +59,7 @@ export const RESOURCES: Record<ResourceName, ResourceDef> = {
   stars: def('stars', 'BFF_SOURCE_STARS', ['django'], 'django'),
   // Composed from papers + workspaces + briefings; follows their sources (stub papers → stub search).
   search: def('search', 'BFF_SOURCE_SEARCH', ['composed'], 'composed'),
+  audit: def('audit', 'BFF_SOURCE_AUDIT', ['stub', 'django'], 'django'),
 }
 
 const warned = new Set<ResourceName>()

@@ -10,6 +10,7 @@ import pytest
 from tests_e2e.config import E2EConfig
 from tests_e2e.scenarios import (
     run_full_slr_pipeline_scenario,
+    run_slr_review_gates_scenario,
     run_chat_multiturn_scenario,
     run_agent_lifecycle_scenario,
     run_pipeline_reprocessing_scenario,
@@ -72,6 +73,16 @@ class TestFullPipelineE2E:
         top_papers = results.get("top_papers", [])
         scores = [p["signal_score"] for p in top_papers if p.get("signal_score") is not None]
         assert scores == sorted(scores, reverse=True), f"Top papers must be strictly sorted by signal_score descending: {scores}"
+
+    @pytest.mark.e2e
+    def test_slr_review_gates_lifecycle(self):
+        config = E2EConfig.from_env()
+        results = run_slr_review_gates_scenario(config)
+        assert results["status"] == "PASSED"
+        assert results["gate_1_abstract"].get("status") == "COMPLETED_AND_RESUMED"
+        assert results["gate_2_full_text"].get("status") == "COMPLETED_AND_RESUMED"
+        assert results["gate_3_extraction"].get("status") == "COMPLETED_AND_RESUMED"
+        assert results["prisma_metrics"] is not None
 
     @pytest.mark.e2e
     def test_agent_lifecycle_pause_resume(self):

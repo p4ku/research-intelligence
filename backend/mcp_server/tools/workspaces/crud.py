@@ -15,18 +15,25 @@ from research_intelligence.services import check_workspace_access
 
 def list_workspaces_logic(user) -> str:
     """List all workspaces accessible by the authenticated user along with their role."""
+    from slr_review.models import SLRWorkspaceConfig
+
     memberships = {m.workspace_id: m.role for m in WorkspaceMember.objects.filter(user=user)}
     workspaces = Workspace.objects.filter(id__in=memberships.keys()).order_by('-created_at')
 
     if not workspaces.exists():
         return json.dumps({"message": "No workspaces found for this user."}, indent=2)
 
+    slr_ws_ids = set(SLRWorkspaceConfig.objects.filter(workspace__in=workspaces).values_list('workspace_id', flat=True))
+
     results = []
     for ws in workspaces:
         role = memberships.get(ws.id, "unknown")
+        is_slr = ws.id in slr_ws_ids
         results.append({
             "workspace_id": str(ws.id),
             "name": ws.name,
+            "workspace_type": "slr" if is_slr else "standard",
+            "is_slr": is_slr,
             "role": role,
             "ocr_provider": ws.ocr_provider,
             "llm_provider": ws.llm_provider,
@@ -44,6 +51,9 @@ def list_workspaces_logic(user) -> str:
 
 def get_workspace_logic(user, workspace_id: str) -> str:
     """Get full details of a specific workspace, including criteria, scrapers, and extraction definitions."""
+    from slr_review.models import SLRWorkspaceConfig
+    from .slr import serialize_slr_config
+
     workspace, membership, error = check_workspace_access(user, workspace_id)
     if error:
         return error
@@ -52,13 +62,19 @@ def get_workspace_logic(user, workspace_id: str) -> str:
     extraction_defs = workspace.extraction_definitions.all()
     members = workspace.memberships.select_related('user').all()
 
+    slr_config = SLRWorkspaceConfig.objects.filter(workspace=workspace).first()
+    is_slr = bool(slr_config)
+
     data = {
         "workspace_id": str(workspace.id),
         "name": workspace.name,
+        "workspace_type": "slr" if is_slr else "standard",
+        "is_slr": is_slr,
         "role": getattr(membership, 'role', 'unknown'),
         "ocr_provider": workspace.ocr_provider,
         "llm_provider": workspace.llm_provider,
         "screening_llm_model": workspace.screening_llm_model,
+        "slr_config": serialize_slr_config(slr_config),
         "reasoning_effort": getattr(workspace, 'reasoning_effort', 'medium'),
         "skip_abstract_screening": getattr(workspace, 'skip_abstract_screening', False),
         "reprocess_existing": getattr(workspace, 'reprocess_existing', False),

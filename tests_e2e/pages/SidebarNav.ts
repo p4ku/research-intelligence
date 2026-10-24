@@ -8,6 +8,8 @@ export class SidebarNav extends BasePage {
   readonly navPapers: Locator;
   readonly navTuning: Locator;
   readonly navAsk: Locator;
+  readonly navRuns: Locator;
+  readonly navAuditQueue: Locator;
   readonly userMenuButton: Locator;
   readonly userNameLabel: Locator;
   readonly menuSettingsItem: Locator;
@@ -22,6 +24,8 @@ export class SidebarNav extends BasePage {
     this.navPapers = page.locator("a[href='/papers'], nav a:has-text('Papers'), aside a[href='/papers']").first();
     this.navTuning = page.locator("a[href='/tuning'], nav a:has-text('Tuning'), aside a[href='/tuning']").first();
     this.navAsk = page.locator("a[href='/ask'], nav a:has-text('Ask'), nav a:has-text('Fragen'), aside a[href='/ask']").first();
+    this.navRuns = page.locator("a[href='/runs'], nav a:has-text('Runs'), aside a[href='/runs']").first();
+    this.navAuditQueue = page.locator("a[href='/audit-queue'], nav a:has-text('Audit Queue'), nav a:has-text('Prüfwarteschlange'), aside a[href='/audit-queue']").first();
 
     this.userMenuButton = page.locator(
       "aside footer button, aside footer [role='button'], aside footer [data-slot='item'], button:has([data-slot='avatar']), header button:has([data-slot='avatar'])"
@@ -99,6 +103,32 @@ export class SidebarNav extends BasePage {
           }
         } catch {
           await this.goto('/ask');
+        }
+      }
+    } else if (['runs', 'pipeline-runs', '/runs'].includes(targetLower)) {
+      if (!currentUrl.includes('/runs')) {
+        try {
+          if (await this.navRuns.isVisible({ timeout: 3000 })) {
+            await this.navRuns.click();
+            await this.waitForURLContains('/runs');
+          } else {
+            await this.goto('/runs');
+          }
+        } catch {
+          await this.goto('/runs');
+        }
+      }
+    } else if (['audit-queue', 'audit', 'queue', '/audit-queue'].includes(targetLower)) {
+      if (!currentUrl.includes('/audit-queue')) {
+        try {
+          if (await this.navAuditQueue.isVisible({ timeout: 3000 })) {
+            await this.navAuditQueue.click();
+            await this.waitForURLContains('/audit-queue');
+          } else {
+            await this.goto('/audit-queue');
+          }
+        } catch {
+          await this.goto('/audit-queue');
         }
       }
     } else if (['settings', '/settings'].includes(targetLower)) {

@@ -107,6 +107,7 @@ function Pill({ tone, children }: { tone: Tone; children: React.ReactNode }) {
 const RUN_TONE: Record<PipelineRun['status'], Tone> = {
   completed: 'ok',
   running: 'busy',
+  paused: 'warn',
   failed: 'bad',
   aborted: 'idle',
   pending: 'idle',
@@ -123,6 +124,8 @@ export function runStatusLabel(status: PipelineRun['status'], t: T): string {
       return t('Completed')
     case 'running':
       return t('Running')
+    case 'paused':
+      return t('Awaiting audit')
     case 'failed':
       return t('Failed')
     case 'aborted':
@@ -141,17 +144,27 @@ export function runStatusLabel(status: PipelineRun['status'], t: T): string {
  * Whether a run really stopped short is visible in its step timeline, which is
  * evidence rather than inference.
  */
-export function RunStatus({ run, t = (s) => s }: { run: Pick<PipelineRun, 'status'>; t?: T }) {
-  return <Pill tone={RUN_TONE[run.status]}>{runStatusLabel(run.status, t)}</Pill>
+export function RunStatus({
+  run,
+  t = (s) => s,
+}: {
+  run: Pick<PipelineRun, 'status'> & { status_message?: string | null }
+  t?: T
+}) {
+  const label =
+    run.status === 'paused' && run.status_message && run.status_message.includes('reviewed')
+      ? run.status_message
+      : runStatusLabel(run.status, t)
+  return <Pill tone={RUN_TONE[run.status]}>{label}</Pill>
 }
 
 /**
  * Whether a run can still be stopped. Django aborts `pending`, `running` and
- * `paused` (which the contract reads as pending); the rest have ended. Lives
- * here, not in the client island, so server components can ask it.
+ * `paused`; the rest have ended. Lives here, not in the client island, so server
+ * components can ask it.
  */
 export function offersStop(status: PipelineRun['status']): boolean {
-  return status === 'running' || status === 'pending'
+  return status === 'running' || status === 'pending' || status === 'paused'
 }
 
 const STEP_TONE: Record<ComponentRun['status'], Tone> = {

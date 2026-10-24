@@ -60,6 +60,8 @@ from mcp_server.tools import (
     create_workspace_logic,
     update_workspace_logic,
     add_workspace_member_logic,
+    configure_slr_workspace_logic,
+    get_slr_workspace_config_logic,
     list_scrapers_logic,
     get_scraper_logic,
     create_scraper_logic,
@@ -245,6 +247,68 @@ When asked to run research, review literature, or execute the full pipeline:
      ALWAYS call `get_paper_extractions_matrix(process_id="<PROCESS_ID>", pipeline_run_id="<RUN_ID>", workspace_id="<WS_ID>")`.
      This returns the complete aggregated matrix of all accepted papers mapped to their extracted metric scores (Novelty, Schwarz Fit, TRL, Rigour, Significance) and composite `signal_score` in a SINGLE structured response.
      DO NOT write custom bash/python scripts to combine papers and extractions.
+
+=======================================================
+WORKSPACE TYPES: STANDARD (AUTONOMOUS) VS. SLR (SYSTEMATIC LITERATURE REVIEW WITH HUMAN VERIFICATION STEPS):
+=======================================================
+The platform strictly distinguishes between two project types:
+
+1. STANDARD WORKSPACE (`workspace_type: "standard"`, `is_slr: false`):
+   - Fully autonomous, lights-out execution from Search to Executive Briefing.
+   - The state machine runs unhalted across all 7 stages without human intervention.
+   - Created via `create_workspace(...)` or updated via `update_workspace(...)`.
+   - Best for rapid tech scouting, competitive tracking, and automated weekly digests.
+
+2. SLR WORKSPACE (`workspace_type: "slr"`, `is_slr: true` - Systematic Literature Review / PRISMA 2020):
+   - Created or configured via `configure_slr_workspace(...)`.
+   - Designed for formal scientific, biomedical, and clinical systematic literature reviews following Cochrane and PRISMA 2020 guidelines.
+   - Core Mechanism: HUMAN-IN-THE-LOOP (HITL) VERIFICATION STEPS & CHECKPOINT GATES.
+     The background Celery DAG does NOT run continuously to completion if verification gates are enabled.
+     Instead, it automatically PAUSES at critical methodology checkpoints to eliminate hallucinations, enforce clinical safety, and prevent false exclusions:
+     
+     * Gate 1: Abstract Screening Verification Gate
+       - Pipeline enters: status='paused', current_stage='awaiting_abstract_screening_audit'
+       - Sampling: Extracts an audit cohort of candidate papers based on `abstract_sample_percentage` (default 10-15%).
+       - Negative Controls: Also samples a percentage of AI-rejected papers (`negative_control_percentage`, default 5%)
+         to empirically verify that the AI did NOT falsely discard relevant literature (False Negative prevention).
+       - Reviewer Quorum: Dispatches sampled papers to human reviewers who must submit independent ballots.
+       
+     * Gate 2: Full-Text Eligibility Verification Gate
+       - Pipeline enters: status='paused', current_stage='awaiting_full_text_screening_audit'
+       - Sampling: Audits deep PDF eligibility against structured inclusion/exclusion criteria (`full_text_sample_percentage`, default 20-30%).
+       - Methodological validation: Verifies study design, population size, control groups, and outcome definitions.
+       
+     * Gate 3: Parameter & Claim Extraction Verification Gate
+       - Pipeline enters: status='paused', current_stage='awaiting_extraction_audit' (when `enable_extraction_gate=True`)
+       - Audits extracted clinical/experimental parameter values (up to 30 fields), numerical metrics, and exact verbatim PDF grounding quotes and bounding boxes.
+       
+     * Checkpoint Gate Modes (`checkpoint_gate_mode`):
+       - 'two_stage_split': Pauses at Gate 1 (Abstract) AND Gate 2 (Full-Text) - Standard PRISMA practice.
+       - 'single_combined_post_fulltext': Pauses once at Gate 2 after Full-Text Screening.
+       - 'abstract_only_gate': Pauses only at Gate 1 (useful for fast scoping reviews).
+       - 'autonomous_benchmark': Runs completely lights-out without pausing; verification gates are logged in shadow mode for benchmark evaluation.
+
+   - Blind Dual-Review Quorum:
+     * Enforces `screening_quorum_size` (e.g. 2 reviewers).
+     * Reviewers vote independently and BLINDLY (they cannot see peer votes or AI screening reasoning until their vote is submitted).
+     
+   - Cochrane Risk of Bias (RoB) Assessment:
+     * Automatically evaluates methodological bias using RoB 2 (RCTs), ROBINS-I (non-randomized), or Newcastle-Ottawa Scale (NOS).
+     * Studies flagged with High Risk of Bias require human senior validator sign-off (`require_human_rob_validation=True`).
+     
+   - Discrepancy Adjudication & Designated Senior Arbiter:
+     * When reviewer votes disagree (e.g. Reviewer 1 votes Include, Reviewer 2 votes Exclude), an AdjudicationDispute is automatically spawned.
+     * The `designated_arbiter` (assigned Senior Researcher / PI) casts the binding tie-breaker ruling (`tie_breaker_strategy: "arbiter_ruling"`).
+     
+   - Automated DAG Resumption:
+     * Once all sampled papers reach consensus quorum and disputes are resolved, the backend consensus service automatically resumes the Celery pipeline (`resume_slr_pipeline_run`)!
+     * The pipeline wakes up and seamlessly advances to the next stage.
+     
+   - CRITICAL AI CLIENT DIRECTIVE WHEN MONITORING SLR RUNS:
+     * When `get_pipeline_run_status` or `check_run_status` returns status='paused' with current_stage starting with 'awaiting_*_audit',
+       DO NOT ASSUME THE PIPELINE IS STALLED, CRASHED, OR BROKEN!
+       DO NOT abort or restart the run! DO NOT modify codebase files!
+       Inform the user clearly: "The SLR pipeline is currently paused at PRISMA Verification Gate [Stage Name]. Sampled papers have been placed in the Reviewer Audit Queue awaiting human review."
 
 =======================================================
 CUSTOM PYTHON SIGNAL SCORE DEFINITIONS (`signal_score_code`):
@@ -502,6 +566,86 @@ Workspace: {workspace_id}
 """
 
 
+@mcp.prompt()
+def slr_human_in_the_loop_playbook(
+    workspace_name: str = "Cardiovascular Outcomes of GLP-1 Receptor Agonists",
+    checkpoint_gate_mode: str = "two_stage_split",
+    screening_quorum_size: int = 2,
+    enable_extraction_gate: bool = True,
+    rob_framework: str = "rob2"
+) -> str:
+    """Comprehensive playbook for Systematic Literature Reviews (SLR): Guides AI through side-by-side workspace & SLR policy configuration, PRISMA checkpoint gates, reviewer quorums, dispute handling, and automated DAG resumption."""
+    return f"""
+# 🔬 Systematic Literature Review (SLR) & PRISMA Human-in-the-Loop Playbook
+
+Workspace Name: {workspace_name}
+Gate Mode: {checkpoint_gate_mode}
+Screening Quorum: {screening_quorum_size} reviewers
+Extraction Gate: {enable_extraction_gate}
+RoB Framework: {rob_framework}
+
+### 1. Configure SLR Workspace Side-by-Side
+Use `configure_slr_workspace(...)` to configure both base workspace criteria and SLR review policy in a single call:
+```python
+configure_slr_workspace(
+    name="{workspace_name}",
+    abstract_acceptance_criteria="RCT or prospective cohort examining GLP-1 receptor agonists with cardiovascular outcomes",
+    abstract_rejection_criteria="Case reports, animal models, non-cardiovascular endpoints",
+    full_text_acceptance_criteria="Human patients >= 18 years, follow-up >= 12 months, MACE (Major Adverse Cardiovascular Events) reported",
+    full_text_rejection_criteria="Sub-study without primary endpoint, no control arm",
+    screening_llm_model="google/gemini-3.8-flash",
+    reasoning_effort="high",
+    # Verification Gates & Quorum Policy
+    checkpoint_gate_mode="{checkpoint_gate_mode}",
+    enable_extraction_gate={enable_extraction_gate},
+    screening_quorum_size={screening_quorum_size},
+    extraction_quorum_size=1,
+    require_blind_review=True,
+    # Sampling Policy
+    sampling_mode="uncertainty_stratified",
+    abstract_sample_percentage=15.0,
+    full_text_sample_percentage=25.0,
+    negative_control_percentage=5.0,
+    # Risk of Bias (RoB)
+    enable_rob_assessment=True,
+    rob_framework="{rob_framework}",
+    require_human_rob_validation=True,
+    # Protocol & PICO
+    protocol_title="{workspace_name}",
+    protocol_review_question="Do GLP-1 receptor agonists reduce 3-point MACE in patients with type 2 diabetes?",
+    pico_population="Adults with type 2 diabetes and high cardiovascular risk",
+    pico_intervention="GLP-1 receptor agonists (semaglutide, liraglutide, dulaglutide)",
+    pico_comparison="Placebo or active comparator standard of care",
+    pico_outcome="3-point MACE (cardiovascular death, non-fatal MI, non-fatal stroke)"
+)
+```
+
+### 2. Verify SLR Configuration & PRISMA Flow
+- Call `get_slr_workspace_config(workspace_id="<WS_ID>")` to inspect active gates, quorum requirements, and PRISMA summary.
+- Call `list_workspaces()` to confirm `workspace_type: "slr"` and `is_slr: true`.
+
+### 3. Add Scrapers & Start SLR Pipeline
+- Call `create_scraper(workspace_id="<WS_ID>", provider="arxiv", search_query="...")`
+- Call `start_research_agent(workspace_id="<WS_ID>", limit=100, n_last_days=365)`
+- Returns `process_id`.
+
+### 4. Monitor & Understand SLR Paused Verification Checkpoints
+- Periodically call `check_run_status(process_id="<PROCESS_ID>")`.
+- In an SLR workspace, the pipeline automatically PAUSES when entering verification gates:
+  * Gate 1: status="paused", current_stage="awaiting_abstract_screening_audit"
+  * Gate 2: status="paused", current_stage="awaiting_full_text_screening_audit"
+  * Gate 3: status="paused", current_stage="awaiting_extraction_audit"
+- **CRITICAL DIRECTIVE FOR AI:**
+  Do NOT treat this as an error, crash, or hung process! Do NOT restart the run or modify code.
+  Explain clearly to the user:
+  "The SLR pipeline is paused at PRISMA Verification Gate [X]. A sampled cohort of papers has been routed to the Reviewer Audit Queue. Independent human reviewers are completing blind ballots (quorum: {screening_quorum_size}). Once consensus is reached or disputes adjudicated, the pipeline will resume automatically."
+
+### 5. Post-Verification & Final PRISMA Matrix
+- Once all verification checkpoints complete and reporting is reached:
+- Call `get_paper_extractions_matrix(workspace_id="<WS_ID>")` for verified clinical extractions, evidence quotes, and risk of bias scores.
+"""
+
+
 # ==========================================
 # 4. MCP Tools Registration
 # ==========================================
@@ -513,13 +657,17 @@ Workspace: {workspace_id}
 def list_workspaces() -> str:
     """
     [DISCOVERY - WORKSPACES]
-    List all workspaces accessible to the authenticated user along with their unique IDs, member roles, default LLM models, and criteria summaries.
+    List all workspaces accessible to the authenticated user along with their unique IDs, member roles, workspace types, default LLM models, and criteria summaries.
     
     WHEN TO USE:
-    - Call this tool first to discover available workspace IDs before starting research or listing scrapers.
+    - Call this tool first to discover available workspace IDs and check whether each project is an autonomous "standard" workspace or an "slr" workspace with human verification checkpoints.
+    
+    WORKSPACE TYPES:
+    - workspace_type: "standard" -> Fully autonomous lights-out execution.
+    - workspace_type: "slr" -> Systematic Literature Review following PRISMA 2020. Pipeline automatically pauses at configured verification gates (Gate 1 Abstract, Gate 2 Full-Text, Gate 3 Extraction) for human reviewer cohorts.
     
     RETURNS:
-    - JSON list of workspaces with workspace_id, name, created_at, role ('admin', 'manager', 'researcher'), and component summaries.
+    - JSON list of workspaces with workspace_id, name, workspace_type ('slr' | 'standard'), is_slr (boolean), role ('admin', 'manager', 'researcher'), created_at, and component summaries.
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -534,16 +682,16 @@ def list_workspaces() -> str:
 def get_workspace(workspace_id: str) -> str:
     """
     [INSPECTION - WORKSPACE]
-    Retrieve complete configuration details, dual-stage criteria, scrapers, OCR engine, screening LLM, dynamic extraction definitions, and member roster for a specific workspace.
+    Retrieve complete configuration details, dual-stage criteria, scrapers, OCR engine, screening LLM, dynamic extraction definitions, member roster, and SLR policy configuration for a specific workspace.
     
     WHEN TO USE:
-    - Use when you need to inspect the exact abstract/full-text criteria, custom Python signal score formula, or extraction definitions configured for a workspace.
+    - Use to inspect criteria prompts, custom Python signal score formula, extraction definitions, or SLR verification gate settings.
     
     PARAMETERS:
     - workspace_id: The UUID of the target workspace.
     
     RETURNS:
-    - JSON payload with full workspace configuration, criteria prompts, scrapers list, extraction targets, and signal_score_code.
+    - JSON payload with full workspace configuration, workspace_type ('slr' | 'standard'), is_slr (bool), slr_config (nested SLR verification policy if type='slr', otherwise null), criteria prompts, scrapers list, extraction targets, and signal_score_code.
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -582,11 +730,14 @@ def create_workspace(
     reprocess_existing: bool = False
 ) -> str:
     """
-    [PROJECT SETUP - WORKSPACE]
-    Create a new isolated systematic review workspace project. The calling MCP user is automatically assigned as Workspace Admin.
+    [PROJECT SETUP - STANDARD AUTONOMOUS WORKSPACE]
+    Create a new isolated standard research workspace project (fully autonomous execution). The calling MCP user is automatically assigned as Workspace Admin.
+    
+    NOTE FOR SLR (SYSTEMATIC LITERATURE REVIEW) PROJECTS:
+    - If you are building a Systematic Literature Review with human-in-the-loop verification steps, checkpoint audit gates (Gate 1 Abstract, Gate 2 Full-Text, Gate 3 Extraction), blind dual-review quorums, or Cochrane Risk of Bias, use `configure_slr_workspace(...)` instead to configure all parameters side-by-side!
     
     WHEN TO USE:
-    - Use when starting a new literature review or technology scouting initiative that requires dedicated criteria, scrapers, and extractions.
+    - Use for technology scouting, horizon scanning, or autonomous research feeds that run lights-out without manual audit checkpoints.
     
     PARAMETERS & BEST PRACTICES:
     - name: Human-readable workspace name (e.g. 'Quantum Error Correction Review 2026').
@@ -696,6 +847,9 @@ def update_workspace(
     WHEN TO USE:
     - Call to refine screening inclusion/exclusion criteria, customize dynamic screening prompts/schemas, install/update a custom `signal_score_code` mathematical ranking formula, or customize executive briefing prompts.
     
+    NOTE FOR SLR WORKSPACES:
+    - To configure or update Systematic Literature Review policies, PRISMA checkpoint audit gates (Gate 1 Abstract, Gate 2 Full-Text, Gate 3 Extraction), reviewer quorums, sampling percentages, Risk of Bias (RoB 2 / ROBINS-I), or designated arbiter, use `configure_slr_workspace(workspace_id=...)` instead.
+    
     KEY PARAMETERS:
     - workspace_id: The UUID of the target workspace.
     - abstract_acceptance_criteria / abstract_rejection_criteria: Inclusion/exclusion prompts for abstract screening.
@@ -762,6 +916,199 @@ def add_workspace_member(
     except Exception as e:
         return str(e)
     return add_workspace_member_logic(user, workspace_id, member_username_or_email, role)
+
+
+# --- SLR (Systematic Literature Review) Workspace Tools ---
+
+@mcp.tool()
+@with_db_connection
+def configure_slr_workspace(
+    workspace_id: str | None = None,
+    name: str | None = None,
+    # Base Workspace parameters
+    abstract_acceptance_criteria: str | None = None,
+    abstract_rejection_criteria: str | None = None,
+    full_text_acceptance_criteria: str | None = None,
+    full_text_rejection_criteria: str | None = None,
+    screening_llm_model: str = "google/gemini-3.8-flash",
+    llm_provider: str = "google",
+    reasoning_effort: str = "medium",
+    ocr_provider: str | None = None,
+    skip_abstract_screening: bool = False,
+    reprocess_existing: bool = False,
+    signal_score_code: str | None = None,
+    monthly_token_limit: int = 10000000,
+    cost_limit_usd: float = 100.00,
+    # SLR Policy & Gate parameters (SLRWorkspaceConfig)
+    checkpoint_gate_mode: str = "two_stage_split",
+    enable_extraction_gate: bool = True,
+    screening_quorum_size: int = 2,
+    extraction_quorum_size: int = 1,
+    require_blind_review: bool = True,
+    sampling_mode: str = "uncertainty_stratified",
+    abstract_sample_percentage: float = 10.0,
+    full_text_sample_percentage: float = 20.0,
+    extraction_sample_percentage: float = 10.0,
+    negative_control_percentage: float = 5.0,
+    enable_rob_assessment: bool = True,
+    rob_framework: str = "auto_detect",
+    require_human_rob_validation: bool = True,
+    designated_arbiter: str | None = None,
+    tie_breaker_strategy: str = "arbiter_ruling",
+    exclusion_reasons: list[str] | str | None = None,
+    require_evidence_on_exclusion: bool = True,
+    require_evidence_on_override: bool = True,
+    notify_reviewers_on_pause: bool = True,
+    stale_queue_reminder_days: int = 3,
+    # Optional Formal Protocol fields
+    protocol_title: str | None = None,
+    protocol_review_question: str | None = None,
+    pico_population: str | None = None,
+    pico_intervention: str | None = None,
+    pico_comparison: str | None = None,
+    pico_outcome: str | None = None,
+    study_design_criteria: str | None = None,
+    prospero_registration_id: str | None = None
+) -> str:
+    """
+    [SETTINGS CONFIGURATION - SLR WORKSPACE (SYSTEMATIC LITERATURE REVIEW)]
+    Configure all Systematic Literature Review (SLR) parameters side-by-side with Workspace settings in a single atomic call (provisions or updates workspace as workspace_type: "slr").
+    
+    WHAT IS AN SLR WORKSPACE:
+    - Unlike a standard autonomous workspace (which runs lights-out from search to reporting), an SLR workspace enforces formal PRISMA 2020 scientific methodology.
+    - It introduces HUMAN-IN-THE-LOOP (HITL) VERIFICATION STEPS: the asynchronous pipeline pauses at designated checkpoint gates to allow expert human reviewers to audit sampled literature, conduct blind dual-review, and resolve disputes before advancing.
+    
+    WHEN TO USE:
+    - ALWAYS use this tool when creating or configuring an SLR workspace.
+    - Use when configuring audit checkpoint gates, sampling ratios, negative controls, Cochrane Risk of Bias appraisal, blind dual-review quorums, or designated arbiter dispute resolution.
+    
+    VERIFICATION GATES & METHODOLOGY PARAMETERS:
+    - checkpoint_gate_mode: Determines which screening stages pause for human verification:
+      * 'two_stage_split' (Recommended / Standard PRISMA): Pauses at Gate 1 (Abstract Screening) AND Gate 2 (Full-Text Screening).
+      * 'single_combined_post_fulltext': Runs screening end-to-end and pauses once after Full-Text Screening.
+      * 'abstract_only_gate': Pauses only after Abstract Screening (for rapid scoping reviews).
+      * 'autonomous_benchmark': Runs completely unhalted without pausing; records audit checkpoints in shadow mode.
+    - enable_extraction_gate: Set to True (default) to pause at Gate 3 after extracting 30 clinical/experimental parameter fields to audit values and verbatim PDF grounding quotes.
+    - screening_quorum_size: Number of independent human reviewers required per sampled paper before consensus evaluation (1-6, default: 2 for PRISMA dual-review).
+    - extraction_quorum_size: Number of human validators required per sampled extraction (1-4, default: 1).
+    - require_blind_review: When True, enforces blind evaluation (reviewers cannot see peer votes or AI reasoning until they submit their ballot).
+    - sampling_mode:
+      * 'uncertainty_stratified' (Default & Recommended): Audits 100% of borderline/uncertain AI decisions plus a random sample of confident decisions.
+      * 'pure_random': Pure uniform random sampling across all screened papers.
+      * 'full_audit': 100% manual review (every single paper is audited by human reviewers).
+    - abstract_sample_percentage / full_text_sample_percentage / extraction_sample_percentage: Sampling ratios for audit cohorts (0.0 - 100.0%).
+    - negative_control_percentage: Percentage of AI-rejected candidate papers audited to verify zero False Negatives (0.0 - 50.0%, default: 5.0%).
+    - enable_rob_assessment: Runs methodological appraisal during full-text review.
+    - rob_framework: Methodology framework ('auto_detect', 'rob2' for RCTs, 'robins_i' for non-randomized studies, 'nos' for Newcastle-Ottawa).
+    - require_human_rob_validation: Requires Senior Arbiter sign-off on studies flagged with High Risk of Bias.
+    - designated_arbiter: Username, email, or user ID of Designated Senior Arbiter for tie-breaking disputes.
+    - tie_breaker_strategy: How disputes are resolved ('arbiter_ruling' by senior arbiter, 'conservative_include', or 'discussion_meeting').
+    - exclusion_reasons: Predefined taxonomy checklist of exclusion reasons (e.g. ['Wrong Population', 'Animal Model', 'No Control Group']).
+    - require_evidence_on_exclusion / require_evidence_on_override: Mandate exact quotes and page citations when excluding or overturning AI.
+    
+    FORMAL PROTOCOL & PICO PARAMETERS:
+    - protocol_title / protocol_review_question: Formal review protocol title and clinical question.
+    - pico_population / pico_intervention / pico_comparison / pico_outcome: PICO clinical criteria.
+    - study_design_criteria / prospero_registration_id: Target study designs and PROSPERO registry ID.
+    
+    BASE WORKSPACE PARAMETERS:
+    - workspace_id: Optional UUID. If provided, updates existing workspace. If omitted, creates a new SLR workspace with caller as Admin.
+    - name: Human-readable workspace name. Required for new workspaces.
+    - abstract_acceptance_criteria / abstract_rejection_criteria: PICO-grounded screening criteria for Gate 1.
+    - full_text_acceptance_criteria / full_text_rejection_criteria: Deep eligibility criteria for Gate 2.
+    - screening_llm_model: Default 'google/gemini-3.8-flash'.
+    - reasoning_effort: 'low', 'medium', or 'high'.
+    
+    RETURNS:
+    - JSON payload confirming configuration, workspace_id, workspace_type='slr', full slr_config object, protocol status, and PRISMA summary.
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "workspaces:write")
+    except Exception as e:
+        return str(e)
+    return configure_slr_workspace_logic(
+        user=user,
+        workspace_id=workspace_id,
+        name=name,
+        abstract_acceptance_criteria=abstract_acceptance_criteria,
+        abstract_rejection_criteria=abstract_rejection_criteria,
+        full_text_acceptance_criteria=full_text_acceptance_criteria,
+        full_text_rejection_criteria=full_text_rejection_criteria,
+        screening_llm_model=screening_llm_model,
+        llm_provider=llm_provider,
+        reasoning_effort=reasoning_effort,
+        ocr_provider=ocr_provider,
+        skip_abstract_screening=skip_abstract_screening,
+        reprocess_existing=reprocess_existing,
+        signal_score_code=signal_score_code,
+        monthly_token_limit=monthly_token_limit,
+        cost_limit_usd=cost_limit_usd,
+        checkpoint_gate_mode=checkpoint_gate_mode,
+        enable_extraction_gate=enable_extraction_gate,
+        screening_quorum_size=screening_quorum_size,
+        extraction_quorum_size=extraction_quorum_size,
+        require_blind_review=require_blind_review,
+        sampling_mode=sampling_mode,
+        abstract_sample_percentage=abstract_sample_percentage,
+        full_text_sample_percentage=full_text_sample_percentage,
+        extraction_sample_percentage=extraction_sample_percentage,
+        negative_control_percentage=negative_control_percentage,
+        enable_rob_assessment=enable_rob_assessment,
+        rob_framework=rob_framework,
+        require_human_rob_validation=require_human_rob_validation,
+        designated_arbiter=designated_arbiter,
+        tie_breaker_strategy=tie_breaker_strategy,
+        exclusion_reasons=exclusion_reasons,
+        require_evidence_on_exclusion=require_evidence_on_exclusion,
+        require_evidence_on_override=require_evidence_on_override,
+        notify_reviewers_on_pause=notify_reviewers_on_pause,
+        stale_queue_reminder_days=stale_queue_reminder_days,
+        protocol_title=protocol_title,
+        protocol_review_question=protocol_review_question,
+        pico_population=pico_population,
+        pico_intervention=pico_intervention,
+        pico_comparison=pico_comparison,
+        pico_outcome=pico_outcome,
+        study_design_criteria=study_design_criteria,
+        prospero_registration_id=prospero_registration_id,
+    )
+
+
+@mcp.tool()
+@with_db_connection
+def get_slr_workspace_config(workspace_id: str) -> str:
+    """
+    [INSPECTION - SLR WORKSPACE (SYSTEMATIC LITERATURE REVIEW)]
+    Retrieve complete SLR review policies, PRISMA checkpoint gate settings, quorum sizes, Cochrane Risk of Bias framework, designated arbiter, and side-by-side Workspace criteria for a specific workspace.
+    
+    WHEN TO USE:
+    - Call to inspect whether a workspace has SLR review policies configured (`is_slr_configured: true`), what verification gates are active, what quorum is required, and who the designated senior arbiter is.
+    
+    PARAMETERS:
+    - workspace_id: The UUID of the target workspace.
+    
+    STRUCTURE OF RETURNED PAYLOAD:
+    - `workspace_type`: 'slr' (if SLR policy is attached) or 'standard'.
+    - `is_slr_configured`: Boolean indicating whether SLR policy is active.
+    - `workspace`: Full base workspace settings (criteria, screening LLM, scrapers, signal score formula).
+    - `slr_config`: Policy object including:
+      * `checkpoint_gate_mode` & display name ('two_stage_split', 'single_combined_post_fulltext', etc.)
+      * `screening_quorum_size` & `extraction_quorum_size` (required reviewer counts)
+      * `require_blind_review` (boolean)
+      * `sampling_mode` & percentages (`abstract_sample_percentage`, `full_text_sample_percentage`, `extraction_sample_percentage`, `negative_control_percentage`)
+      * `enable_rob_assessment`, `rob_framework`, and `require_human_rob_validation`
+      * `designated_arbiter`: Object with {id, username, email} of the senior arbiter resolving disputes
+      * `tie_breaker_strategy` and `exclusion_reasons` checklist
+    - `protocol`: Formal review protocol with PICO criteria (population, intervention, comparison, outcome), review question, and PROSPERO ID.
+    - `prisma_summary`: Formatted overview of `active_gates` (e.g. Gate 1, Gate 2, Gate 3), sampling rules, and negative control rates.
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "workspaces:read")
+    except Exception as e:
+        return str(e)
+    return get_slr_workspace_config_logic(user=user, workspace_id=workspace_id)
 
 
 # --- Scraper Management Tools ---
@@ -1446,6 +1793,15 @@ def get_pipeline_run_status(pipeline_run_id: str) -> str:
       * `is_progressing: true`: DO NOT MODIFY SOURCE CODE. Background workers are actively running. Inform the user of current items completed, percentage, and elapsed time.
       * `is_stalled: true`: DO NOT MODIFY SOURCE CODE. Inform the user that the worker has shown no progress for `stalled_minutes` and may need worker restart.
 
+    SLR VERIFICATION GATES (CRITICAL NOTICE FOR AI CLIENTS):
+    - When executing in an SLR workspace (workspace_type: 'slr'), status='paused' with current_stage:
+      * 'awaiting_abstract_screening_audit' (Gate 1: Abstract Screening Verification)
+      * 'awaiting_full_text_screening_audit' (Gate 2: Full-Text Eligibility Verification)
+      * 'awaiting_extraction_audit' (Gate 3: Parameter Extraction Verification)
+      THIS IS EXPECTED NORMAL BEHAVIOR, NOT A TIMEOUT OR CRASH!
+      The pipeline is intentionally halted at a PRISMA verification checkpoint. A sampled cohort of borderline papers and negative controls has been queued for human reviewer consensus.
+      DO NOT abort the run, restart it, or modify code! Inform the user that the run is waiting for human reviewer ballots in the SLR Audit Queue. Once consensus is reached, the pipeline resumes automatically.
+
     RETURNS:
     - active_progress: Real-time progress block with `is_progressing`, `is_stalled`, `progress_summary`, `percent_complete`, `latest_processed_item`, and `guidance_for_ai`
     - Execution state: status ('pending', 'running', 'completed', 'failed', 'paused', 'aborted'), current_stage, token usage, cost
@@ -1607,6 +1963,15 @@ def start_pipeline_run(
     - notification_email: Optional single-run email override to receive Mailgun completion report.
     - reprocess_existing: If True, forces re-screening of existing papers even if no new papers are found.
     - autonomous: If True (default), automatically advances stages upon completion.
+    
+    SLR WORKSPACES (HUMAN-IN-THE-LOOP VERIFICATION BEHAVIOR):
+    - When executed in an SLR workspace (workspace_type: 'slr'), the pipeline will automatically pause at configured PRISMA verification gates:
+      * status: 'paused', current_stage: 'awaiting_abstract_screening_audit' (Gate 1)
+      * status: 'paused', current_stage: 'awaiting_full_text_screening_audit' (Gate 2)
+      * status: 'paused', current_stage: 'awaiting_extraction_audit' (Gate 3)
+    - Sampled candidate cohorts are placed in the Reviewer Audit Queue.
+    - Check progress with `check_run_status` or `get_pipeline_run_status`.
+    - Once reviewer quorum and dispute adjudications are submitted, the consensus engine automatically resumes pipeline execution!
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -1717,6 +2082,13 @@ def start_research_agent(
     - notification_email: Optional single-run email override to receive Mailgun completion report (default: sends to all active workspace Subscribers).
     - skip_abstract_screening: If True, skips Abstract Screening and routes all candidate papers directly to Full-Text Screening (default: inherits `workspace.skip_abstract_screening`).
     
+    SLR WORKSPACES (VERIFICATION CHECKPOINT GATES):
+    - In an SLR workspace (workspace_type: 'slr'), the process executes until it hits an active verification gate,
+      at which point status becomes 'paused' (e.g. current_stage='awaiting_abstract_screening_audit' or 'awaiting_full_text_screening_audit').
+    - Sampled papers are assigned to human reviewers in the Audit Queue.
+    - Check status with `check_run_status(process_id=...)` — it will indicate the paused audit gate.
+    - Once human reviewers reach consensus or disputes are resolved, the pipeline automatically wakes up and continues!
+
     NEXT STEPS:
     - Immediately after calling this, call `check_run_status(process_id=...)` to check real-time progress without blocking, or query `get_paper_extractions_matrix(process_id=...)` once complete.
     """
@@ -1790,6 +2162,9 @@ def check_run_status(process_id: str = None, pipeline_run_id: str = None, run_id
     CRITICAL AI DIRECTIVE:
     - If `active_progress.is_progressing` is True: DO NOT MODIFY CODE. Background workers are actively running. Inform the user of current items completed and percentage.
     - If `active_progress.is_stalled` is True: DO NOT MODIFY CODE. Inform the user that the worker has had no progress for X minutes and may need restart/checking.
+    - If `status == 'paused'` and `current_step` indicates an audit gate (e.g. 'awaiting_abstract_screening_audit', 'awaiting_full_text_screening_audit', 'awaiting_extraction_audit'):
+      This is a PRISMA verification checkpoint in an SLR workspace. The pipeline is waiting for human reviewers in the Audit Queue.
+      DO NOT abort or restart! Explain to the user that the pipeline has paused for human validation according to the workspace's review protocol.
     """
     try:
         user, workspace, api_key = get_auth_context()

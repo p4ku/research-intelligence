@@ -12,17 +12,29 @@ const ENV_TARGETS: Record<string, string> = {
   staging: 'https://sri.soinventive.co.uk',
   prod: 'https://research-scanner.schwarz',
   production: 'https://research-scanner.schwarz',
+  slr: 'https://slr.soinventive.co.uk',
 };
 
-const targetEnv = (process.env.E2E_TARGET_ENV || 'local').toLowerCase();
-if (!(targetEnv in ENV_TARGETS)) {
-  // A typo must not quietly land on a different environment than the one meant.
+const rawTarget = (process.env.E2E_TARGET_ENV || 'local').trim();
+const targetEnv = rawTarget.toLowerCase();
+
+function resolveBaseURL(): string {
+  if (process.env.E2E_BASE_URL) return process.env.E2E_BASE_URL.replace(/\/$/, '');
+  if (targetEnv in ENV_TARGETS) return ENV_TARGETS[targetEnv];
+  if (rawTarget.startsWith('http://') || rawTarget.startsWith('https://')) {
+    return rawTarget.replace(/\/$/, '');
+  }
+  if (rawTarget.includes('.') || rawTarget.includes(':')) {
+    const scheme = rawTarget.includes('localhost') || rawTarget.includes('127.0.0.1') ? 'http' : 'https';
+    return `${scheme}://${rawTarget.replace(/\/$/, '')}`;
+  }
   throw new Error(
-    `Unknown E2E_TARGET_ENV "${process.env.E2E_TARGET_ENV}"; expected one of ${Object.keys(ENV_TARGETS).join(', ')}`,
+    `Unknown E2E_TARGET_ENV "${process.env.E2E_TARGET_ENV}"; expected one of ${Object.keys(ENV_TARGETS).join(', ')} or a custom domain/URL.`,
   );
 }
-const baseURL = process.env.E2E_BASE_URL || ENV_TARGETS[targetEnv];
-console.log(`[e2e] target=${targetEnv} baseURL=${baseURL}`);
+
+const baseURL = resolveBaseURL();
+console.log(`[e2e] target=${rawTarget} baseURL=${baseURL}`);
 
 export default defineConfig({
   testDir: './specs',

@@ -123,6 +123,7 @@ INSTALLED_APPS = [
     'chat',
     'mcp_server',
     'observability',
+    'slr_review',
 ]
 
 

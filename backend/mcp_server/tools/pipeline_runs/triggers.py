@@ -663,6 +663,7 @@ def start_pipeline_run_logic(
     start_date: str = None,
     end_date: str = None,
     n_last_days: int = None,
+    run_type: str = 'intelligence',
 ) -> str:
     """
     Start a new autonomous PipelineRun executing the end-to-end SLR cycle
@@ -681,7 +682,7 @@ def start_pipeline_run_logic(
     if is_exceeded:
         return json.dumps({"status": "error", "error": quota_reason}, indent=2)
 
-    run_name = name or f"Autonomous Pipeline Run - {timezone.now().strftime('%Y-%m-%d %H:%M')}"
+    run_name = name or f"{'SLR' if run_type == 'slr' else 'Autonomous'} Pipeline Run - {timezone.now().strftime('%Y-%m-%d %H:%M')}"
 
     effective_n_last_days = n_last_days if n_last_days is not None else 7
     config_override = {
@@ -694,6 +695,7 @@ def start_pipeline_run_logic(
         "autonomous": bool(autonomous),
         "start_date": start_date,
         "end_date": end_date,
+        "run_type": run_type,
     }
 
     # Admission holds the Workspace row lock only around the create; the first

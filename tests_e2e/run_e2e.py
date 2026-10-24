@@ -25,6 +25,7 @@ import time
 from tests_e2e.config import E2EConfig, ENV_TARGETS
 from tests_e2e.scenarios import (
     run_full_slr_pipeline_scenario,
+    run_slr_review_gates_scenario,
     run_chat_multiturn_scenario,
     run_agent_lifecycle_scenario,
     run_pipeline_reprocessing_scenario,
@@ -69,14 +70,14 @@ def parse_args():
     )
     parser.add_argument(
         "--target",
-        choices=["prod", "production", "staging", "local"],
+        type=str,
         default="prod",
-        help="Target environment (default: prod)",
+        help="Target environment (prod, staging, local, slr, or custom URL/domain like slr.soinventive.co.uk)",
     )
     parser.add_argument(
         "--scenario",
         choices=[
-            "slr", "lifecycle", "reprocess", "dedup", "quota", "mcp", "isolation", "rerun", "guard",
+            "slr", "slr_gates", "slr_audit", "slr_review", "lifecycle", "reprocess", "dedup", "quota", "mcp", "isolation", "rerun", "guard",
             "concurrent", "parallel", "schedule", "evidence", "researcher", "briefing",
             "date_range", "pagination", "ask", "ask_paper", "variables", "signal_score_variables", "scoring_math",
             "impexp", "import_export", "template",
@@ -90,7 +91,7 @@ def parse_args():
             "all"
         ],
         default="slr",
-        help="Target test scenario to execute (slr, comments, briefing_filters, editions, date_range, all)",
+        help="Target test scenario to execute (slr, slr_gates, comments, briefing_filters, editions, date_range, all)",
     )
     parser.add_argument(
         "--provider",
@@ -381,7 +382,16 @@ def main():
 
     t0 = time.time()
     try:
-        if args.scenario == "slr":
+        if args.scenario in ("slr_gates", "slr_audit", "slr_review"):
+            results = run_slr_review_gates_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ SLR REVIEW GATES & CHECKPOINTS SCENARIO COMPLETED in {total_elapsed:.1f}s")
+            print(f"   • Gate 1 (Abstract): {results.get('gate_1_abstract')}")
+            print(f"   • Gate 2 (Full-Text): {results.get('gate_2_full_text')}")
+            print(f"   • Gate 3 (Extraction): {results.get('gate_3_extraction')}")
+            print(f"   • PRISMA Flow: {results.get('prisma_metrics')}")
+            print(f"   • RoB Appraisals: {results.get('rob_assessments_count')} studies")
+        elif args.scenario == "slr":
             results = run_full_slr_pipeline_scenario(config)
             total_elapsed = time.time() - t0
             print_summary_card(results, total_elapsed)

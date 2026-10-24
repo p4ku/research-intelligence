@@ -7,7 +7,7 @@ import * as z from 'zod'
 import { listQuery, pageSchema } from '../core/pagination'
 
 export const runStatus = z
-  .enum(['pending', 'running', 'completed', 'failed', 'aborted'])
+  .enum(['pending', 'running', 'paused', 'completed', 'failed', 'aborted'])
   .meta({ id: 'PipelineRunStatus' })
 export type RunStatus = z.infer<typeof runStatus>
 
@@ -59,6 +59,7 @@ export const startRun = z
     end_date: z.iso.date().optional(),
     /** A relative window ("last N days") instead of dates — what a Retry resends. */
     lookback_days: z.number().int().positive().optional(),
+    run_type: z.enum(['intelligence', 'slr']).optional(),
   })
   .refine((v) => !v.start_date || !v.end_date || v.start_date <= v.end_date, {
     message: 'The end date must not be before the start date.',
