@@ -158,6 +158,17 @@ class WorkspaceService:
         self.client.delete(f"/api/workspaces/{workspace_id}/", expected_status=204)
         logger.info(f"✅ Workspace '{workspace_id}' deleted.")
 
+    def add_member(self, workspace_id: str, username: str, role: str = "researcher") -> Dict[str, Any]:
+        """Adds a user as member to workspace with role ('admin', 'manager', 'researcher')."""
+        resp = self.client.post(
+            f"/api/workspaces/{workspace_id}/members/",
+            json_data={"username": username, "role": role},
+            expected_status=201,
+        )
+        data = resp.json()
+        logger.info(f"   👥 Added member '{username}' (role: {role}) to workspace {workspace_id}.")
+        return data
+
     def cleanup_old_test_workspaces(self, prefix: str = "test_e2e_") -> int:
         """
         Finds and deletes all previous test workspaces matching prefix (e.g. 'test_e2e_').

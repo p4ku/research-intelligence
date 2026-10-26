@@ -122,26 +122,38 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
     }
 
     try:
-        # Step 1: Authenticate Primary & Secondary Reviewers
-        auth_data = auth.login(cfg.username, cfg.password)
+        # Step 1: Authenticate Multi-Reviewer Team & Senior Arbiter
+        r1_name = cfg.username
+        auth_data = auth.login(r1_name, cfg.password)
         scenario_results["user_id"] = auth_data.get("user_id")
 
-        # Secondary reviewer & Senior Arbiter
-        sec_client = APIClient(cfg.base_url)
-        sec_auth = AuthService(sec_client)
-        if cfg.username == "admin":
-            sec_user = "test_e2e"
-            sec_pass = "t4st_pa55w0rD!#"
-            arbiter_client = client
-        else:
-            sec_user = os.getenv("ADMIN_USERNAME", "admin")
-            sec_pass = os.getenv("ADMIN_PASSWORD", "schwarz123!")
-            arbiter_client = sec_client
-
-        logger.info(f"👥 Secondary Reviewer: '{sec_user}'")
-        sec_auth.login(sec_user, sec_pass)
-        sec_slr_svc = SLRService(sec_client)
+        # Senior Arbiter (for resolving reviewer conflicts/disputes)
+        arbiter_client = APIClient(cfg.base_url)
+        arbiter_auth = AuthService(arbiter_client)
+        arbiter_name = os.getenv("ADMIN_USERNAME", "admin")
+        arbiter_pass = os.getenv("ADMIN_PASSWORD", "schwarz123!")
+        arbiter_auth.login(arbiter_name, arbiter_pass)
         arbiter_slr_svc = SLRService(arbiter_client)
+
+        # Ensure multi-reviewer team accounts exist (self-bootstrapping)
+        r2_name = "reviewer_alice"
+        r3_name = "reviewer_bob"
+        r_default_pass = "Password123!#"
+        arbiter_auth.create_user_if_missing(r2_name, r_default_pass, "alice@example.com")
+        arbiter_auth.create_user_if_missing(r3_name, r_default_pass, "bob@example.com")
+
+        # Authenticate Reviewer 2 & Reviewer 3
+        r2_client = APIClient(cfg.base_url)
+        r2_auth = AuthService(r2_client)
+        r2_auth.login(r2_name, r_default_pass)
+        r2_slr_svc = SLRService(r2_client)
+
+        r3_client = APIClient(cfg.base_url)
+        r3_auth = AuthService(r3_client)
+        r3_auth.login(r3_name, r_default_pass)
+        r3_slr_svc = SLRService(r3_client)
+
+        logger.info(f"👥 Reviewer Team Active: R1='{r1_name}', R2='{r2_name}', R3='{r3_name}', Arbiter='{arbiter_name}'")
 
         if cfg.cleanup_before:
             ws_svc.cleanup_old_test_workspaces(prefix="test_e2e_slr_gates_")
@@ -340,6 +352,10 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
         scenario_results["workspace_id"] = workspace_id
         DataConsistencyValidator.validate_uuid(workspace_id, "workspace_id")
 
+        # Step 1b: Add team reviewers to workspace for queue visibility & review distribution
+        ws_svc.add_member(workspace_id, r2_name, role="researcher")
+        ws_svc.add_member(workspace_id, r3_name, role="researcher")
+
         # Validate that all dynamic fields, prompts, schemas, metrics & formulas were persisted
         assert ws_data.get("abstract_screening_system_prompt") is not None, "Missing abstract_screening_system_prompt"
         assert ws_data.get("abstract_screening_user_prompt_template") is not None, "Missing abstract_screening_user_prompt_template"
@@ -354,6 +370,7 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
         assert len(ws_data.get("extraction_definitions", [])) >= 2, f"Expected at least 2 extraction definitions, found: {len(ws_data.get('extraction_definitions', []))}"
 
         logger.info(f"   ✓ Workspace '{workspace_name}' provisioned with 100% complete production configuration:")
+        logger.info(f"     • Reviewer Team: '{r1_name}' (admin), '{r2_name}' (researcher), '{r3_name}' (researcher)")
         logger.info(f"     • Abstract Gate: exit='{ws_data.get('abstract_screening_exit_metric')}', schema validated")
         logger.info(f"     • Full-Text Gate: exit='{ws_data.get('full_text_screening_exit_metric')}', schema validated")
         logger.info(f"     • Signal Score: AST-sandboxed Python composite formula active")
@@ -381,13 +398,13 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
         assert slr_config.get("screening_quorum_size") == 2, f"Quorum update failed: {slr_config}"
         logger.info(f"   ✓ SLR Policy Active: mode={slr_config.get('checkpoint_gate_mode')}, quorum={slr_config.get('screening_quorum_size')}, tie_breaker={slr_config.get('tie_breaker_strategy')}")
 
-        # Step 4: Configure Scraper with higher paper limit (6 papers)
-        paper_count = 6
+        # Step 4: Configure Scraper with higher paper limit (12 papers)
+        paper_count = 12
         logger.info(f"📡 Step 3: Configuring Academic Ingestion Scraper (limit: {paper_count} papers)...")
         scraper = ws_svc.create_scraper(
             workspace_id=workspace_id,
             provider="arxiv",
-            search_query='cat:cs.AI AND (all:"neural" OR all:"transformer" OR all:"optimization")',
+            search_query='cat:cs.AI AND (all:"neural" OR all:"transformer" OR all:"deep learning" OR all:"reinforcement" OR all:"optimization")',
             limit=paper_count,
         )
         scenario_results["scraper_id"] = scraper["id"]
@@ -429,55 +446,74 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
 
         cohort_g1_detail = slr_svc.get_cohort(cohort_g1_id)
         sampled_papers_g1 = cohort_g1_detail.get("papers", [])
-        assert len(sampled_papers_g1) >= 3, f"Cohort {cohort_g1_id} needs at least 3 papers for full case coverage! Found: {len(sampled_papers_g1)}"
+        assert len(sampled_papers_g1) >= 10, f"Cohort {cohort_g1_id} expected ~12 papers for full case coverage! Found: {len(sampled_papers_g1)}"
+
+        # 3-way reviewer rotation for dual-review quorum (2 votes per paper):
+        # Paper 0 (i=0): R1 & R2
+        # Paper 1 (i=1): R2 & R3
+        # Paper 2 (i=2): R3 & R1
+        # Balanced distribution across all 3 human reviewers!
+        reviewer_pairs = [
+            (slr_svc, r2_slr_svc, r1_name, r2_name),
+            (r2_slr_svc, r3_slr_svc, r2_name, r3_name),
+            (r3_slr_svc, slr_svc, r3_name, r1_name),
+        ]
 
         # Case 1: Unanimous Acceptance (Paper 0)
         p0 = sampled_papers_g1[0]
-        logger.info(f"   ✍️ [Gate 1 Case 1 - Unanimous Accept] Paper: '{p0.get('title', p0['paper_id'])[:45]}...'")
-        slr_svc.submit_screening_review(cohort_id=cohort_g1_id, paper_id=p0["paper_id"], action="agree", reviewer_note="Primary reviewer: abstract matches inclusion criteria.")
-        sec_slr_svc.submit_screening_review(cohort_id=cohort_g1_id, paper_id=p0["paper_id"], action="agree", reviewer_note="Secondary reviewer concurs: abstract satisfies inclusion criteria.")
+        r_a, r_b, name_a, name_b = reviewer_pairs[0]
+        p_det_0 = slr_svc.get_cohort_paper(cohort_g1_id, p0["paper_id"])
+        act_0 = "agree" if p_det_0.get("ai_decision") == "include" else "override_include"
+        logger.info(f"   ✍️ [Gate 1 Case 1 - Unanimous Accept ({name_a} + {name_b})] Paper: '{p0.get('title', p0['paper_id'])[:45]}...' (action={act_0})")
+        r_a.submit_screening_review(cohort_id=cohort_g1_id, paper_id=p0["paper_id"], action=act_0, reviewer_note=f"[{name_a}] Abstract matches inclusion criteria.")
+        r_b.submit_screening_review(cohort_id=cohort_g1_id, paper_id=p0["paper_id"], action=act_0, reviewer_note=f"[{name_b}] Abstract satisfies inclusion criteria.")
         logger.info("      ✓ Both reviewers voted Agree (Include) -> Quorum met, consensus reached.")
 
-        # Case 2: Unanimous Rejection (Paper 1)
+        # Case 2: Unanimous Rejection (Paper 1 - only 1 paper excluded at Abstract stage)
         p1 = sampled_papers_g1[1]
-        logger.info(f"   ✍️ [Gate 1 Case 2 - Unanimous Reject] Paper: '{p1.get('title', p1['paper_id'])[:45]}...'")
-        slr_svc.submit_screening_review(
+        r_a, r_b, name_a, name_b = reviewer_pairs[1]
+        logger.info(f"   ✍️ [Gate 1 Case 2 - Unanimous Reject ({name_a} + {name_b})] Paper: '{p1.get('title', p1['paper_id'])[:45]}...'")
+        r_a.submit_screening_review(
             cohort_id=cohort_g1_id, paper_id=p1["paper_id"],
             action="override_exclude", exclusion_reason="Wrong Study Population",
-            reviewer_note="Primary reviewer: study population outside trial scope."
+            reviewer_note=f"[{name_a}] Study population outside trial scope."
         )
-        sec_slr_svc.submit_screening_review(
+        r_b.submit_screening_review(
             cohort_id=cohort_g1_id, paper_id=p1["paper_id"],
             action="override_exclude", exclusion_reason="Wrong Study Population",
-            reviewer_note="Secondary reviewer: confirmed non-target study population."
+            reviewer_note=f"[{name_b}] Confirmed non-target study population."
         )
         logger.info("      ✓ Both reviewers voted Override Exclude -> Quorum met, paper excluded.")
 
-        # Case 3: Reviewer Conflict (Split Vote) & Senior Arbiter Resolution (Paper 2)
+        # Case 3: Reviewer Conflict (Split Vote) & Senior Arbiter Resolution to INCLUDE (Paper 2)
         p2 = sampled_papers_g1[2]
-        logger.info(f"   ✍️ [Gate 1 Case 3 - Reviewer Conflict & Arbiter Ruling] Paper: '{p2.get('title', p2['paper_id'])[:45]}...'")
-        slr_svc.submit_screening_review(
+        r_a, r_b, name_a, name_b = reviewer_pairs[2]
+        logger.info(f"   ✍️ [Gate 1 Case 3 - Reviewer Conflict & Arbiter Ruling ({name_a} vs {name_b})] Paper: '{p2.get('title', p2['paper_id'])[:45]}...'")
+        r_a.submit_screening_review(
             cohort_id=cohort_g1_id, paper_id=p2["paper_id"],
-            action="override_include", reviewer_note="Primary reviewer: novel algorithm architecture warrants inclusion."
+            action="override_include", reviewer_note=f"[{name_a}] Novel architecture warrants full-text review."
         )
-        sec_slr_svc.submit_screening_review(
+        r_b.submit_screening_review(
             cohort_id=cohort_g1_id, paper_id=p2["paper_id"],
             action="override_exclude", exclusion_reason="Insufficient Quantitative Data Reported",
-            reviewer_note="Secondary reviewer: abstract lacks empirical benchmark metrics."
+            reviewer_note=f"[{name_b}] Abstract lacks empirical benchmark metrics."
         )
         logger.info("      ⚖️ Split votes registered (1 Include vs 1 Exclude) -> Escalated to Senior Arbiter.")
 
-        # Vote Agree on any remaining papers to satisfy quorum
-        for p_rem in sampled_papers_g1[3:]:
-            slr_svc.submit_screening_review(cohort_id=cohort_g1_id, paper_id=p_rem["paper_id"], action="agree")
-            sec_slr_svc.submit_screening_review(cohort_id=cohort_g1_id, paper_id=p_rem["paper_id"], action="agree")
+        # Vote to INCLUDE on all remaining papers (Papers 3..11) so they reach the final stage
+        for idx, p_rem in enumerate(sampled_papers_g1[3:], start=3):
+            r_a, r_b, name_a, name_b = reviewer_pairs[idx % len(reviewer_pairs)]
+            p_det = slr_svc.get_cohort_paper(cohort_g1_id, p_rem["paper_id"])
+            act = "agree" if p_det.get("ai_decision") == "include" else "override_include"
+            r_a.submit_screening_review(cohort_id=cohort_g1_id, paper_id=p_rem["paper_id"], action=act, reviewer_note=f"[{name_a}] Abstract verified against protocol.")
+            r_b.submit_screening_review(cohort_id=cohort_g1_id, paper_id=p_rem["paper_id"], action=act, reviewer_note=f"[{name_b}] Concurs with inclusion.")
 
         # Verify cohort remains paused while dispute is pending
         cohort_g1_mid = slr_svc.get_cohort(cohort_g1_id)
         assert cohort_g1_mid.get("is_audit_complete") is False, "Cohort must NOT complete while an adjudication dispute is pending!"
         logger.info("   ✓ Verified: Gate 1 cohort is paused awaiting Senior Arbiter ruling.")
 
-        # Senior Arbiter resolves dispute
+        # Senior Arbiter resolves dispute in favor of INCLUDE so paper advances!
         pending_disputes_g1 = arbiter_slr_svc.list_disputes(status="pending")
         matching_dispute_g1 = next(
             (d for d in pending_disputes_g1 if str(d.get("paper")) == str(p2["paper_id"]) or d.get("sample_cohort") == cohort_g1_id),
@@ -491,7 +527,7 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
             resolution_rationale="Senior Arbiter ruling: Computational architecture meets eligibility protocol; proceed to full-text assessment."
         )
         assert resolve_resp_g1.get("status") == "resolved", f"Dispute resolution failed: {resolve_resp_g1}"
-        logger.info("   ✓ Gate 1 dispute resolved cleanly (final_decision='include').")
+        logger.info("   ✓ Gate 1 dispute resolved cleanly (final_decision='include'). 11 papers advance!")
 
         # Verify cohort completion
         cohort_g1_detail_after = slr_svc.get_cohort(cohort_g1_id)
@@ -526,113 +562,95 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
         cohort_g2_id = matching_cohorts_g2[0]["cohort_id"]
         cohort_g2_detail = slr_svc.get_cohort(cohort_g2_id)
         sampled_papers_g2 = cohort_g2_detail.get("papers", [])
-        assert len(sampled_papers_g2) >= 2, f"Gate 2 cohort needs at least 2 papers! Found: {len(sampled_papers_g2)}"
+        assert len(sampled_papers_g2) >= 9, f"Gate 2 cohort expected ~11 papers! Found: {len(sampled_papers_g2)}"
 
         # Case 1: Unanimous Full-Text Acceptance (Paper 0)
         p2_0 = sampled_papers_g2[0]
-        logger.info(f"   ✍️ [Gate 2 Case 1 - Unanimous Full-Text Accept] Paper: '{p2_0.get('title', p2_0['paper_id'])[:45]}...'")
-        slr_svc.submit_screening_review(
-            cohort_id=cohort_g2_id, paper_id=p2_0["paper_id"], action="agree",
+        r_a, r_b, name_a, name_b = reviewer_pairs[0]
+        p_det_g2_0 = slr_svc.get_cohort_paper(cohort_g2_id, p2_0["paper_id"])
+        act_g2_0 = "agree" if p_det_g2_0.get("ai_decision") == "include" else "override_include"
+        logger.info(f"   ✍️ [Gate 2 Case 1 - Unanimous Full-Text Accept ({name_a} + {name_b})] Paper: '{p2_0.get('title', p2_0['paper_id'])[:45]}...' (action={act_g2_0})")
+        r_a.submit_screening_review(
+            cohort_id=cohort_g2_id, paper_id=p2_0["paper_id"], action=act_g2_0,
             evidence_citation="Section 3: Empirical evaluation corroborates trial convergence.",
-            reviewer_note="Primary reviewer: methodology and results verified."
+            reviewer_note=f"[{name_a}] Methodology and empirical results verified."
         )
-        sec_slr_svc.submit_screening_review(
-            cohort_id=cohort_g2_id, paper_id=p2_0["paper_id"], action="agree",
+        r_b.submit_screening_review(
+            cohort_id=cohort_g2_id, paper_id=p2_0["paper_id"], action=act_g2_0,
             evidence_citation="Section 4: Baseline comparison benchmarks confirmed.",
-            reviewer_note="Secondary reviewer: agrees with full-text inclusion."
+            reviewer_note=f"[{name_b}] Agrees with full-text inclusion."
         )
         logger.info("      ✓ Both reviewers agreed on Full-Text inclusion with verified citations.")
 
-        # Case 2: Full-Text Rejection OR Conflict
-        dispute_g2_id = None
-        if len(sampled_papers_g2) >= 3:
-            # Case 2: Unanimous Rejection on paper 1
-            p2_1 = sampled_papers_g2[1]
-            logger.info(f"   ✍️ [Gate 2 Case 2 - Unanimous Full-Text Reject] Paper: '{p2_1.get('title', p2_1['paper_id'])[:45]}...'")
-            slr_svc.submit_screening_review(
-                cohort_id=cohort_g2_id, paper_id=p2_1["paper_id"],
-                action="override_exclude", exclusion_reason="No Control / Comparator Group",
-                reviewer_note="Primary reviewer: trial lacks baseline control group."
-            )
-            sec_slr_svc.submit_screening_review(
-                cohort_id=cohort_g2_id, paper_id=p2_1["paper_id"],
-                action="override_exclude", exclusion_reason="No Control / Comparator Group",
-                reviewer_note="Secondary reviewer: absence of comparator group confirmed."
-            )
-            logger.info("      ✓ Both reviewers voted Override Exclude on Full-Text.")
+        # Case 2: Full-Text Rejection (Paper 1 - only 1 paper excluded at Full-Text stage)
+        p2_1 = sampled_papers_g2[1]
+        r_a, r_b, name_a, name_b = reviewer_pairs[1]
+        logger.info(f"   ✍️ [Gate 2 Case 2 - Unanimous Full-Text Reject ({name_a} + {name_b})] Paper: '{p2_1.get('title', p2_1['paper_id'])[:45]}...'")
+        r_a.submit_screening_review(
+            cohort_id=cohort_g2_id, paper_id=p2_1["paper_id"],
+            action="override_exclude", exclusion_reason="No Control / Comparator Group",
+            reviewer_note=f"[{name_a}] Trial lacks baseline control group."
+        )
+        r_b.submit_screening_review(
+            cohort_id=cohort_g2_id, paper_id=p2_1["paper_id"],
+            action="override_exclude", exclusion_reason="No Control / Comparator Group",
+            reviewer_note=f"[{name_b}] Absence of comparator group confirmed."
+        )
+        logger.info("      ✓ Both reviewers voted Override Exclude on Full-Text.")
 
-            # Case 3: Conflict & Arbiter Resolution on paper 2
-            p2_2 = sampled_papers_g2[2]
-            logger.info(f"   ✍️ [Gate 2 Case 3 - Full-Text Reviewer Conflict & Arbiter Ruling] Paper: '{p2_2.get('title', p2_2['paper_id'])[:45]}...'")
-            slr_svc.submit_screening_review(
-                cohort_id=cohort_g2_id, paper_id=p2_2["paper_id"],
-                action="override_include",
-                evidence_citation="Section 4.2 presents robust trial sensitivity analysis.",
-                reviewer_note="Primary reviewer: trial sensitivity analysis satisfies criteria."
-            )
-            sec_slr_svc.submit_screening_review(
-                cohort_id=cohort_g2_id, paper_id=p2_2["paper_id"],
-                action="override_exclude", exclusion_reason="Insufficient Quantitative Data Reported",
-                reviewer_note="Secondary reviewer: missing raw variance metrics in Table 2."
-            )
-            logger.info("      ⚖️ Split votes registered on Full-Text -> Escalated to Senior Arbiter.")
+        # Case 3: Reviewer Conflict (Split Vote) & Senior Arbiter Resolution to INCLUDE (Paper 2)
+        p2_2 = sampled_papers_g2[2]
+        r_a, r_b, name_a, name_b = reviewer_pairs[2]
+        logger.info(f"   ✍️ [Gate 2 Case 3 - Full-Text Reviewer Conflict & Arbiter Ruling ({name_a} vs {name_b})] Paper: '{p2_2.get('title', p2_2['paper_id'])[:45]}...'")
+        r_a.submit_screening_review(
+            cohort_id=cohort_g2_id, paper_id=p2_2["paper_id"],
+            action="override_include",
+            evidence_citation="Section 4.2 presents robust trial sensitivity analysis.",
+            reviewer_note=f"[{name_a}] Trial sensitivity analysis satisfies criteria."
+        )
+        r_b.submit_screening_review(
+            cohort_id=cohort_g2_id, paper_id=p2_2["paper_id"],
+            action="override_exclude", exclusion_reason="Insufficient Quantitative Data Reported",
+            reviewer_note=f"[{name_b}] Missing raw variance metrics in Table 2."
+        )
+        logger.info("      ⚖️ Split votes registered on Full-Text -> Escalated to Senior Arbiter.")
 
-            for p_rem in sampled_papers_g2[3:]:
-                slr_svc.submit_screening_review(cohort_id=cohort_g2_id, paper_id=p_rem["paper_id"], action="agree")
-                sec_slr_svc.submit_screening_review(cohort_id=cohort_g2_id, paper_id=p_rem["paper_id"], action="agree")
+        # Vote to INCLUDE on all remaining papers (Papers 3..10) so they advance to Extraction Gate
+        for idx, p_rem in enumerate(sampled_papers_g2[3:], start=3):
+            r_a, r_b, name_a, name_b = reviewer_pairs[idx % len(reviewer_pairs)]
+            p_det_rem = slr_svc.get_cohort_paper(cohort_g2_id, p_rem["paper_id"])
+            act_rem = "agree" if p_det_rem.get("ai_decision") == "include" else "override_include"
+            r_a.submit_screening_review(
+                cohort_id=cohort_g2_id, paper_id=p_rem["paper_id"], action=act_rem,
+                evidence_citation="Section 4: Evaluation benchmarks corroborated.",
+                reviewer_note=f"[{name_a}] Full-text meets criteria.",
+            )
+            r_b.submit_screening_review(
+                cohort_id=cohort_g2_id, paper_id=p_rem["paper_id"], action=act_rem,
+                evidence_citation="Section 5: Mathematical formulations verified.",
+                reviewer_note=f"[{name_b}] Concurs with full-text inclusion.",
+            )
 
-            # Check cohort paused
-            cohort_g2_mid = slr_svc.get_cohort(cohort_g2_id)
-            assert cohort_g2_mid.get("is_audit_complete") is False, "Cohort must remain paused while Gate 2 dispute is pending!"
+        # Check cohort paused
+        cohort_g2_mid = slr_svc.get_cohort(cohort_g2_id)
+        assert cohort_g2_mid.get("is_audit_complete") is False, "Cohort must remain paused while Gate 2 dispute is pending!"
 
-            # Senior Arbiter resolves dispute
-            pending_disputes_g2 = arbiter_slr_svc.list_disputes(status="pending")
-            matching_dispute_g2 = next(
-                (d for d in pending_disputes_g2 if str(d.get("paper")) == str(p2_2["paper_id"]) or d.get("sample_cohort") == cohort_g2_id),
-                None
-            )
-            assert matching_dispute_g2 is not None, f"No pending dispute found for Gate 2 paper {p2_2['paper_id']}! Disputes: {pending_disputes_g2}"
-            logger.info(f"   🧑‍⚖️ Senior Arbiter ruling on Gate 2 dispute {matching_dispute_g2['id']}...")
-            resolve_resp_g2 = arbiter_slr_svc.resolve_dispute(
-                dispute_id=matching_dispute_g2["id"],
-                final_decision="include",
-                resolution_rationale="Senior Arbiter ruling: Table 2 confidence intervals allow deriving required variance."
-            )
-            assert resolve_resp_g2.get("status") == "resolved"
-            dispute_g2_id = matching_dispute_g2["id"]
-            logger.info("   ✓ Gate 2 dispute resolved cleanly (final_decision='include').")
-        else:
-            # If 2 papers: test conflict on paper 1
-            p2_1 = sampled_papers_g2[1]
-            logger.info(f"   ✍️ [Gate 2 Case 2 - Full-Text Conflict & Arbiter Ruling] Paper: '{p2_1.get('title', p2_1['paper_id'])[:45]}...'")
-            slr_svc.submit_screening_review(
-                cohort_id=cohort_g2_id, paper_id=p2_1["paper_id"],
-                action="override_include",
-                evidence_citation="Section 3 trial protocol confirmed.",
-                reviewer_note="Primary reviewer: inclusion justified."
-            )
-            sec_slr_svc.submit_screening_review(
-                cohort_id=cohort_g2_id, paper_id=p2_1["paper_id"],
-                action="override_exclude", exclusion_reason="Wrong Study Population",
-                reviewer_note="Secondary reviewer: cohort population out of scope."
-            )
-            cohort_g2_mid = slr_svc.get_cohort(cohort_g2_id)
-            assert cohort_g2_mid.get("is_audit_complete") is False
-
-            pending_disputes_g2 = arbiter_slr_svc.list_disputes(status="pending")
-            matching_dispute_g2 = next(
-                (d for d in pending_disputes_g2 if str(d.get("paper")) == str(p2_1["paper_id"]) or d.get("sample_cohort") == cohort_g2_id),
-                None
-            )
-            assert matching_dispute_g2 is not None
-            logger.info(f"   🧑‍⚖️ Senior Arbiter ruling on Gate 2 dispute {matching_dispute_g2['id']}...")
-            resolve_resp_g2 = arbiter_slr_svc.resolve_dispute(
-                dispute_id=matching_dispute_g2["id"],
-                final_decision="include",
-                resolution_rationale="Senior Arbiter ruling: Inclusion justified per protocol."
-            )
-            assert resolve_resp_g2.get("status") == "resolved"
-            dispute_g2_id = matching_dispute_g2["id"]
+        # Senior Arbiter resolves dispute in favor of INCLUDE so paper advances!
+        pending_disputes_g2 = arbiter_slr_svc.list_disputes(status="pending")
+        matching_dispute_g2 = next(
+            (d for d in pending_disputes_g2 if str(d.get("paper")) == str(p2_2["paper_id"]) or d.get("sample_cohort") == cohort_g2_id),
+            None
+        )
+        assert matching_dispute_g2 is not None, f"No pending dispute found for Gate 2 paper {p2_2['paper_id']}! Disputes: {pending_disputes_g2}"
+        logger.info(f"   🧑‍⚖️ Senior Arbiter ruling on Gate 2 dispute {matching_dispute_g2['id']}...")
+        resolve_resp_g2 = arbiter_slr_svc.resolve_dispute(
+            dispute_id=matching_dispute_g2["id"],
+            final_decision="include",
+            resolution_rationale="Senior Arbiter ruling: Table 2 confidence intervals allow deriving required variance; full-text inclusion approved."
+        )
+        assert resolve_resp_g2.get("status") == "resolved"
+        dispute_g2_id = matching_dispute_g2["id"]
+        logger.info("   ✓ Gate 2 dispute resolved cleanly (final_decision='include'). 10 papers advance!")
 
         cohort_g2_detail_after = slr_svc.get_cohort(cohort_g2_id)
         assert cohort_g2_detail_after.get("is_audit_complete") is True
@@ -666,8 +684,15 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
         cohort_g3_id = matching_cohorts_g3[0]["cohort_id"]
         cohort_g3_detail = slr_svc.get_cohort(cohort_g3_id)
         sampled_papers_g3 = cohort_g3_detail.get("papers", [])
+        assert len(sampled_papers_g3) >= 8, f"Gate 3 cohort expected ~10 papers! Found: {len(sampled_papers_g3)}"
 
-        # Audit extractions for papers in cohort with diverse actions (verify, modify, reject)
+        # Rotate 3 auditors across the extracted parameters
+        auditors = [
+            (slr_svc, r1_name),
+            (r2_slr_svc, r2_name),
+            (r3_slr_svc, r3_name),
+        ]
+
         audit_count = 0
         verified_count = 0
         modified_count = 0
@@ -684,27 +709,28 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
                 if not ext_id:
                     continue
 
-                global_ext_idx = audit_count % 3
-                if global_ext_idx == 0:
-                    # Action: Verify
-                    audit_resp = slr_svc.submit_extraction_audit(
+                auditor_slr, auditor_name = auditors[audit_count % len(auditors)]
+                act_mod = audit_count % 6
+                if act_mod in (0, 1, 3, 4):
+                    # Action: Verify (majority of parameters kept clean)
+                    audit_resp = auditor_slr.submit_extraction_audit(
                         cohort_id=cohort_g3_id,
                         extraction_id=ext_id,
                         action="verify",
-                        reviewer_notes="Reported parameter value verified against experimental figures.",
+                        reviewer_notes=f"[{auditor_name}] Reported parameter verified against experimental figures.",
                     )
                     verified_count += 1
-                elif global_ext_idx == 1:
+                elif act_mod == 2:
                     # Action: Modify
                     p_name = str(ext.get("parameter_name") or ext.get("category") or "").lower()
                     if "readiness" in p_name or "innovation" in p_name:
-                        c_fields = {"innovation_score": 8.5, "trl_level": 5, "justification": "Auditor adjusted architectural novelty to 8.5 and TRL to 5 based on Figure 4."}
-                        r_notes = "Adjusted innovation score to 8.5 and verified prototype readiness."
+                        c_fields = {"innovation_score": 8.5, "trl_level": 5, "justification": f"[{auditor_name}] Adjusted novelty to 8.5 and TRL to 5 based on Figure 4."}
+                        r_notes = f"[{auditor_name}] Adjusted innovation score to 8.5 and verified prototype readiness."
                     else:
-                        c_fields = {"accuracy_pct": 95.8, "benchmark_dataset": "ImageNet-1k", "justification": "Auditor corrected baseline metric to match Table 3 empirical data."}
-                        r_notes = "Corrected reported baseline accuracy from 93.0% to 95.8%."
+                        c_fields = {"accuracy_pct": 95.8, "benchmark_dataset": "ImageNet-1k", "justification": f"[{auditor_name}] Corrected baseline metric to match Table 3 empirical data."}
+                        r_notes = f"[{auditor_name}] Corrected reported baseline accuracy from 93.0% to 95.8%."
 
-                    audit_resp = slr_svc.submit_extraction_audit(
+                    audit_resp = auditor_slr.submit_extraction_audit(
                         cohort_id=cohort_g3_id,
                         extraction_id=ext_id,
                         action="modify",
@@ -712,13 +738,13 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
                         reviewer_notes=r_notes,
                     )
                     modified_count += 1
-                else:
+                else:  # act_mod == 5
                     # Action: Reject
-                    audit_resp = slr_svc.submit_extraction_audit(
+                    audit_resp = auditor_slr.submit_extraction_audit(
                         cohort_id=cohort_g3_id,
                         extraction_id=ext_id,
                         action="reject",
-                        reviewer_notes="Extracted metric rejected: parameter hallucinated and not substantiated by source text.",
+                        reviewer_notes=f"[{auditor_name}] Parameter hallucinated and not substantiated by source text.",
                     )
                     rejected_count += 1
 
@@ -735,7 +761,7 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
             "rejected": rejected_count,
             "status": "COMPLETED_AND_RESUMED",
         }
-        logger.info(f"   ✅ Gate 3 Extraction Audit completed: {verified_count} verified, {modified_count} modified, {rejected_count} rejected. Pipeline auto-resumed.")
+        logger.info(f"   ✅ Gate 3 Extraction Audit completed: {verified_count} verified, {modified_count} modified, {rejected_count} rejected across 3 reviewers. Pipeline auto-resumed.")
 
         # =====================================================================
         # Step 8: Final Pipeline Completion
@@ -761,23 +787,24 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
         ft_assessed = prisma_data.get("full_text_assessed") if "full_text_assessed" in prisma_data else prisma_data.get("full_text_assessed")
         included = prisma_data.get("studies_included_synthesis") if "studies_included_synthesis" in prisma_data else (prisma_data.get("studies_included_meta_analysis") or prisma_data.get("included"))
 
-        assert identified is not None and identified >= 4, f"PRISMA missing identified count: {prisma_data}"
-        assert screened is not None and screened >= 4, f"PRISMA missing screened count: {prisma_data}"
-        assert excluded_abs is not None and excluded_abs >= 1, f"Expected abstract exclusions to be recorded: {prisma_data}"
-        assert ft_assessed is not None and ft_assessed >= 1, f"PRISMA missing full_text_assessed: {prisma_data}"
-        assert included is not None and included >= 1, f"PRISMA missing included count: {prisma_data}"
+        assert identified is not None and identified >= 10, f"PRISMA missing identified count: {prisma_data}"
+        assert screened is not None and screened >= 10, f"PRISMA missing screened count: {prisma_data}"
+        assert excluded_abs is not None and excluded_abs == 1, f"Expected 1 abstract exclusion: {prisma_data}"
+        assert ft_assessed is not None and ft_assessed >= 9, f"PRISMA missing full_text_assessed: {prisma_data}"
+        assert included is not None and included >= 8, f"PRISMA expected ~10 included studies: {prisma_data}"
         scenario_results["prisma_metrics"] = prisma_data
         logger.info(f"   ✓ PRISMA Flow: Identified={identified}, Screened={screened}, Excluded={excluded_abs}, FullTextAssessed={ft_assessed}, Included={included}")
 
         rob_assessments = slr_svc.get_rob_assessments(pipeline_run_id)
         scenario_results["rob_assessments_count"] = len(rob_assessments)
+        assert len(rob_assessments) >= 7, f"Expected at least 7 RoB assessments, found: {len(rob_assessments)}"
         logger.info(f"   ✓ Risk of Bias Assessments generated: {len(rob_assessments)} studies appraised.")
 
         # Verify Disputes Audit Trail
         pending_disputes = arbiter_slr_svc.list_disputes(status="pending")
         assert len(pending_disputes) == 0, f"Expected 0 pending disputes, found: {pending_disputes}"
         resolved_disputes = arbiter_slr_svc.list_disputes(status="resolved")
-        assert len(resolved_disputes) >= 1, f"Expected resolved disputes in audit trail, found: {len(resolved_disputes)}"
+        assert len(resolved_disputes) >= 2, f"Expected at least 2 resolved disputes, found: {len(resolved_disputes)}"
         logger.info(f"   ✓ Disputes Audit Trail: 0 pending, {len(resolved_disputes)} resolved by Senior Arbiter.")
 
         scenario_results["status"] = "PASSED"
