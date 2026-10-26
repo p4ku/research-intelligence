@@ -35,6 +35,14 @@ else
   echo "ℹ️ No local .env file found; using active shell environment variables."
 fi
 
+# Normalize MinIO and S3 credentials (ensures clean variables without nested compose syntax)
+export MINIO_ROOT_USER="${MINIO_ROOT_USER:-${MINIO_ACCESS_KEY:-${AWS_ACCESS_KEY_ID:-minio_dev_user}}}"
+export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-${MINIO_SECRET_KEY:-${AWS_SECRET_ACCESS_KEY:-minio_dev_password}}}"
+export MINIO_ACCESS_KEY="${MINIO_ROOT_USER}"
+export MINIO_SECRET_KEY="${MINIO_ROOT_PASSWORD}"
+export AWS_ACCESS_KEY_ID="${MINIO_ROOT_USER}"
+export AWS_SECRET_ACCESS_KEY="${MINIO_ROOT_PASSWORD}"
+
 # Ensure this node is a Swarm manager
 SWARM_STATE="$(docker info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null || echo "inactive")"
 IS_MANAGER="$(docker info --format '{{.Swarm.ControlAvailable}}' 2>/dev/null || echo "false")"
@@ -64,7 +72,7 @@ docker stack deploy -c "${COMPOSE_FILE}" "${STACK_NAME}"
 
 # 3. Force-rolling restart of services to pick up newly built images
 echo -e "\n🔄 [3/3] Forcing zero-downtime service rolling restart..."
-SERVICES=("api" "mcp" "worker" "beat" "frontend")
+SERVICES=("api" "mcp" "worker" "beat" "frontend" "minio")
 for svc in "${SERVICES[@]}"; do
   SERVICE_NAME="${STACK_NAME}_${svc}"
   if docker service inspect "${SERVICE_NAME}" >/dev/null 2>&1; then
