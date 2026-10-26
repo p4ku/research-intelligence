@@ -71,14 +71,17 @@ if endpoint_url and not endpoint_url.startswith("http"):
 
 try:
     import boto3
+    from botocore.config import Config
     from botocore.exceptions import ClientError
 
+    boto_config = Config(connect_timeout=3, read_timeout=3, retries={"max_attempts": 2})
     s3 = boto3.client(
         "s3",
         endpoint_url=endpoint_url,
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
         region_name=region,
+        config=boto_config,
     )
     try:
         s3.head_bucket(Bucket=bucket_name)
