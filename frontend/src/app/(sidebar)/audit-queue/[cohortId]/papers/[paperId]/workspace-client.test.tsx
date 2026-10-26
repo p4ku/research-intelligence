@@ -61,6 +61,7 @@ const samplePaper: AuditPaperDetail = {
   total_count: 5,
   prev_paper_id: 'd0a80123-0000-4000-8000-000000000000',
   next_paper_id: 'd0a80123-0000-4000-8000-000000000002',
+  extractions: [],
 }
 
 describe('WorkspaceClient Component Rendering and Preloading', () => {
@@ -100,11 +101,7 @@ describe('WorkspaceClient Component Rendering and Preloading', () => {
     }
 
     const html = renderToStaticMarkup(
-      <WorkspaceClient
-        cohortId={sampleCohort.cohort_id}
-        paper={lastPaper}
-        cohort={sampleCohort}
-      />,
+      <WorkspaceClient cohortId={sampleCohort.cohort_id} paper={lastPaper} cohort={sampleCohort} />,
     )
 
     expect(html).not.toContain('rel="prefetch"')

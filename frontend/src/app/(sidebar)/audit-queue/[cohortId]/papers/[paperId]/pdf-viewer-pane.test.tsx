@@ -29,6 +29,7 @@ const paperWithPdf: AuditPaperDetail = {
   total_count: 5,
   prev_paper_id: null,
   next_paper_id: 'd0a80123-0000-4000-8000-000000000002',
+  extractions: [],
 }
 
 const paperWithoutPdf: AuditPaperDetail = {
@@ -47,7 +48,9 @@ describe('PdfViewerPane Component Rendering', () => {
     expect(html).toContain(
       'src="/bff/papers/d0a80123-0000-4000-8000-000000000001/pdf#toolbar=1&amp;navpanes=0"',
     )
-    expect(html).toContain('title="PDF viewer for Clinical Evaluation of Antiviral Therapies in Lassa Fever"')
+    expect(html).toContain(
+      'title="PDF viewer for Clinical Evaluation of Antiviral Therapies in Lassa Fever"',
+    )
   })
 
   test('renders active evidence focus banner and adjusts PDF iframe anchor hash with page and search query', () => {
@@ -88,7 +91,9 @@ describe('PdfViewerPane Component Rendering', () => {
     expect(html).toContain('Lancet Infectious Diseases')
     expect(html).toContain('2022')
     expect(html).toContain('href="https://doi.org/10.1016/S1473-3099(22)00001-X"')
-    expect(html).toContain('Randomized clinical trial assessing oral ribavirin vs standard of care...')
+    expect(html).toContain(
+      'Randomized clinical trial assessing oral ribavirin vs standard of care...',
+    )
   })
 
   test('highlights matching evidence in text mode with mark element', () => {
@@ -108,4 +113,3 @@ describe('PdfViewerPane Component Rendering', () => {
     expect(html).toContain('Highlighted matches shown below')
   })
 })
-

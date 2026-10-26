@@ -30,6 +30,7 @@ describe('offersStop', () => {
     const expected: Record<RunStatus, boolean> = {
       pending: true,
       running: true,
+      paused: true,
       completed: false,
       failed: false,
       aborted: false,

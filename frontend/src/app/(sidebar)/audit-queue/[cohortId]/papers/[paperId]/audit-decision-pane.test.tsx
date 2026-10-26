@@ -35,6 +35,7 @@ const unreviewedPaper: AuditPaperDetail = {
   total_count: 4,
   prev_paper_id: null,
   next_paper_id: 'd0a80123-0000-4000-8000-000000000002',
+  extractions: [],
 }
 
 const alreadyReviewedPaper: AuditPaperDetail = {
@@ -59,7 +60,9 @@ describe('AuditDecisionPane Component Rendering', () => {
     expect(html).toContain('AI DECISION: include')
     expect(html).toContain('Confidence: 96%')
     expect(html).toContain('AI Chain-of-Thought Rationale')
-    expect(html).toContain('Clear randomized controlled trial meeting all inclusion criteria for NSCLC.')
+    expect(html).toContain(
+      'Clear randomized controlled trial meeting all inclusion criteria for NSCLC.',
+    )
 
     // Eligibility criteria
     expect(html).toContain('RCT design')
@@ -209,5 +212,3 @@ describe('AuditDecisionPane Component Rendering', () => {
     expect(html).toContain('Navigate')
   })
 })
-
-

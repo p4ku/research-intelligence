@@ -48,6 +48,7 @@ function rowStatus(run: PipelineRun, currentId: string | null): RowStatus {
       return run.id === currentId ? 'current' : 'done'
     case 'running':
     case 'pending':
+    case 'paused':
       return 'processing'
     case 'failed':
     case 'aborted':
