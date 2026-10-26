@@ -134,7 +134,7 @@ test.describe('Journey 10: SLR Checkpoint Gates & Full User Lifecycle via React 
     }
   });
 
-  test('Complete SLR Human-in-the-Loop Journey via React Interface: Login -> Run Launch -> Gate 1 Audit -> Gate 2 Audit -> Gate 3 Audit -> Synthesis & Results', async ({ page }) => {
+  test('Complete SLR Human-in-the-Loop Journey via React Interface: Login -> Run Launch -> Gate 1 Audit -> Gate 2 Audit -> Gate 3 Audit -> Synthesis -> Quality Console (/slr: PRISMA, RoB 2, Arbiter & Kappa)', async ({ page }) => {
     const loginPage = new LoginPage(page);
     const sidebar = new SidebarNav(page);
     const auditQueue = new AuditQueuePage(page);
@@ -351,12 +351,68 @@ test.describe('Journey 10: SLR Checkpoint Gates & Full User Lifecycle via React 
     expect(isRunFinished).toBe(true);
     console.log('  ✓ Pipeline Run confirmed Completed in React UI!');
 
-    // Navigate to Briefings page
-    console.log('  Navigating to Briefings (/briefing) to view generated synthesis...');
-    await sidebar.navigateTo('briefing');
-    expect(await briefingPage.isLoaded()).toBe(true);
-    await expect(briefingPage.briefingContent.or(page.locator("main")).first()).toBeVisible({ timeout: 10_000 });
-    console.log('  ✓ Briefing synthesis & results successfully verified in React UI!');
+    // =========================================================================
+    // Phase 7: Verification of Unified SLR Console (/slr)
+    // (PRISMA 2020 Flow, RoB 2 Traffic Light Matrix, Agreement KPIs & Arbiter)
+    // =========================================================================
+    console.log('\n🔬 Phase 7: Navigating to Unified SLR Console (/slr)...');
+    const slrNavLink = page.locator("nav a[href='/slr'], aside a[href='/slr']").first();
+    if (await slrNavLink.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await slrNavLink.click();
+    } else {
+      await page.goto('/slr');
+    }
+    await page.waitForLoadState('networkidle');
+
+    // 1. Verify Header & Console loaded
+    await expect(page.locator("h1:has-text('SLR Review & Quality Console')")).toBeVisible({ timeout: 10_000 });
+    console.log('  ✓ SLR Review & Quality Console loaded successfully.');
+
+    // 2. Wskaźniki Zgodności (Cohen's Kappa & Kalibracja AI)
+    console.log('  Verifying Agreement & AI Calibration KPI Cards...');
+    await expect(page.locator("text=/Inter-Rater Reliability/i").first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("text=/AI vs. Human Concordance/i").first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("text=/AI Sensitivity/i").first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("text=/AI Specificity/i").first()).toBeVisible({ timeout: 5000 });
+    console.log('  ✓ All 4 Statistical Agreement KPI cards verified in React UI!');
+
+    // 3. Diagram PRISMA 2020 Flow
+    console.log('  Verifying PRISMA 2020 Flow Diagram...');
+    const prismaTab = page.locator("button:has-text('PRISMA 2020 Flow')").first();
+    await prismaTab.click();
+    await expect(page.locator("text=/PRISMA 2020 Statement Flow Diagram/i").first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("text=/1.*Identification/i").first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("text=/2.*Screening/i").first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("text=/3.*Eligibility/i").first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("text=/4.*Included Studies/i").first()).toBeVisible({ timeout: 5000 });
+    console.log('  ✓ PRISMA 2020 Statement Flow Diagram verified!');
+
+    // 4. Senior Arbiter Adjudication Console
+    console.log('  Verifying Senior Arbiter Console...');
+    const arbiterTab = page.locator("button:has-text('Arbiter Console')").first();
+    await arbiterTab.click();
+    await expect(page.locator("text=/Senior Arbiter Adjudication Console/i").first()).toBeVisible({ timeout: 5000 });
+    console.log('  ✓ Senior Arbiter Console verified in React UI!');
+
+    // 5. Risk of Bias Traffic Light Matrix & Drawer
+    console.log('  Verifying Cochrane Risk of Bias (RoB 2) Matrix & Grounding Drawer...');
+    const robTab = page.locator("button:has-text('Risk of Bias Matrix')").first();
+    await robTab.click();
+    await expect(page.locator("h3:has-text('Traffic Light Matrix')").first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("th:has-text('D1 Rand')").first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("th:has-text('Overall Bias')").first()).toBeVisible({ timeout: 5000 });
+
+    const inspectBtn = page.locator("button:has-text('Inspect')").first();
+    if (await inspectBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await inspectBtn.click();
+      await expect(page.locator("h4:has-text('Grounding Evidence')").first()).toBeVisible({ timeout: 5000 });
+      console.log('    • Grounding Evidence Drawer opened.');
+      const closeDrawerBtn = page.locator("button:has-text('Close Inspector')").first();
+      await closeDrawerBtn.click();
+      await expect(page.locator("h4:has-text('Grounding Evidence')")).not.toBeVisible({ timeout: 5000 });
+      console.log('    • Grounding Evidence Drawer closed.');
+    }
+    console.log('  ✓ Cochrane Risk of Bias Traffic Light Matrix & Drawer verified!');
 
     console.log('=================================================================');
     console.log('🎉 FULL SLR USER JOURNEY VIA REACT INTERFACE PASSED SUCCESSFULLY!');
