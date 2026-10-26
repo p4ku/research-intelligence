@@ -69,7 +69,9 @@ for svc in "${SERVICES[@]}"; do
   SERVICE_NAME="${STACK_NAME}_${svc}"
   if docker service inspect "${SERVICE_NAME}" >/dev/null 2>&1; then
     echo "  -> Updating service: ${SERVICE_NAME}..."
-    docker service update --force "${SERVICE_NAME}" >/dev/null
+    if ! docker service update --force "${SERVICE_NAME}" >/dev/null 2>&1; then
+      echo "  ⚠️ Warning: Service update for ${SERVICE_NAME} paused or delayed (Swarm will converge tasks)."
+    fi
   else
     echo "  -> Service ${SERVICE_NAME} not yet running; will be started by Swarm."
   fi

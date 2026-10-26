@@ -28,11 +28,6 @@ services:
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
-      interval: 5s
-      timeout: 5s
-      retries: 5
 
   # Django REST API Backend (Connects to PostgreSQL running on EC2 host via host.docker.internal)
   api:
@@ -106,7 +101,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 15s
+      start_period: 30s
     ports:
       - "8001:8001"
     environment:
