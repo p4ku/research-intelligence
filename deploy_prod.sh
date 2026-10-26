@@ -35,10 +35,23 @@ else
   echo "ℹ️ No local .env file found; using active shell environment variables."
 fi
 
-# Ensure Swarm mode is active
-if ! docker info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null | grep -qi "active"; then
-  echo "⚠️ Docker Swarm is not active on this host. Initializing single-node Swarm..."
-  docker swarm init || true
+# Ensure this node is a Swarm manager
+SWARM_STATE="$(docker info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null || echo "inactive")"
+IS_MANAGER="$(docker info --format '{{.Swarm.ControlAvailable}}' 2>/dev/null || echo "false")"
+
+if [ "$SWARM_STATE" != "active" ] || [ "$IS_MANAGER" != "true" ]; then
+  if [ "$SWARM_STATE" = "active" ] && [ "$IS_MANAGER" != "true" ]; then
+    echo "⚠️ Node is currently in Swarm as a worker, not a manager. Leaving worker state to re-initialize..."
+    docker swarm leave --force 2>/dev/null || true
+  fi
+
+  echo "⚠️ Initializing Docker Swarm manager on this host..."
+  if ! docker swarm init 2>/dev/null; then
+    PRIMARY_IP="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
+    PRIMARY_IP="${PRIMARY_IP:-127.0.0.1}"
+    echo "  -> Retrying docker swarm init with --advertise-addr ${PRIMARY_IP}..."
+    docker swarm init --advertise-addr "${PRIMARY_IP}"
+  fi
 fi
 
 # 1. Build container images (reads build args and local Dockerfiles)
