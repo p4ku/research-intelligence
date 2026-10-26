@@ -1047,9 +1047,10 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             201: OpenApiResponse(description="Member added or updated"),
         }
     )
-    @action(detail=True, methods=['get', 'post'], url_path='members')
+    @action(detail=True, methods=['get', 'post', 'delete'], url_path='members')
     def members(self, request, pk=None):
         import json
+        from django.db.models import Q
         workspace = self.get_object()
         if request.method == 'GET':
             members_list = WorkspaceMember.objects.filter(workspace=workspace).select_related('user')
@@ -1062,6 +1063,41 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                 }
                 for m in members_list
             ], status=status.HTTP_200_OK)
+
+        if request.method == 'DELETE':
+            target_username = (
+                request.query_params.get('member_username_or_email')
+                or request.query_params.get('username')
+                or request.query_params.get('email')
+                or (request.data.get('member_username_or_email') if isinstance(request.data, dict) else None)
+                or (request.data.get('username') if isinstance(request.data, dict) else None)
+                or (request.data.get('email') if isinstance(request.data, dict) else None)
+            )
+            if not target_username:
+                return Response(
+                    {"status": "error", "error": "Username or email is required to remove member."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            from research_intelligence.services import check_workspace_access
+            _, _, err = check_workspace_access(request.user, str(workspace.id), required_roles=['admin'])
+            if err and not (getattr(request.user, 'is_staff', False) or getattr(request.user, 'is_superuser', False)):
+                return Response({"status": "error", "error": err}, status=status.HTTP_403_FORBIDDEN)
+
+            deleted_count, _ = WorkspaceMember.objects.filter(
+                workspace=workspace
+            ).filter(
+                Q(user__username__iexact=target_username) | Q(user__email__iexact=target_username)
+            ).delete()
+
+            if deleted_count == 0:
+                return Response(
+                    {"status": "error", "error": f"Member '{target_username}' not found in workspace."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            return Response(
+                {"status": "success", "message": f"Member '{target_username}' removed from workspace '{workspace.name}'."},
+                status=status.HTTP_200_OK
+            )
 
         # POST: add/update member
         from mcp_server.tools.workspaces.members import add_workspace_member_logic

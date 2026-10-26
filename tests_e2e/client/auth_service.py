@@ -51,3 +51,31 @@ class AuthService:
             return resp.json()
         logger.info(f"ℹ️ Reviewer user '{username}' ready (status: {resp.status_code}).")
         return {}
+
+    def delete_user(self, username: str) -> bool:
+        """Deletes a user account via DELETE /api/auth/users/{username}/ (requires superuser/staff)."""
+        logger.info(f"🗑️ Deleting user '{username}'...")
+        resp = self.client.delete(f"/api/auth/users/{username}/")
+        if resp.status_code in (200, 204):
+            logger.info(f"✅ User '{username}' deleted successfully.")
+            return True
+        elif resp.status_code == 400 and "not found" in resp.text.lower():
+            logger.info(f"ℹ️ User '{username}' already absent/deleted.")
+            return True
+        elif resp.status_code == 404:
+            logger.info(f"ℹ️ User '{username}' not found (already deleted).")
+            return True
+        else:
+            logger.warning(f"⚠️ Could not delete user '{username}': {resp.status_code} - {resp.text}")
+            return False
+
+    def cleanup_users(self, usernames: list[str]) -> int:
+        """Safely cleans up a list of temporary user accounts."""
+        deleted_count = 0
+        for u in usernames:
+            try:
+                if self.delete_user(u):
+                    deleted_count += 1
+            except Exception as e:
+                logger.warning(f"Failed to delete temporary user '{u}': {e}")
+        return deleted_count

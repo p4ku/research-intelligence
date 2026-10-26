@@ -169,6 +169,37 @@ class WorkspaceService:
         logger.info(f"   👥 Added member '{username}' (role: {role}) to workspace {workspace_id}.")
         return data
 
+    def list_members(self, workspace_id: str) -> List[Dict[str, Any]]:
+        """Lists all members of a workspace."""
+        resp = self.client.get(f"/api/workspaces/{workspace_id}/members/", expected_status=200)
+        data = resp.json()
+        return data if isinstance(data, list) else data.get("results", [])
+
+    def remove_member(self, workspace_id: str, username: str) -> bool:
+        """Removes a user from workspace memberships."""
+        logger.info(f"   👥 Removing member '{username}' from workspace {workspace_id}...")
+        resp = self.client.delete(f"/api/workspaces/{workspace_id}/members/?username={username}")
+        if resp.status_code in (200, 204):
+            logger.info(f"   ✅ Member '{username}' removed from workspace {workspace_id}.")
+            return True
+        elif resp.status_code == 405:
+            logger.debug(f"ℹ️ DELETE /api/workspaces/{workspace_id}/members/ not implemented on server (405).")
+            return False
+        else:
+            logger.warning(f"⚠️ Could not remove member '{username}': {resp.status_code} - {resp.text}")
+            return False
+
+    def cleanup_test_members(self, workspace_id: str, usernames: List[str]) -> int:
+        """Removes a list of test members from the specified workspace."""
+        removed = 0
+        for u in usernames:
+            try:
+                if self.remove_member(workspace_id, u):
+                    removed += 1
+            except Exception as e:
+                logger.debug(f"Failed to remove member '{u}' from workspace {workspace_id}: {e}")
+        return removed
+
     def cleanup_old_test_workspaces(self, prefix: str = "test_e2e_") -> int:
         """
         Finds and deletes all previous test workspaces matching prefix (e.g. 'test_e2e_').

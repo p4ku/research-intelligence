@@ -121,6 +121,9 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
         "status": "IN_PROGRESS",
     }
 
+    test_reviewers = ["reviewer_alice", "reviewer_bob"]
+    arbiter_auth = None
+
     try:
         # Step 1: Authenticate Multi-Reviewer Team & Senior Arbiter
         r1_name = cfg.username
@@ -139,6 +142,15 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
         r2_name = "reviewer_alice"
         r3_name = "reviewer_bob"
         r_default_pass = "Password123!#"
+        test_reviewers = [r2_name, r3_name]
+
+        if cfg.cleanup_before:
+            ws_svc.cleanup_old_test_workspaces(prefix="test_e2e_slr_gates_")
+            logger.info("🧹 Purging any lingering test reviewer accounts from previous runs...")
+            for rev_user in test_reviewers:
+                arbiter_auth.delete_user(rev_user)
+
+        # Freshly bootstrap Reviewer 2 & Reviewer 3 accounts
         arbiter_auth.create_user_if_missing(r2_name, r_default_pass, "alice@example.com")
         arbiter_auth.create_user_if_missing(r3_name, r_default_pass, "bob@example.com")
 
@@ -154,9 +166,6 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
         r3_slr_svc = SLRService(r3_client)
 
         logger.info(f"👥 Reviewer Team Active: R1='{r1_name}', R2='{r2_name}', R3='{r3_name}', Arbiter='{arbiter_name}'")
-
-        if cfg.cleanup_before:
-            ws_svc.cleanup_old_test_workspaces(prefix="test_e2e_slr_gates_")
 
         # Step 2: Create Workspace with 100% Complete Production SLR Configuration
         logger.info("\n🏛️ Step 1: Provisioning SLR Workspace with full production configuration (prompts, schemas, exit metrics, signal score, extractions)...")
@@ -813,11 +822,31 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
         logger.info("=================================================================")
 
     finally:
-        # Cleanup if requested
-        if cfg.delete_after and scenario_results.get("workspace_id"):
-            logger.info("🧹 Post-test Cleanup: deleting temporary SLR workspace...")
-            ws_svc.delete_workspace(scenario_results["workspace_id"])
-            logger.info("   ✓ Workspace deleted.")
+        # Cleanup members & test reviewers if cleanup_after / delete_after is requested
+        if cfg.delete_after:
+            logger.info("\n🧹 Post-test Cleanup: Purging test members, reviewer accounts & temporary SLR workspace...")
+            ws_id = scenario_results.get("workspace_id")
+            if ws_id:
+                for rev_user in test_reviewers:
+                    try:
+                        ws_svc.remove_member(ws_id, rev_user)
+                    except Exception as e:
+                        logger.debug(f"Could not remove member '{rev_user}' from workspace '{ws_id}': {e}")
+
+            if arbiter_auth:
+                for rev_user in test_reviewers:
+                    try:
+                        arbiter_auth.delete_user(rev_user)
+                    except Exception as e:
+                        logger.warning(f"Could not delete test reviewer account '{rev_user}': {e}")
+
+            if ws_id:
+                try:
+                    ws_svc.delete_workspace(ws_id)
+                    logger.info(f"   ✓ Workspace '{ws_id}' deleted.")
+                except Exception as e:
+                    logger.warning(f"Could not delete workspace '{ws_id}': {e}")
+            logger.info("✅ Post-test Cleanup completed successfully.")
 
     return scenario_results
 
