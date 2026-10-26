@@ -23,8 +23,8 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio_dev_user}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_dev_password}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-${MINIO_ACCESS_KEY:-${AWS_ACCESS_KEY_ID:-minio_dev_user}}}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-${MINIO_SECRET_KEY:-${AWS_SECRET_ACCESS_KEY:-minio_dev_password}}}
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
@@ -69,8 +69,8 @@ services:
       - MAX_CONCURRENT_RUNS_PER_WORKSPACE=${MAX_CONCURRENT_RUNS_PER_WORKSPACE:-5}
       # Unified Object Storage (Local MinIO / AWS S3 / Google Cloud Storage)
       - STORAGE_BACKEND=${STORAGE_BACKEND:-minio}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio_dev_user}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minio_dev_password}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-minio_dev_user}}}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minio_dev_password}}}
       - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-slr-research-intelligence}
       - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-http://minio:9000}
       - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
@@ -126,8 +126,8 @@ services:
       - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
       - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-eu}
       - STORAGE_BACKEND=${STORAGE_BACKEND:-minio}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio_dev_user}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minio_dev_password}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-minio_dev_user}}}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minio_dev_password}}}
       - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-slr-research-intelligence}
       - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-http://minio:9000}
       - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
@@ -183,8 +183,8 @@ services:
       - EXTRACTION_PARALLEL_WORKERS=${EXTRACTION_PARALLEL_WORKERS:-4}
       - MAX_CONCURRENT_RUNS_PER_WORKSPACE=${MAX_CONCURRENT_RUNS_PER_WORKSPACE:-5}
       - STORAGE_BACKEND=${STORAGE_BACKEND:-minio}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio_dev_user}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minio_dev_password}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-minio_dev_user}}}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minio_dev_password}}}
       - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-slr-research-intelligence}
       - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-http://minio:9000}
       - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
@@ -232,8 +232,8 @@ services:
       - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
       - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-eu}
       - STORAGE_BACKEND=${STORAGE_BACKEND:-minio}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio_dev_user}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minio_dev_password}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-minio_dev_user}}}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minio_dev_password}}}
       - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-slr-research-intelligence}
       - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-http://minio:9000}
       - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
