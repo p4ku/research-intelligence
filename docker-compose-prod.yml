@@ -16,7 +16,7 @@ services:
 
   # Local S3 replacement for storing original PDFs and Markdown files (optional fallback if AWS S3 not used)
   minio:
-    image: quay.io/minio/minio:latest
+    image: pgsty/silo:latest
     container_name: sri_minio_prod
     restart: always
     ports:
