@@ -91,25 +91,19 @@ export function ReviewHeader({
           href={prevPaperId ? `/audit-queue/${cohortId}/papers/${prevPaperId}` : undefined}
           disabled={!prevPaperId}
           plain
-          className="text-xs inline-flex items-center gap-1.5"
-          title="Previous Paper (Left Arrow: ←)"
+          className="text-xs font-semibold"
+          title="Previous Paper"
         >
-          <span>← Prev</span>
-          <kbd className="hidden sm:inline-block rounded border border-zinc-200 bg-zinc-100 px-1 py-0.5 text-[10px] font-mono text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
-            ←
-          </kbd>
+          ← Prev
         </Button>
         <Button
           href={nextPaperId ? `/audit-queue/${cohortId}/papers/${nextPaperId}` : undefined}
           disabled={!nextPaperId}
           plain
-          className="text-xs inline-flex items-center gap-1.5"
-          title="Next Paper (Right Arrow: →)"
+          className="text-xs font-semibold"
+          title="Next Paper"
         >
-          <span>Next →</span>
-          <kbd className="hidden sm:inline-block rounded border border-zinc-200 bg-zinc-100 px-1 py-0.5 text-[10px] font-mono text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
-            →
-          </kbd>
+          Next →
         </Button>
       </div>
     </header>
