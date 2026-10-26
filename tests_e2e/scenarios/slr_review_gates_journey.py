@@ -374,11 +374,14 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
         # =====================================================================
         logger.info("\n📊 Step 9: Verifying PRISMA Flow Diagram & Risk of Bias Appraisals...")
         prisma_data = slr_svc.get_prisma_metrics(pipeline_run_id)
-        assert "identified" in prisma_data, f"PRISMA missing 'identified': {prisma_data}"
-        assert "screened" in prisma_data, f"PRISMA missing 'screened': {prisma_data}"
-        assert "included" in prisma_data, f"PRISMA missing 'included': {prisma_data}"
+        identified = prisma_data.get("records_identified_total") if "records_identified_total" in prisma_data else prisma_data.get("identified")
+        screened = prisma_data.get("records_screened_abstract") if "records_screened_abstract" in prisma_data else prisma_data.get("screened")
+        included = prisma_data.get("studies_included_synthesis") if "studies_included_synthesis" in prisma_data else (prisma_data.get("studies_included_meta_analysis") or prisma_data.get("included"))
+        assert identified is not None, f"PRISMA missing identified count: {prisma_data}"
+        assert screened is not None, f"PRISMA missing screened count: {prisma_data}"
+        assert included is not None, f"PRISMA missing included count: {prisma_data}"
         scenario_results["prisma_metrics"] = prisma_data
-        logger.info(f"   ✓ PRISMA Flow: Identified={prisma_data.get('identified')}, Screened={prisma_data.get('screened')}, Included={prisma_data.get('included')}")
+        logger.info(f"   ✓ PRISMA Flow: Identified={identified}, Screened={screened}, Included={included}")
 
         rob_assessments = slr_svc.get_rob_assessments(pipeline_run_id)
         scenario_results["rob_assessments_count"] = len(rob_assessments)
