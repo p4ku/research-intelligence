@@ -96,9 +96,10 @@ class SLRService:
         data = resp.json()
         return data.get("results", data) if isinstance(data, dict) else data
 
-    def list_disputes(self) -> List[Dict[str, Any]]:
+    def list_disputes(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
         """GET /api/slr/disputes/"""
-        resp = self.client.get("/api/slr/disputes/", expected_status=200)
+        url = f"/api/slr/disputes/?status={status}" if status else "/api/slr/disputes/"
+        resp = self.client.get(url, expected_status=200)
         data = resp.json()
         return data.get("results", data) if isinstance(data, dict) else data
 
