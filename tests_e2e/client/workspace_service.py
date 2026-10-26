@@ -84,12 +84,18 @@ class WorkspaceService:
         full_text_screening_user_prompt_template: Optional[str] = None,
         full_text_screening_response_schema: Optional[Dict[str, Any]] = None,
         full_text_screening_exit_metric: Optional[str] = None,
+        narrative_report_system_prompt: Optional[str] = None,
+        narrative_report_prompt: Optional[str] = None,
+        narrative_report_top_n_papers: Optional[int] = 10,
         signal_score_code: Optional[str] = None,
         screening_llm_model: str = "google/gemini-3.8-flash",
+        llm_provider: str = "google",
         ocr_provider: Optional[str] = None,
         reasoning_effort: str = "medium",
         skip_abstract_screening: bool = False,
         reprocess_existing: bool = True,
+        monthly_token_limit: Optional[int] = None,
+        monthly_usd_limit: Optional[float] = None,
         extraction_definitions: Optional[List[Dict[str, Any]]] = None,
         scrapers: Optional[List[Dict[str, Any]]] = None,
         subscribers: Optional[List[Dict[str, Any]]] = None,
@@ -108,13 +114,21 @@ class WorkspaceService:
             "full_text_screening_user_prompt_template": full_text_screening_user_prompt_template,
             "full_text_screening_response_schema": full_text_screening_response_schema,
             "full_text_screening_exit_metric": full_text_screening_exit_metric,
+            "narrative_report_system_prompt": narrative_report_system_prompt,
+            "narrative_report_prompt": narrative_report_prompt,
+            "narrative_report_top_n_papers": narrative_report_top_n_papers,
             "signal_score_code": signal_score_code,
             "screening_llm_model": screening_llm_model,
+            "llm_provider": llm_provider,
             "ocr_provider": ocr_provider,
             "reasoning_effort": reasoning_effort,
             "skip_abstract_screening": skip_abstract_screening,
             "reprocess_existing": reprocess_existing,
         }
+        if monthly_token_limit is not None:
+            payload["monthly_token_limit"] = monthly_token_limit
+        if monthly_usd_limit is not None:
+            payload["monthly_usd_limit"] = monthly_usd_limit
         if extraction_definitions is None:
             extraction_definitions = self.get_default_e2e_extraction_definitions(prefix=f"{name}_")
         if extraction_definitions:

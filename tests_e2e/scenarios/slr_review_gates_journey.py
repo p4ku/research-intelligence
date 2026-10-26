@@ -146,8 +146,8 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
         if cfg.cleanup_before:
             ws_svc.cleanup_old_test_workspaces(prefix="test_e2e_slr_gates_")
 
-        # Step 2: Create Workspace with Systematic Review Criteria
-        logger.info("\n🏛️ Step 1: Provisioning SLR Workspace with dual-stage criteria...")
+        # Step 2: Create Workspace with 100% Complete Production SLR Configuration
+        logger.info("\n🏛️ Step 1: Provisioning SLR Workspace with full production configuration (prompts, schemas, exit metrics, signal score, extractions)...")
         abstract_acceptance = (
             "Accept all peer-reviewed research papers presenting computational methods, deep learning, "
             "optimization algorithms, or artificial intelligence architectures."
@@ -156,36 +156,209 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
         full_text_acceptance = "Accept papers with empirical evaluations, benchmarks, or mathematical derivations."
         full_text_rejection = "Reject papers with zero empirical metrics or absent methodology."
 
+        abstract_system_prompt = (
+            "You are an expert AI Research Reviewer. Screen the provided academic abstract against "
+            "the workspace Acceptance Criteria and Rejection Criteria with publication-grade rigor. "
+            "Evaluate methodological relevance, algorithmic soundness, and domain scope. "
+            "Output strictly valid JSON conforming to the response schema."
+        )
+        abstract_user_template = (
+            "<UNTRUSTED_DOCUMENT_CONTENT>\n"
+            "Title: {title}\n"
+            "Abstract:\n{abstract}\n"
+            "</UNTRUSTED_DOCUMENT_CONTENT>\n\n"
+            "Acceptance Criteria (must satisfy):\n{acceptance_criteria}\n\n"
+            "Rejection Criteria (if matched, exclude):\n{rejection_criteria}"
+        )
+        abstract_schema = {
+            "type": "object",
+            "required": ["passed", "reasoning", "evidence_quotes", "decision_category", "fit_score"],
+            "properties": {
+                "passed": {"type": "boolean", "description": "Whether the paper satisfies inclusion criteria."},
+                "reasoning": {"type": "string", "description": "Concise justification for abstract screening decision."},
+                "evidence_quotes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Direct quotes from abstract supporting the decision.",
+                },
+                "decision_category": {"type": "string", "description": "Classification category (e.g. Core Architecture, Excluded Domain)."},
+                "fit_score": {"type": "number", "minimum": 0, "maximum": 10, "description": "Relevance fit score from 0.0 to 10.0."},
+            },
+        }
+
+        full_text_system_prompt = (
+            "You are a Senior Principal AI Researcher and Systematic Reviewer. Conduct a comprehensive full-text "
+            "appraisal of the provided paper against the defined criteria. Scrutinize the mathematical derivations, "
+            "empirical baselines, experimental convergence, and statistical significance."
+        )
+        full_text_user_template = (
+            "<UNTRUSTED_DOCUMENT_CONTENT>\n"
+            "Title: {title}\n\n"
+            "Full-Text Content:\n{full_text}\n"
+            "</UNTRUSTED_DOCUMENT_CONTENT>\n\n"
+            "Acceptance Criteria:\n{acceptance_criteria}\n\n"
+            "Rejection Criteria:\n{rejection_criteria}"
+        )
+        full_text_schema = {
+            "type": "object",
+            "required": ["passed", "reasoning", "evidence_quotes", "decision_category", "novelty_score"],
+            "properties": {
+                "passed": {"type": "boolean", "description": "Whether full text satisfies inclusion criteria."},
+                "reasoning": {"type": "string", "description": "Detailed appraisal justification citing sections and findings."},
+                "evidence_quotes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Technical quotes or key phrases extracted from full text.",
+                },
+                "decision_category": {"type": "string", "description": "Decision category label (e.g. Benchmark Verified, Missing Baselines)."},
+                "novelty_score": {"type": "number", "minimum": 0, "maximum": 10, "description": "Novelty and quality score from 0.0 to 10.0."},
+            },
+        }
+
+        signal_score_formula = (
+            "# Composite Production Signal Score Formula (AST Sandboxed Python 3)\n"
+            "# Signals available from extraction definitions & screening exit metrics:\n"
+            "# fit_score, novelty_score, accuracy_pct, latency_ms, innovation_score, trl_level\n"
+            "fit = float(fit_score) if fit_score else 8.0\n"
+            "nov = float(novelty_score) if novelty_score else 7.5\n"
+            "acc = float(accuracy_pct) if accuracy_pct else 92.0\n"
+            "inv = float(innovation_score) if innovation_score else 7.0\n\n"
+            "# Normalize accuracy percentage to 0.0-10.0 scale\n"
+            "norm_acc = min(max(acc / 10.0, 0.0), 10.0)\n\n"
+            "# Composite weighted score: 25% fit, 30% novelty, 25% accuracy, 20% innovation\n"
+            "composite = round(0.25 * fit + 0.30 * nov + 0.25 * norm_acc + 0.20 * inv, 2)\n"
+            "return composite\n"
+        )
+
+        narrative_system = (
+            "You are an expert Chief Scientific Officer and Senior Systematic Literature Reviewer. "
+            "Synthesize a publication-grade Executive Research Briefing in Markdown format based on "
+            "the top breakthrough papers, their experimental metrics, and composite signal scores."
+        )
+        narrative_prompt = (
+            "Synthesize an Executive Systematic Review Briefing for workspace '{workspace_name}' (Pipeline Run: {run_id}).\n\n"
+            "Identified Papers Total: {total_papers}\n"
+            "Accepted Studies: {accepted_papers_count}\n"
+            "Average Composite Signal Score: {avg_signal_score}\n\n"
+            "Top Accepted Breakthrough Papers Catalog:\n{papers}\n\n"
+            "Structured Score Vectors & Extracted Parameters Summary:\n{score_vectors_summary}\n\n"
+            "Structure the Executive Briefing as follows:\n"
+            "1. Executive Summary & Breakthrough Highlights\n"
+            "2. Cross-Study Methodological Synthesis\n"
+            "3. Empirical Benchmark Landscape & Performance Metrics Table\n"
+            "4. Strategic Recommendations & Technology Translation Roadmap"
+        )
+
         ext_defs_payload = [
             {
-                "name": f"accuracy_metric_{random_suffix}",
-                "exit_metrics": ["accuracy_pct"],
-                "system_prompt": "Extract the reported model accuracy or benchmark performance percentage.",
-                "user_prompt_template": "Paper: {title}\nContent:\n{content}\nExtract accuracy percentage.",
+                "name": f"Performance_Metrics_{random_suffix}",
+                "order": 1,
+                "primary_frontend_metric": "accuracy_pct",
+                "secondary_frontend_metrics": ["latency_ms", "benchmark_dataset"],
+                "exit_metrics": ["accuracy_pct", "latency_ms"],
+                "system_prompt": "Extract quantitative model performance metrics, benchmark evaluation dataset, and inference latency from the research paper.",
+                "user_prompt_template": "Paper: {title}\nContent:\n{content}\nExtract accuracy percentage, benchmark dataset, and inference latency.",
                 "response_schema": {
                     "type": "object",
-                    "required": ["accuracy_pct", "justification"],
+                    "required": ["accuracy_pct", "benchmark_dataset", "justification"],
                     "properties": {
-                        "accuracy_pct": {"type": "number"},
-                        "justification": {"type": "string"},
+                        "accuracy_pct": {"type": "number", "minimum": 0, "maximum": 100, "description": "Reported accuracy or benchmark percentage (0-100)"},
+                        "benchmark_dataset": {"type": "string", "description": "Benchmark or dataset evaluated on (e.g. ImageNet, GLUE, SQuAD)"},
+                        "latency_ms": {"type": "number", "description": "Reported inference latency in milliseconds"},
+                        "justification": {"type": "string", "description": "Direct citation or table reference from text"},
                     },
                 },
+                "postprocessing_code": (
+                    "# Normalize accuracy percentage to 0-10 scale for signal scoring\n"
+                    "acc = float(accuracy_pct) if 'accuracy_pct' in locals() and accuracy_pct is not None else 0.0\n"
+                    "norm_val = round(min(max(acc / 10.0, 0.0), 10.0), 2)\n"
+                    "return {'accuracy_pct_postprocessed': norm_val, 'normalized_acc': norm_val}\n"
+                ),
+                "llm_model": "google/gemini-3.8-flash",
+                "version": 1,
+                "requires_consensus": False,
                 "is_active": True,
-            }
+            },
+            {
+                "name": f"Readiness_Assessment_{random_suffix}",
+                "order": 2,
+                "primary_frontend_metric": "innovation_score",
+                "secondary_frontend_metrics": ["trl_level"],
+                "exit_metrics": ["innovation_score", "trl_level"],
+                "system_prompt": "Evaluate the architectural innovation (1-10) and Technology Readiness Level (TRL 1-9) of the presented research.",
+                "user_prompt_template": "Paper: {title}\nContent:\n{content}\nEvaluate architectural novelty (1-10) and assess TRL level (1-9).",
+                "response_schema": {
+                    "type": "object",
+                    "required": ["innovation_score", "trl_level", "justification"],
+                    "properties": {
+                        "innovation_score": {"type": "number", "minimum": 1, "maximum": 10, "description": "Architectural novelty and originality score (1-10)"},
+                        "trl_level": {"type": "integer", "minimum": 1, "maximum": 9, "description": "Technology Readiness Level (1-9)"},
+                        "justification": {"type": "string", "description": "Rationale justifying innovation and TRL assessment"},
+                    },
+                },
+                "postprocessing_code": (
+                    "# Compute combined readiness index\n"
+                    "innov = float(innovation_score) if 'innovation_score' in locals() and innovation_score is not None else 5.0\n"
+                    "trl = float(trl_level) if 'trl_level' in locals() and trl_level is not None else 3.0\n"
+                    "readiness_index = round(0.6 * innov + 0.4 * (trl * 1.1), 2)\n"
+                    "return {'readiness_index': readiness_index, 'innovation_score_postprocessed': innov}\n"
+                ),
+                "llm_model": "google/gemini-3.8-flash",
+                "version": 1,
+                "requires_consensus": False,
+                "is_active": True,
+            },
         ]
 
         ws_data = ws_svc.create_workspace(
             name=workspace_name,
             abstract_acceptance_criteria=abstract_acceptance,
             abstract_rejection_criteria=abstract_rejection,
+            abstract_screening_system_prompt=abstract_system_prompt,
+            abstract_screening_user_prompt_template=abstract_user_template,
+            abstract_screening_response_schema=abstract_schema,
+            abstract_screening_exit_metric="fit_score",
             full_text_acceptance_criteria=full_text_acceptance,
             full_text_rejection_criteria=full_text_rejection,
+            full_text_screening_system_prompt=full_text_system_prompt,
+            full_text_screening_user_prompt_template=full_text_user_template,
+            full_text_screening_response_schema=full_text_schema,
+            full_text_screening_exit_metric="novelty_score",
+            signal_score_code=signal_score_formula,
+            narrative_report_system_prompt=narrative_system,
+            narrative_report_prompt=narrative_prompt,
+            narrative_report_top_n_papers=10,
             screening_llm_model="google/gemini-3.8-flash",
+            llm_provider="google",
+            ocr_provider="pypdf",
+            reasoning_effort="medium",
+            monthly_token_limit=10000000,
+            monthly_usd_limit=100.0,
             extraction_definitions=ext_defs_payload,
         )
         workspace_id = ws_data["id"]
         scenario_results["workspace_id"] = workspace_id
         DataConsistencyValidator.validate_uuid(workspace_id, "workspace_id")
+
+        # Validate that all dynamic fields, prompts, schemas, metrics & formulas were persisted
+        assert ws_data.get("abstract_screening_system_prompt") is not None, "Missing abstract_screening_system_prompt"
+        assert ws_data.get("abstract_screening_user_prompt_template") is not None, "Missing abstract_screening_user_prompt_template"
+        assert ws_data.get("abstract_screening_response_schema") is not None, "Missing abstract_screening_response_schema"
+        assert ws_data.get("abstract_screening_exit_metric") == "fit_score", f"Unexpected abstract exit metric: {ws_data.get('abstract_screening_exit_metric')}"
+        assert ws_data.get("full_text_screening_system_prompt") is not None, "Missing full_text_screening_system_prompt"
+        assert ws_data.get("full_text_screening_user_prompt_template") is not None, "Missing full_text_screening_user_prompt_template"
+        assert ws_data.get("full_text_screening_response_schema") is not None, "Missing full_text_screening_response_schema"
+        assert ws_data.get("full_text_screening_exit_metric") == "novelty_score", f"Unexpected full text exit metric: {ws_data.get('full_text_screening_exit_metric')}"
+        assert ws_data.get("signal_score_code") is not None, "Missing signal_score_code"
+        assert ws_data.get("narrative_report_prompt") is not None, "Missing narrative_report_prompt"
+        assert len(ws_data.get("extraction_definitions", [])) >= 2, f"Expected at least 2 extraction definitions, found: {len(ws_data.get('extraction_definitions', []))}"
+
+        logger.info(f"   ✓ Workspace '{workspace_name}' provisioned with 100% complete production configuration:")
+        logger.info(f"     • Abstract Gate: exit='{ws_data.get('abstract_screening_exit_metric')}', schema validated")
+        logger.info(f"     • Full-Text Gate: exit='{ws_data.get('full_text_screening_exit_metric')}', schema validated")
+        logger.info(f"     • Signal Score: AST-sandboxed Python composite formula active")
+        logger.info(f"     • Executive Briefing: Custom narrative synthesis prompt active (Top {ws_data.get('narrative_report_top_n_papers')} studies)")
+        logger.info(f"     • Extraction Definitions: {len(ws_data.get('extraction_definitions', []))} multi-metric targets with postprocessing code & frontend metrics")
 
         # Step 3: Configure SLR Policy Engine with Dual Review Quorum & Arbiter Strategy
         logger.info("⚙️  Step 2: Configuring SLR Policy Engine (dual-review quorum, checkpoint gates & arbiter)...")
@@ -523,12 +696,20 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
                     verified_count += 1
                 elif global_ext_idx == 1:
                     # Action: Modify
+                    p_name = str(ext.get("parameter_name") or ext.get("category") or "").lower()
+                    if "readiness" in p_name or "innovation" in p_name:
+                        c_fields = {"innovation_score": 8.5, "trl_level": 5, "justification": "Auditor adjusted architectural novelty to 8.5 and TRL to 5 based on Figure 4."}
+                        r_notes = "Adjusted innovation score to 8.5 and verified prototype readiness."
+                    else:
+                        c_fields = {"accuracy_pct": 95.8, "benchmark_dataset": "ImageNet-1k", "justification": "Auditor corrected baseline metric to match Table 3 empirical data."}
+                        r_notes = "Corrected reported baseline accuracy from 93.0% to 95.8%."
+
                     audit_resp = slr_svc.submit_extraction_audit(
                         cohort_id=cohort_g3_id,
                         extraction_id=ext_id,
                         action="modify",
-                        corrected_fields={"accuracy_pct": 95.8, "justification": "Auditor corrected baseline metric to match Table 3 empirical data."},
-                        reviewer_notes="Corrected reported baseline accuracy from 93.0% to 95.8%.",
+                        corrected_fields=c_fields,
+                        reviewer_notes=r_notes,
                     )
                     modified_count += 1
                 else:
