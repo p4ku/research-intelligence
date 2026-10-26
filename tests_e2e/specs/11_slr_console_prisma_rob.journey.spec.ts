@@ -122,20 +122,20 @@ test.describe('Journey 11: Unified SLR Console — PRISMA 2020 Flow, Arbiter Con
     const robTab = page.locator("button:has-text('Risk of Bias Matrix')").first()
     await robTab.click()
 
-    await expect(page.locator("text=/Cochrane Risk of Bias (RoB 2) Traffic Light Matrix/i").first()).toBeVisible({ timeout: 5000 })
+    await expect(page.locator("h3:has-text('Traffic Light Matrix')").first()).toBeVisible({ timeout: 5000 })
     await expect(page.locator("th:has-text('D1 Rand')").first()).toBeVisible({ timeout: 5000 })
     await expect(page.locator("th:has-text('Overall Bias')").first()).toBeVisible({ timeout: 5000 })
 
     // Click Inspect to test Grounding Evidence Drawer
-    const inspectBtn = page.locator("button:has-text('Inspect →')").first()
+    const inspectBtn = page.locator("button:has-text('Inspect')").first()
     if (await inspectBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await inspectBtn.click()
-      await expect(page.locator("text=/Risk of Bias Grounding Evidence/i").first()).toBeVisible({ timeout: 5000 })
+      await expect(page.locator("h4:has-text('Grounding Evidence')").first()).toBeVisible({ timeout: 5000 })
       console.log('  ✓ Risk of Bias Grounding Evidence Drawer opened.')
 
       const closeDrawerBtn = page.locator("button:has-text('Close Inspector')").first()
       await closeDrawerBtn.click()
-      await expect(page.locator("text=/Risk of Bias Grounding Evidence/i")).not.toBeVisible({ timeout: 5000 })
+      await expect(page.locator("h4:has-text('Grounding Evidence')")).not.toBeVisible({ timeout: 5000 })
       console.log('  ✓ Risk of Bias Drawer closed.')
     }
     console.log('  ✓ Risk of Bias Traffic Light Matrix successfully verified.')
