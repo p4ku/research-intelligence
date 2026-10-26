@@ -76,6 +76,9 @@ for arg in "$@"; do
         --debug)
             EXTRA_ARGS+=("--debug")
             ;;
+        slr_console|console|slr_stage_2|specs/11*|11)
+            SPEC_FILTER="specs/11_slr_console_prisma_rob.journey.spec.ts"
+            ;;
         slr_gates|slr_audit|slr_review|audit|audit_queue|specs/10*|10|--scenario=slr*)
             SPEC_FILTER="specs/10_slr_review_gates.journey.spec.ts"
             ;;

@@ -1,215 +1,143 @@
-# 🚀 Systematic Literature Review (SLR) — Stage 2: Cochrane & Enterprise Rigor
-> **Branch:** `SLR` | **Document:** `README_SLR_STAGE_2.md`  
-> **Target:** Advanced Cochrane Collaboration Standards, Meta-Analysis Readiness & Multi-Database Federation
+# Systematic Literature Review (SLR) Stage 2: Quality, Verification & Adjudication Console
+
+## 1. Executive Summary & Objective
+
+This document defines the architecture, endpoint specifications, interface design, and testing methodology for **SLR Stage 2** in Schwarz Research Intelligence.
+
+The objective is to consolidate four scientific review standards into a unified, publication-grade Next.js interface at `/slr`:
+1. **PRISMA 2020 Statement Flow Diagram**: Interactive visualization of study attrition across Identification, Screening, Eligibility, and Inclusion stages.
+2. **Inter-Rater Reliability & AI Calibration KPIs**: Statistical rigor metrics including Cohen’s Kappa ($\kappa$), AI vs. Human consensus agreement, Sensitivity (Recall), and Specificity.
+3. **Cochrane Risk of Bias (RoB 2 / NOS) Matrix**: Methodological appraisal matrix featuring publication-ready "Traffic Light" plots and grounded evidence citations.
+4. **Senior Arbiter Adjudication Console**: Real-time dispute resolution interface allowing senior arbiters to inspect conflicting independent reviewer votes side-by-side with AI grounding and execute binding rulings.
 
 ---
 
-## 📑 Table of Contents
-1. [Overview & Scope of Stage 2](#1-overview--scope-of-stage-2)
-2. [Multi-Source Fuzzy Deduplication Engine](#2-multi-source-fuzzy-deduplication-engine)
-3. [Search Strategy Provenance & Audit Logging](#3-search-strategy-provenance--audit-logging)
-4. [Quantitative Meta-Analysis Extraction & Forest Plot Readiness](#4-quantitative-meta-analysis-extraction--forest-plot-readiness)
-5. [Roundtrip Bibliography Management (`.RIS` / `.BIB` / Zotero / EndNote)](#5-roundtrip-bibliography-management-ris--bib--zotero--endnote)
-6. [Interactive Vector PRISMA 2020 Flowchart Generator (SVG / PDF)](#6-interactive-vector-prisma-2020-flowchart-generator-svg--pdf)
-7. [Protocol Pre-Registration & Lock (PROSPERO / OSF Integration)](#7-protocol-pre-registration--lock-prospero--osf-integration)
-8. [Stage 2 Data Models & Schema Extensions](#8-stage-2-data-models--schema-extensions)
-9. [Long-Term Implementation Timeline](#9-long-term-implementation-timeline)
-
----
-
-## 1. Overview & Scope of Stage 2
-
-While **Stage 1** (documented in [README_SLR.md](file:///Users/piotr/git/schwarz_research_inteligence/README_SLR.md)) equips the platform with the core Systematic Literature Review machinery — pausable DAG checkpoints, sampling gates, blind dual-review, dispute adjudication, 30-parameter extraction, and Cochrane Risk of Bias (RoB 2 / ROBINS-I) appraisal — **Stage 2** elevates the platform to compete directly with premier medical enterprise tools such as **Covidence**, **DistillerSR**, and **EPPI-Reviewer**.
-
-Stage 2 focuses on:
-- Multi-database search harmonization and fuzzy bibliographic deduplication.
-- Strict auditability of search queries for reproducible reporting.
-- Statistical data extraction formatted for quantitative meta-analyses.
-- Native integration with academic reference managers and formal trial registries (PROSPERO).
-
----
-
-## 2. Multi-Source Fuzzy Deduplication Engine
-
-### The Problem in Systematic Reviews
-In Cochrane reviews, searching across multiple databases (**PubMed**, **Embase**, **Cochrane CENTRAL**, **Scopus**, **Web of Science**) produces up to 40–60% duplicate entries. However, exact string or DOI deduplication fails in practice because:
-- Pre-2000 articles or specific database exports frequently lack DOIs.
-- Author names format differently (e.g., `Smith, J. A.` vs `Smith, John Adam` vs `Smith, JA`).
-- Article titles contain minor punctuation differences, LaTeX tags, or subtitles missing in one index.
-
-### Stage 2 Architectural Solution
-An intelligent, multi-pass fuzzy deduplication pipeline integrated into `slr_review.services.deduplication_service`:
+## 2. System Architecture & Endpoints
 
 ```mermaid
 graph TD
-    A["Aggregated Ingested Records<br/>PubMed + Embase + Scopus + RIS"] --> B{"Pass 1: Exact Identifiers"}
-    B -->|"Match on DOI / PMID / PMCID / arXiv"| Dup1["Mark Duplicate & Merge Metadata"]
-    B -->|"No Exact Match"| C{"Pass 2: Title Normalization"}
-    C -->|"Strip punctuation, lower-case, remove stop-words"| D["Normalized Levenshtein / Jaro-Winkler"]
-    D -->|"Similarity >= 92%"| E{"Pass 3: Author & Year Constraint"}
-    E -->|"First Author Match & Year +/- 1"| Dup2["Mark Duplicate & Link Sources"]
-    E -->|"Mismatch"| F["Unique Study Record"]
-    D -->|"Similarity < 92%"| F
+    subgraph "Django Backend (/api/slr/)"
+        D1["PRISMAMetricsView (/api/slr/runs/{id}/prisma/)"]
+        D2["RiskOfBiasListView (/api/slr/runs/{id}/rob/)"]
+        D3["DisputeListView (/api/slr/disputes/)"]
+        D4["ResolveDisputeView (/api/slr/disputes/{id}/resolve/)"]
+        D5["PipelineRunListView (/api/pipeline-runs/)"]
+    end
+
+    subgraph "Next.js BFF Layer (/bff/slr/)"
+        B1["GET /bff/slr/runs - Run Switcher"]
+        B2["GET /bff/slr/runs/[runId]/metrics - PRISMA + Kappa"]
+        B3["GET /bff/slr/runs/[runId]/rob - Traffic Light RoB 2"]
+        B4["GET /bff/slr/disputes - Dispute Queue"]
+        B5["POST /bff/slr/disputes/[disputeId]/resolve - Arbiter Ruling"]
+    end
+
+    subgraph "Frontend Unified Console (/slr)"
+        UI_Head["Header & Run Switcher"]
+        UI_KPI["Agreement & AI Calibration KPI Banner"]
+        UI_Tabs["Tabbed Views Coordinator"]
+        UI_PRISMA["PRISMA 2020 Flow Diagram"]
+        UI_Disputes["Senior Arbiter Dispute Console"]
+        UI_RoB["Risk of Bias Traffic Light Matrix"]
+    end
+
+    D1 --> B2
+    D2 --> B3
+    D3 --> B4
+    D4 --> B5
+    D5 --> B1
+
+    B1 --> UI_Head
+    B2 --> UI_KPI
+    B2 --> UI_PRISMA
+    B4 --> UI_Disputes
+    B5 --> UI_Disputes
+    B3 --> UI_RoB
 ```
 
-#### Key Capabilities:
-1. **Source Preservation & Merging:** Duplicates are not discarded; they are linked to a single canonical `Paper` instance with all source identifiers preserved (`pubmed_id`, `scopus_id`, `embase_id`).
-2. **PRISMA Deduplication Counter:** Automatically populates the PRISMA field: *"Number of duplicate records removed"*.
-3. **Manual Merge Disambiguation:** Ambiguous matches (similarity 85%–91%) are placed into an optional disambiguation queue for human verification.
+### 2.1 Backend-For-Frontend (BFF) Endpoints
+
+| Method | Path | Target Backend Route | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/bff/slr/runs` | `/api/pipeline-runs/?briefing_type=slr` | Returns SLR pipeline execution runs for switcher |
+| `GET` | `/bff/slr/runs/[runId]/metrics` | `/api/slr/runs/{id}/prisma/` | Returns PRISMA 2020 counts + Cohen's Kappa & AI metrics |
+| `GET` | `/bff/slr/runs/[runId]/rob` | `/api/slr/runs/{id}/rob/` | Returns Risk of Bias domain evaluations per included study |
+| `GET` | `/bff/slr/disputes` | `/api/slr/disputes/?status=all` | Returns pending & resolved reviewer conflict records |
+| `POST` | `/bff/slr/disputes/[disputeId]/resolve` | `/api/slr/disputes/{id}/resolve/` | Issues binding Senior Arbiter decision |
 
 ---
 
-## 3. Search Strategy Provenance & Audit Logging
+## 3. Interface Design & Layout Specifications (`/slr`)
 
-Cochrane and PRISMA 2020 Item 7 strictly mandate that the complete, unedited search strategy for every database must be published in a reproducible appendix.
+The unified interface is located at `/slr` in the sidebar layout. It is organized into three tiers:
 
-### Stage 2 Implementation (`SearchQueryRecord`)
-Each search execution across any scraper or external database is logged immutably:
-* **Exact Query String:** Complete boolean string with field tags (e.g., `("neoplasm"[MeSH Terms] OR "cancer"[tiab]) AND ("immunotherapy"[tiab])`).
-* **Source Database & Interface:** e.g., `PubMed (E-Utilities)`, `Embase (Ovid)`, `Scopus (Elsevier API)`.
-* **Execution Timestamp & API Version:** Exact UTC timestamp when the query was dispatched.
-* **Filter Limits Applied:** Publication date boundaries, language restrictions, study design filters.
-* **Yield Metrics:** Total raw results returned before deduplication.
-* **Exportable Query Appendix:** Generates a ready-to-publish Markdown or Word table detailing search queries per database for the review manuscript appendix.
+### 3.1 Top Header & Run Switcher
+- Title: **SLR Quality & Adjudication Console**
+- Run Switcher Dropdown: Allows seamless switching between SLR pipeline runs.
+- Metadata Bar: Displays workspace name, execution date, total screened studies, and active policy status.
 
----
+### 3.2 Statistical KPI Banner (Inter-Rater Reliability & AI Calibration)
+Four metric cards displayed horizontally across the top:
+1. **Human Inter-Rater Kappa ($\kappa$)**:
+   - Qualitative benchmark interpretation (Poor $<0.20$, Fair $0.21-0.40$, Moderate $0.41-0.60$, Substantial $0.61-0.80$, Almost Perfect $0.81-1.00$).
+2. **AI vs. Human Kappa ($\kappa$)**:
+   - Degree of alignment between machine predictions and verified human consensus.
+3. **AI Sensitivity / Recall**:
+   - Percentage of truly eligible studies correctly admitted by the model ($\frac{TP}{TP+FN}$).
+4. **AI Specificity**:
+   - Percentage of non-relevant papers rejected by the model ($\frac{TN}{TN+FP}$).
 
-## 4. Quantitative Meta-Analysis Extraction & Forest Plot Readiness
+### 3.3 Main Operational Views (Tabbed Layout)
 
-Systematic reviews often culminate in a statistical **Meta-Analysis**. Instead of merely extracting text, Stage 2 extracts structured numerical effect sizes ready for statistical packages (**R `metafor`**, **Python `statsmodels`**, or **Cochrane RevMan Web**).
+#### Tab 1: PRISMA 2020 Statement Flow Diagram
+- Four connected tier boxes formatted to official PRISMA 2020 standards:
+  - **Identification**: Total identified records, database breakdown (arXiv, PubMed, OpenAlex), and duplicate exclusions.
+  - **Screening (Title & Abstract)**: Screened records vs. excluded records with reason breakdown chips (e.g. Non-English, Wrong Topic, Animal Study).
+  - **Eligibility (Full-Text)**: Full-text reports assessed vs. excluded with methodological reasons (e.g. Missing Control Group, Insufficient Metrics).
+  - **Inclusion**: Final studies admitted into qualitative synthesis and quantitative meta-analysis.
 
-### 1. Dichotomous Outcome Schema (Binary Events)
-For studies measuring binary clinical outcomes (e.g., mortality, recurrence, cure):
-* **Intervention Group:** Number of events ($E_1$), Sample size ($N_1$).
-* **Control / Comparator Group:** Number of events ($E_2$), Sample size ($N_2$).
-* **Computed Effect Metrics:** Relative Risk (RR), Odds Ratio (OR), Risk Difference (RD) with 95% Confidence Intervals.
+#### Tab 2: Senior Arbiter Adjudication Console
+- Displays split decisions where independent human reviewers disagreed (e.g. Reviewer 1 voted *Include*, Reviewer 2 voted *Exclude*).
+- Side-by-Side Comparison:
+  - **Reviewer 1**: Decision, verbatim evidence quotes, auditor notes.
+  - **Reviewer 2**: Decision, exclusion taxonomy reason, auditor notes.
+  - **AI Agent Baseline**: AI decision category, confidence percentage, and chain-of-thought rationale.
+- Arbiter Action Form:
+  - Final binding decision (*Include* vs. *Exclude*).
+  - Exclusion reason taxonomy (if *Exclude*).
+  - Arbiter resolution rationale textarea.
+  - One-click submission with instant status update.
 
-### 2. Continuous Outcome Schema
-For studies measuring numerical measurements (e.g., blood pressure, tumor volume, lab values):
-* **Intervention Group:** Mean ($\bar{x}_1$), Standard Deviation ($SD_1$), Sample size ($N_1$).
-* **Control Group:** Mean ($\bar{x}_2$), Standard Deviation ($SD_2$), Sample size ($N_2$).
-* **Computed Effect Metrics:** Mean Difference (MD) or Standardized Mean Difference (SMD / Hedges' $g$).
-
-### 3. Time-to-Event / Survival Outcome Schema
-* Hazard Ratio (HR), log(HR), Standard Error (SE), or 95% CI boundaries.
-
-### 4. Direct Statistical Export
-* **R Script Generator:** Generates an `.R` script utilizing the `metafor` package that produces publication-grade **Forest Plots** and **Funnel Plots** (assessing publication bias / Egger's test).
-* **RevMan Export:** Exports standard `.csv` / `.xml` format natively importable into Cochrane's **RevMan Web**.
-
----
-
-## 5. Roundtrip Bibliography Management (`.RIS` / `.BIB` / Zotero / EndNote)
-
-Academic researchers organize their workflow in reference management tools (**Zotero**, **Mendeley**, **EndNote**). Stage 2 provides lossless roundtrip interoperability:
-
-```
-[University Library Databases]
-          │ (Export search results)
-          ▼
-     `library_search.ris` (Raw 2,500 records)
-          │
-          ▼ (Upload via SLR Web UI / REST API)
-[SRI Platform: slr_review Engine]
-  - AI Screening + HITL Quorum + RoB Appraisal
-          │
-          ▼ (Export enriched bibliography)
- `slr_final_annotated.ris`
-```
-
-### Tag Enrichment in Exported `.RIS` Files:
-* `C1 - INCLUDED_STAGE_1` (Abstract Passed)
-* `C2 - INCLUDED_STAGE_2` (Full-Text Passed)
-* `C3 - EXCLUDED_REASON: Animal Model (Non-Human)`
-* `N1 - Evidence Quote: "All experiments were performed using female C57BL/6 mice (p. 2)"`
-* `M1 - RoB_OVERALL: Low Risk`
-
-When the researcher imports the annotated file back into Zotero or EndNote, collections, tags, and notes are automatically created for each paper.
+#### Tab 3: Risk of Bias Matrix (RoB 2 / ROBINS-I / NOS)
+- Publication-ready Traffic Light plot.
+- Columns:
+  - Study Reference (Author, Title, Year)
+  - Domain 1: Randomization process
+  - Domain 2: Deviations from intended interventions
+  - Domain 3: Missing outcome data
+  - Domain 4: Measurement of the outcome
+  - Domain 5: Selection of the reported result
+  - Overall Bias: Low Risk (🟢), Some Concerns (🟡), High Risk (🔴)
+- Interactive Drawer: Clicking any domain cell or study row opens an evidence drawer with the verbatim excerpt and exact page number from the source document.
 
 ---
 
-## 6. Interactive Vector PRISMA 2020 Flowchart Generator (SVG / PDF)
+## 4. Testing & Quality Assurance Plan
 
-Currently, researchers spend hours manually drawing PRISMA flowcharts in PowerPoint or Draw.io. Stage 2 includes a native, automated vector rendering engine:
+### 4.1 Unit & Component Tests (Bun Test)
+- `frontend/src/app/(sidebar)/slr/agreement-kpi-banner.test.tsx`: Validates mathematical formatting and qualitative badge mapping of $\kappa$ and calibration statistics.
+- `frontend/src/app/(sidebar)/slr/prisma-flow-diagram.test.tsx`: Validates node attrition rendering, exclusion breakdowns, and empty-state fallbacks.
+- `frontend/src/app/(sidebar)/slr/arbiter-console.test.tsx`: Validates side-by-side evidence rendering, arbitration submission, and status transitions.
+- `frontend/src/app/(sidebar)/slr/rob-traffic-light-matrix.test.tsx`: Validates traffic light color coding, domain score popovers, and drawer interactions.
+- `frontend/src/app/bff/slr/bff-routes.test.ts`: Validates Zod schema parsing, endpoint dispatching, and fixture parity.
 
-* **Live Dynamic Canvas:** A React/Next.js interactive diagram showing the PRISMA 2020 flowchart with live counts connected to the database.
-* **Breakdown of Exclusions:** Expanding boxes displaying exact counts per exclusion reason at both the title/abstract and full-text stages.
-* **One-Click Vector Export:**
-  - **SVG:** Vector graphic for direct editing in Adobe Illustrator or Inkscape.
-  - **PDF:** Print-ready vector document for journal submission.
-  - **PNG:** High-DPI (300 DPI) raster image for presentations.
-
----
-
-## 7. Protocol Pre-Registration & Lock (PROSPERO / OSF Integration)
-
-To eliminate post-hoc data dredging or publication bias, reputable medical journals require protocols to be pre-registered in **PROSPERO** (International Prospective Register of Systematic Reviews) or the **Open Science Framework (OSF)**.
-
-### Stage 2 Governance Features:
-1. **`prospero_registration_id` Field:** Stores the official registration token (e.g., `CRD42026987654`).
-2. **Protocol Amendment Versioning:**
-   - When a review protocol is marked `REGISTERED`, all inclusion/exclusion criteria, PICO parameters, and extraction schemas are **cryptographically locked (read-only)**.
-   - Any subsequent adjustments create a formal `ProtocolAmendment` record requiring a timestamp, rationale, and tracking differences (*"Amendment 1: Added secondary endpoint Y on 2026-11-01 due to emerging biomarker evidence"*).
-
----
-
-## 8. Stage 2 Data Models & Schema Extensions
-
-```python
-class SearchQueryRecord(models.Model):
-    """Logs individual search queries executed against academic databases."""
-    protocol = models.ForeignKey('SLRProtocol', on_delete=models.CASCADE, related_name='search_queries')
-    database_name = models.CharField(max_length=50) # PubMed, Embase, Scopus, OpenAlex
-    raw_query_string = models.TextField()
-    filters_applied = models.JSONField(default=dict)
-    total_yield = models.PositiveIntegerField()
-    executed_at = models.DateTimeField(auto_now_add=True)
-
-
-class ProtocolAmendment(models.Model):
-    """Tracks post-registration protocol revisions for PROSPERO compliance."""
-    protocol = models.ForeignKey('SLRProtocol', on_delete=models.CASCADE, related_name='amendments')
-    amendment_number = models.PositiveIntegerField()
-    rationale = models.TextField()
-    changes_diff = models.JSONField()
-    approved_by = models.ForeignKey('auth.User', on_delete=models.CASCADE)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-
-class MetaAnalysisOutcomeData(models.Model):
-    """Stores quantitative effect size data extracted for meta-analyses."""
-    paper = models.ForeignKey('research_intelligence.Paper', on_delete=models.CASCADE, related_name='meta_outcomes')
-    outcome_name = models.CharField(max_length=255) # e.g. "Overall Survival", "HbA1c Reduction"
-    outcome_type = models.CharField(max_length=20, choices=[('dichotomous', 'Dichotomous'), ('continuous', 'Continuous'), ('time_to_event', 'Time-to-Event')])
-    
-    # Intervention Group Data
-    int_sample_size = models.PositiveIntegerField(null=True, blank=True)
-    int_events = models.PositiveIntegerField(null=True, blank=True)
-    int_mean = models.FloatField(null=True, blank=True)
-    int_sd = models.FloatField(null=True, blank=True)
-    
-    # Control Group Data
-    ctrl_sample_size = models.PositiveIntegerField(null=True, blank=True)
-    ctrl_events = models.PositiveIntegerField(null=True, blank=True)
-    ctrl_mean = models.FloatField(null=True, blank=True)
-    ctrl_sd = models.FloatField(null=True, blank=True)
-    
-    # Computed Effect Estimates
-    effect_size_estimate = models.FloatField(null=True, blank=True)
-    ci_lower = models.FloatField(null=True, blank=True)
-    ci_upper = models.FloatField(null=True, blank=True)
-    p_value = models.FloatField(null=True, blank=True)
-```
-
----
-
-## 9. Long-Term Implementation Timeline
-
-| Milestone | Target Scope | Deliverable |
-| :--- | :--- | :--- |
-| **Milestone 2.1** | Multi-Source Fuzzy Deduplication | `deduplication_service.py` with Levenshtein title matching and author constraints. |
-| **Milestone 2.2** | Roundtrip Reference Management | Import/export service for `.RIS` and `.BIB` files with custom annotation tags. |
-| **Milestone 2.3** | Interactive Vector PRISMA Flowchart | SVG/PDF PRISMA 2020 diagram exporter and Next.js visualizer. |
-| **Milestone 2.4** | Search Strategy Audit Logging | `SearchQueryRecord` model and automated manuscript search appendix generator. |
-| **Milestone 2.5** | Meta-Analysis & Forest Plot Pipeline | Continuous and binary outcome extraction schemas with R `metafor` script generation. |
-| **Milestone 2.6** | PROSPERO Protocol Lock | Protocol immutability and `ProtocolAmendment` audit tracking. |
+### 4.2 End-to-End Integration (Playwright)
+- Scenario: `tests_e2e/specs/11_slr_console_prisma_rob.journey.spec.ts`
+- Command: `./tests_e2e/run_frontend_e2e.sh slr.soinventive.co.uk slr_console`
+- Verifies:
+  1. Login via React interface.
+  2. Navigation to `/slr` via sidebar.
+  3. Verification of Cohen's Kappa and AI calibration cards.
+  4. Inspection of PRISMA 2020 Flow nodes.
+  5. Arbitration and resolution of a reviewer conflict.
+  6. Inspection of RoB 2 traffic light matrix and citation drawers.

@@ -41,6 +41,7 @@ import {
 } from '@heroicons/react/16/solid'
 import {
   ChatBubbleLeftRightIcon,
+  ChartBarSquareIcon,
   ClipboardDocumentCheckIcon,
   Cog6ToothIcon,
   DocumentTextIcon,
@@ -63,7 +64,7 @@ interface ShellNavItem {
   feature?: FeatureKey
 }
 
-// The spec's header — Home | Briefings | Papers | Ask — plus Runs and SLR Audit Queue.
+// The spec's header — Home | Briefings | Papers | Ask — plus Runs, SLR Audit Queue, and SLR Review.
 const coreNav: ShellNavItem[] = [
   { href: '/dashboard', label: 'Home', Icon: HomeIcon, exact: true },
   { href: '/briefing', label: 'Briefings', Icon: NewspaperIcon },
@@ -71,6 +72,7 @@ const coreNav: ShellNavItem[] = [
   { href: '/ask', label: 'Ask', Icon: ChatBubbleLeftRightIcon, feature: 'ask' },
   { href: '/runs', label: 'Runs', Icon: PlayCircleIcon },
   { href: '/audit-queue', label: 'Audit Queue', Icon: ClipboardDocumentCheckIcon },
+  { href: '/slr', label: 'SLR Review', Icon: ChartBarSquareIcon },
 ]
 
 const studioNav: ShellNavItem[] = [
