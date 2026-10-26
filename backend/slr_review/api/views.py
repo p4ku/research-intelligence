@@ -502,6 +502,7 @@ class SubmitExtractionReviewView(APIView):
 
         return Response({
             "success": True,
+            "status": "audited",
             "review_id": review.id,
             "is_cohort_complete": cohort.is_audit_complete
         }, status=status.HTTP_200_OK)

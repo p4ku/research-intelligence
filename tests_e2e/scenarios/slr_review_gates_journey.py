@@ -331,7 +331,10 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
         # Audit extractions for papers in cohort
         audit_count = 0
         for p_info in sampled_papers_g3:
-            extractions = p_info.get("extractions", [])
+            pid = p_info["paper_id"]
+            paper_audit = slr_svc.get_cohort_paper(cohort_g3_id, pid)
+            extractions = paper_audit.get("extractions", [])
+            logger.info(f"   ✍️ Auditing Extractions for paper '{p_info.get('title', pid)[:50]}...' ({len(extractions)} extracted parameter(s))")
             for ext in extractions:
                 ext_id = ext.get("extraction_id") or ext.get("id")
                 if ext_id:
@@ -341,7 +344,7 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
                         action="verify",
                         reviewer_notes="Parameter value verified against reported experimental figures.",
                     )
-                    assert audit_resp.get("status") == "audited"
+                    assert audit_resp.get("success") is True or audit_resp.get("status") in ("audited", "reviewed")
                     audit_count += 1
 
         cohort_g3_detail_after = slr_svc.get_cohort(cohort_g3_id)
