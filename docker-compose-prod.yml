@@ -36,6 +36,7 @@ services:
 
   # Django REST API Backend (Connects to PostgreSQL running on EC2 host via host.docker.internal)
   api:
+    image: ${BACKEND_IMAGE:-sri_backend:prod}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -93,6 +94,7 @@ services:
 
   # FastMCP Server for AI Client integrations
   mcp:
+    image: ${BACKEND_IMAGE:-sri_backend:prod}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -149,6 +151,7 @@ services:
 
   # Celery Async Pipeline Worker
   worker:
+    image: ${BACKEND_IMAGE:-sri_backend:prod}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -208,6 +211,7 @@ services:
 
   # Celery Beat Scheduler
   beat:
+    image: ${BACKEND_IMAGE:-sri_backend:prod}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -255,6 +259,7 @@ services:
 
   # Next.js Frontend Dashboard (Production standalone server)
   frontend:
+    image: ${FRONTEND_IMAGE:-sri_frontend:prod}
     build:
       context: ./frontend
       dockerfile: Dockerfile
