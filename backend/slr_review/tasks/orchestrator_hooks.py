@@ -9,6 +9,20 @@ from slr_review.services.sampling_service import SamplingService
 logger = logging.getLogger(__name__)
 
 
+AUDIT_GATE_COMPONENTS = {
+    'abstract_screening', 'screening',
+    'full_text_screening', 'full_text',
+    'extraction', 'parameter_extraction',
+}
+
+
+def is_potential_gate_component(component_type: str) -> bool:
+    if not component_type:
+        return False
+    comp = str(component_type).lower()
+    return comp in AUDIT_GATE_COMPONENTS or 'screening' in comp or 'extract' in comp
+
+
 def should_pause_at_gate(config: SLRWorkspaceConfig, component_type: str) -> Optional[str]:
     """
     Determines if the given component_type corresponds to an active audit gate
@@ -17,22 +31,22 @@ def should_pause_at_gate(config: SLRWorkspaceConfig, component_type: str) -> Opt
     """
     mode = config.checkpoint_gate_mode
 
-    if component_type in ('abstract_screening', 'screening'):
+    comp = str(component_type).lower()
+    if comp in ('abstract_screening', 'screening') or 'abstract' in comp:
         if mode in ('two_stage_split', 'abstract_only_gate'):
             return 'abstract_screening'
 
-    if component_type in ('full_text_screening', 'full_text'):
+    if comp in ('full_text_screening', 'full_text') or 'full_text' in comp:
         if mode in ('two_stage_split', 'single_combined_post_fulltext'):
             return 'full_text_screening'
 
-    if component_type in ('extraction', 'parameter_extraction'):
+    if comp in ('extraction', 'parameter_extraction') or 'extract' in comp:
         if config.enable_extraction_gate:
             return 'parameter_extraction'
 
     return None
 
 
-@transaction.atomic
 def intercept_component_completion(
     pipeline_run: PipelineRun,
     component_type: str
@@ -42,6 +56,17 @@ def intercept_component_completion(
     If the component completed is an active SLR audit gate, generates an AuditSampleCohort,
     safely pauses the pipeline run, and halts further automated DAG progression.
     """
+    if not is_potential_gate_component(component_type):
+        return {"halt": False}
+
+    return _intercept_component_completion_atomic(pipeline_run, component_type)
+
+
+@transaction.atomic
+def _intercept_component_completion_atomic(
+    pipeline_run: PipelineRun,
+    component_type: str
+) -> Dict[str, Any]:
     # Check if run or workspace is configured for SLR
     run_type = (pipeline_run.configuration_override or {}).get('run_type')
     has_slr_config = hasattr(pipeline_run.workspace, 'slr_config')

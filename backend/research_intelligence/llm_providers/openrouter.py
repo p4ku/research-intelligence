@@ -1,4 +1,6 @@
+import os
 import requests
+from django.conf import settings
 from .base import BaseLLMProvider
 
 class OpenRouterAPIProvider(BaseLLMProvider):

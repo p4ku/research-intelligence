@@ -1,6 +1,7 @@
 import json
 from unittest.mock import patch, MagicMock
 from django.test import TestCase, override_settings
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from research_intelligence.models import (
     Workspace,
@@ -299,7 +300,8 @@ class EmailCompositionBuilderTests(TestCase):
         payload = build_pipeline_run_digest_payload(self.pipeline_run)
 
         # Verify subject
-        self.assertIn("[Research Digest] Deep Tech & AI Materials", payload["subject"])
+        app_short = getattr(settings, "APP_SHORT_NAME", "SRI")
+        self.assertIn(f"[{app_short} Digest] Deep Tech & AI Materials", payload["subject"])
         self.assertIn("2 accepted papers", payload["subject"])
 
         # Verify HTML structure

@@ -3,6 +3,7 @@ from typing import Optional, Dict, Any
 from django.utils import timezone
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
+from django.conf import settings
 from celery import shared_task
 
 from research_intelligence.models import (
