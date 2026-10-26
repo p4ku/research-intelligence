@@ -18,14 +18,21 @@ echo "📁 Compose file : ${COMPOSE_FILE}"
 echo "======================================================================"
 
 # 0. Load environment variables from .env if present (CRITICAL for docker stack deploy)
+# Note: Variables already exported in the parent script take precedence!
 if [ -f .env ]; then
-  echo "📋 Loading environment variables from .env..."
-  set -a
-  # shellcheck disable=SC1091
-  source .env
-  set +a
+  echo "📋 Loading default environment variables from .env (preserving parent exports)..."
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      \#*|"") continue ;;
+    esac
+    var_name="${line%%=*}"
+    var_name="$(echo "$var_name" | xargs)"
+    if [ -n "$var_name" ] && [ -z "${!var_name+x}" ]; then
+      eval "export $line" 2>/dev/null || true
+    fi
+  done < .env
 else
-  echo "⚠️ Warning: .env file not found in current directory! Using defaults."
+  echo "ℹ️ No local .env file found; using active shell environment variables."
 fi
 
 # Ensure Swarm mode is active
