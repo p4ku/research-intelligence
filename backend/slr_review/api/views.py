@@ -514,7 +514,9 @@ class DisputeListView(APIView):
 
     def get(self, request):
         status_filter = request.query_data.get('status', 'pending') if hasattr(request, 'query_data') else request.GET.get('status', 'pending')
-        disputes = AdjudicationDispute.objects.filter(status=status_filter).select_related('paper', 'arbiter', 'sample_cohort__config__workspace')
+        disputes = AdjudicationDispute.objects.select_related('paper', 'arbiter', 'sample_cohort__config__workspace')
+        if status_filter and status_filter != 'all':
+            disputes = disputes.filter(status=status_filter)
         if not request.user.is_superuser:
             from research_intelligence.models import WorkspaceMember
             user_ws_ids = set(WorkspaceMember.objects.filter(user=request.user).values_list('workspace_id', flat=True))

@@ -36,8 +36,10 @@ export const slr = {
       return mockSLRRuns
     }
     try {
-      // Query pipeline runs from backend
-      const rawRuns = await django('/api/pipeline-runs/', z.array(z.any()))
+      // Query pipeline runs from backend (handles both paginated envelope and raw array)
+      const rawRes = await django('/api/pipeline-runs/', z.any())
+      const rawRuns: any[] = Array.isArray(rawRes) ? rawRes : (rawRes?.results || [])
+      if (rawRuns.length === 0) return []
       return rawRuns.map((r: any) => ({
         id: String(r.id),
         name: r.name || r.workspace?.name || `Run ${String(r.id).slice(0, 8)}`,
@@ -47,7 +49,7 @@ export const slr = {
         created_at: String(r.created_at || new Date().toISOString()),
       }))
     } catch {
-      return mockSLRRuns
+      return []
     }
   },
 

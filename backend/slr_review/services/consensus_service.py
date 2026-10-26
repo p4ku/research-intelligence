@@ -177,12 +177,15 @@ class ConsensusService:
 
         evidence_synthesis = {}
         for idx, r in enumerate(reviews, start=1):
-            evidence_synthesis[f"reviewer_{idx}_{r.reviewer.username}"] = {
+            rev_data = {
+                "reviewer_name": f"Reviewer {idx}",
                 "decision": r.decision,
                 "exclusion_reason": r.exclusion_reason,
                 "quotes": r.evidence_quotes,
                 "notes": r.reviewer_notes
             }
+            evidence_synthesis[f"reviewer_{idx}"] = rev_data
+            evidence_synthesis[f"reviewer_{idx}_{r.reviewer.username}"] = rev_data
 
         if metric:
             reasoning = metric.full_text_screening_reasoning if stage in ('full_text', 'full_text_screening') else metric.abstract_screening_reasoning
