@@ -44,19 +44,19 @@ class MetricsService:
 
         # Reasons tally
         abstract_reasons = Counter()
-        for m in abstract_excluded_qs:
-            reason = (m.metrics_data or {}).get('exclusion_reason') or 'Eligibility criteria not met'
+        for m_data in abstract_excluded_qs.values_list('metrics_data', flat=True):
+            reason = (m_data or {}).get('exclusion_reason') or 'Eligibility criteria not met'
             abstract_reasons[reason] += 1
 
         full_text_reasons = Counter()
-        reviews = ScreeningReview.objects.filter(
+        reasons_list = ScreeningReview.objects.filter(
             pipeline_run=pipeline_run,
             stage='full_text',
             decision='exclude'
-        ).exclude(exclusion_reason__isnull=True)
-        for r in reviews:
-            if r.exclusion_reason:
-                full_text_reasons[r.exclusion_reason] += 1
+        ).exclude(exclusion_reason__isnull=True).values_list('exclusion_reason', flat=True)
+        for r_reason in reasons_list:
+            if r_reason:
+                full_text_reasons[r_reason] += 1
 
         # Included studies
         included_synthesis = metrics_qs.filter(
@@ -120,7 +120,7 @@ class MetricsService:
     @classmethod
     def calculate_human_inter_rater_kappa(cls, pipeline_run: PipelineRun) -> Optional[float]:
         """Calculates Cohen's Kappa between Reviewer 1 and Reviewer 2 on sampled papers."""
-        reviews = ScreeningReview.objects.filter(pipeline_run=pipeline_run).select_related('paper', 'reviewer')
+        reviews = ScreeningReview.objects.filter(pipeline_run=pipeline_run).only('paper_id', 'decision')
         by_paper = {}
         for r in reviews:
             by_paper.setdefault(r.paper_id, []).append(r)
@@ -140,10 +140,22 @@ class MetricsService:
         Calculates Cohen's Kappa, Sensitivity, and Specificity between AI predictions
         and Human Consensus ground truth.
         """
-        reviews = ScreeningReview.objects.filter(pipeline_run=pipeline_run).select_related('paper')
+        reviews = ScreeningReview.objects.filter(pipeline_run=pipeline_run).only('paper_id', 'decision')
         by_paper = {}
         for r in reviews:
             by_paper.setdefault(r.paper_id, []).append(r.decision)
+
+        if not by_paper:
+            return None, None, None
+
+        # Batch query PaperMetric to avoid N+1 queries
+        metrics_by_paper = {
+            m.paper_id: m
+            for m in PaperMetric.objects.filter(
+                paper_id__in=by_paper.keys(),
+                pipeline_run=pipeline_run
+            ).only('paper_id', 'screening_status', 'metrics_data')
+        }
 
         ai_votes = []
         human_votes = []
@@ -153,7 +165,7 @@ class MetricsService:
             # Consensus vote
             consensus = 'include' if human_decisions.count('include') >= human_decisions.count('exclude') else 'exclude'
 
-            metric = PaperMetric.objects.filter(paper_id=paper_id, pipeline_run=pipeline_run).first()
+            metric = metrics_by_paper.get(paper_id)
             if not metric:
                 continue
             m_data = metric.metrics_data or {}

@@ -78,6 +78,7 @@ class AuditQueueListView(APIView):
         cohorts = (
             AuditSampleCohort.objects.all()
             .select_related('pipeline_run', 'config__workspace')
+            .prefetch_related('sampled_papers')
             .order_by('-created_at')
         )
         if not user.is_superuser:
@@ -93,7 +94,7 @@ class AuditQueueListView(APIView):
 
         results = []
         for cohort in cohorts:
-            sampled_ids = list(cohort.sampled_papers.values_list('id', flat=True))
+            sampled_ids = [p.id for p in cohort.sampled_papers.all()]
             total_assigned = len(sampled_ids)
             if total_assigned == 0:
                 continue
@@ -624,9 +625,11 @@ class RiskOfBiasListView(APIView):
             slr_cfg = getattr(pipeline_run.workspace, 'slr_config', None)
             if slr_cfg and slr_cfg.enable_rob_assessment:
                 from slr_review.services.rob_service import RiskOfBiasService
+                from django.db import transaction
                 included_papers = pipeline_run.get_papers(screening_status=['full_text_passed', 'accepted'])
-                for p in included_papers:
-                    RiskOfBiasService.assess_paper_rob(p, pipeline_run, framework=slr_cfg.rob_framework)
+                with transaction.atomic():
+                    for p in included_papers:
+                        RiskOfBiasService.assess_paper_rob(p, pipeline_run, framework=slr_cfg.rob_framework)
                 assessments = RiskOfBiasAssessment.objects.filter(pipeline_run=pipeline_run).select_related('paper')
         serializer = RiskOfBiasAssessmentSerializer(assessments, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
