@@ -1,5 +1,5 @@
-import { Bone } from '@/components/skeleton'
 import { Card } from '@/components/scanner-ui'
+import { Bone } from '@/components/skeleton'
 
 export default function AuditQueueLoading() {
   return (

@@ -32,10 +32,9 @@ export default async function SettingsPage() {
     <div className="max-w-3xl space-y-8">
       <PageHeader
         title={t('Settings')}
-        description={fmt(
-          t('Your profile and how you sign in to {appName}.'),
-          { appName: APP_NAME },
-        )}
+        description={fmt(t('Your profile and how you sign in to {appName}.'), {
+          appName: APP_NAME,
+        })}
       />
 
       <ProfileForm profile={profile} />

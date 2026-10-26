@@ -43,7 +43,9 @@ export const auditExtractionItem = z.object({
   method: z.string().nullable().optional(),
   text_evidence: z.string().nullable().optional(),
   page_number: z.number().nullable().optional(),
-  status: z.enum(['pending', 'verify', 'modify', 'reject', 'verified', 'modified', 'rejected']).default('pending'),
+  status: z
+    .enum(['pending', 'verify', 'modify', 'reject', 'verified', 'modified', 'rejected'])
+    .default('pending'),
 })
 export type AuditExtractionItem = z.infer<typeof auditExtractionItem>
 

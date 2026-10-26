@@ -40,7 +40,8 @@ export function ArbiterConsole({ disputes, onDisputeResolved }: ArbiterConsolePr
     return true
   })
 
-  const activeDispute = disputes.find((d) => d.id === selectedDisputeId) || filteredDisputes[0] || null
+  const activeDispute =
+    disputes.find((d) => d.id === selectedDisputeId) || filteredDisputes[0] || null
 
   async function handleResolve() {
     if (!activeDispute) return
@@ -79,8 +80,10 @@ export function ArbiterConsole({ disputes, onDisputeResolved }: ArbiterConsolePr
       activeDispute.resolved_at = new Date().toISOString()
 
       onDisputeResolved?.(activeDispute.id, decision)
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Error communicating with adjudication backend.')
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : 'Error communicating with adjudication backend.'
+      setErrorMessage(msg)
     } finally {
       setIsSubmitting(false)
     }
@@ -163,7 +166,7 @@ export function ArbiterConsole({ disputes, onDisputeResolved }: ArbiterConsolePr
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           {/* Left: Dispute List (4 cols) */}
           <div className="space-y-2 lg:col-span-4">
-            <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider dark:text-zinc-400">
+            <span className="text-xs font-bold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
               Contested Papers ({filteredDisputes.length})
             </span>
             <div className="max-h-[540px] space-y-2 overflow-y-auto pr-1">
@@ -181,14 +184,14 @@ export function ArbiterConsole({ disputes, onDisputeResolved }: ArbiterConsolePr
                       if (d.final_decision) setDecision(d.final_decision)
                     }}
                     className={clsx(
-                      'w-full text-left rounded-xl border p-3.5 text-xs transition-all',
+                      'w-full rounded-xl border p-3.5 text-left text-xs transition-all',
                       isSelected
                         ? 'border-blue-500 bg-blue-50/50 ring-2 ring-blue-500/20 dark:border-blue-400 dark:bg-blue-950/30'
                         : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800/60',
                     )}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                      <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-bold text-zinc-600 uppercase dark:bg-zinc-800 dark:text-zinc-300">
                         {d.stage} Gate
                       </span>
                       <span
@@ -202,7 +205,7 @@ export function ArbiterConsole({ disputes, onDisputeResolved }: ArbiterConsolePr
                         {d.status}
                       </span>
                     </div>
-                    <h5 className="mt-2 font-semibold text-zinc-900 line-clamp-2 dark:text-white">
+                    <h5 className="mt-2 line-clamp-2 font-semibold text-zinc-900 dark:text-white">
                       {d.paper_title}
                     </h5>
                     {d.paper_doi && (
@@ -220,7 +223,7 @@ export function ArbiterConsole({ disputes, onDisputeResolved }: ArbiterConsolePr
               {/* Paper Banner */}
               <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  <span className="text-[11px] font-bold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
                     Contested Article
                   </span>
                   <span className="font-mono text-xs text-zinc-400">
@@ -318,7 +321,7 @@ export function ArbiterConsole({ disputes, onDisputeResolved }: ArbiterConsolePr
                     <span className="text-[11px] font-bold text-blue-700 uppercase dark:text-blue-300">
                       AI Agent Baseline
                     </span>
-                    <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                    <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800 uppercase dark:bg-blue-900 dark:text-blue-200">
                       {ai.decision || 'Exclude'}
                     </span>
                   </div>
@@ -348,7 +351,7 @@ export function ArbiterConsole({ disputes, onDisputeResolved }: ArbiterConsolePr
                   <div className="mt-4 space-y-2 text-xs">
                     <p className="text-zinc-600 dark:text-zinc-300">
                       <strong>Binding Ruling:</strong>{' '}
-                      <span className="font-bold uppercase text-zinc-900 dark:text-white">
+                      <span className="font-bold text-zinc-900 uppercase dark:text-white">
                         {activeDispute.final_decision}
                       </span>
                       {activeDispute.final_exclusion_reason && (
@@ -368,7 +371,7 @@ export function ArbiterConsole({ disputes, onDisputeResolved }: ArbiterConsolePr
                   <div className="mt-4 space-y-4">
                     {/* Final Decision Radio */}
                     <div className="flex items-center gap-6">
-                      <label className="flex items-center gap-2 text-xs font-bold cursor-pointer text-zinc-900 dark:text-white">
+                      <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-zinc-900 dark:text-white">
                         <input
                           type="radio"
                           name="arbiter-decision"
@@ -379,7 +382,7 @@ export function ArbiterConsole({ disputes, onDisputeResolved }: ArbiterConsolePr
                         />
                         <span>Admit Study (Include)</span>
                       </label>
-                      <label className="flex items-center gap-2 text-xs font-bold cursor-pointer text-zinc-900 dark:text-white">
+                      <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-zinc-900 dark:text-white">
                         <input
                           type="radio"
                           name="arbiter-decision"

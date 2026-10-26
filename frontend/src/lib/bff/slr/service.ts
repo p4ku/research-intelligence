@@ -8,16 +8,10 @@ import * as z from 'zod'
 import { django } from '../core/http'
 import { sourceOf } from '../core/source'
 import { assertUuid } from '../core/validate'
-import {
-  mockDisputes,
-  mockPrismaMetrics,
-  mockRobAssessments,
-  mockSLRRuns,
-} from './fixtures'
+import { mockDisputes, mockPrismaMetrics, mockRobAssessments, mockSLRRuns } from './fixtures'
 import {
   resolveDisputeInputSchema,
   slrDisputeSchema,
-  slrPipelineRunItemSchema,
   slrPrismaMetricsSchema,
   slrRobAssessmentSchema,
   type ResolveDisputeInput,
@@ -37,17 +31,22 @@ export const slr = {
     }
     try {
       // Query pipeline runs from backend (handles both paginated envelope and raw array)
-      const rawRes = await django('/api/pipeline-runs/', z.any())
-      const rawRuns: any[] = Array.isArray(rawRes) ? rawRes : (rawRes?.results || [])
+      const rawRes = await django('/api/pipeline-runs/', z.unknown())
+      const rawRuns = Array.isArray(rawRes)
+        ? (rawRes as Record<string, unknown>[])
+        : (rawRes as { results?: Record<string, unknown>[] })?.results || []
       if (rawRuns.length === 0) return []
-      return rawRuns.map((r: any) => ({
-        id: String(r.id),
-        name: r.name || r.workspace?.name || `Run ${String(r.id).slice(0, 8)}`,
-        workspace_id: String(r.workspace?.id || r.workspace_id || ''),
-        workspace_name: r.workspace?.name || 'SLR Workspace',
-        status: String(r.status || 'unknown'),
-        created_at: String(r.created_at || new Date().toISOString()),
-      }))
+      return rawRuns.map((r: Record<string, unknown>) => {
+        const ws = r.workspace as Record<string, unknown> | undefined
+        return {
+          id: String(r.id),
+          name: (r.name as string) || (ws?.name as string) || `Run ${String(r.id).slice(0, 8)}`,
+          workspace_id: String(ws?.id || r.workspace_id || ''),
+          workspace_name: (ws?.name as string) || 'SLR Workspace',
+          status: String(r.status || 'unknown'),
+          created_at: String(r.created_at || new Date().toISOString()),
+        }
+      })
     } catch {
       return []
     }

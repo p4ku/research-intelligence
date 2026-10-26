@@ -1,7 +1,6 @@
 'use client'
 
 import { Button } from '@/components/button'
-import { Link } from '@/components/link'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import type { AuditGate, AuditQueueItem, AuditStatus } from '@/lib/bff/audit/schema'
 import clsx from 'clsx'
@@ -168,12 +167,9 @@ export function AuditTable({ items }: { items: AuditQueueItem[] }) {
                       {gateLabel(item.gate)}
                     </TableCell>
                     <TableCell>
-                      <ProgressBar
-                        completed={item.completed_count}
-                        total={item.assigned_count}
-                      />
+                      <ProgressBar completed={item.completed_count} total={item.assigned_count} />
                     </TableCell>
-                    <TableCell className="text-right tabular-nums text-xs font-semibold text-zinc-900 dark:text-white">
+                    <TableCell className="text-right text-xs font-semibold text-zinc-900 tabular-nums dark:text-white">
                       {item.remaining_count}
                     </TableCell>
                     <TableCell>

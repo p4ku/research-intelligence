@@ -2,7 +2,6 @@
 
 import { Button } from '@/components/button'
 import type { SLRROBAssessment } from '@/lib/bff/slr/schema'
-import clsx from 'clsx'
 import { useState } from 'react'
 
 interface RobTrafficLightMatrixProps {
@@ -29,7 +28,11 @@ function TrafficDot({ rating }: { rating?: string }) {
       </span>
     )
   }
-  if (normalized.includes('some') || normalized.includes('concern') || normalized.includes('yellow')) {
+  if (
+    normalized.includes('some') ||
+    normalized.includes('concern') ||
+    normalized.includes('yellow')
+  ) {
     return (
       <span
         title="Some Concerns"
@@ -39,7 +42,11 @@ function TrafficDot({ rating }: { rating?: string }) {
       </span>
     )
   }
-  if (normalized.includes('high') || normalized.includes('critical') || normalized.includes('red')) {
+  if (
+    normalized.includes('high') ||
+    normalized.includes('critical') ||
+    normalized.includes('red')
+  ) {
     return (
       <span
         title="High Risk of Bias"
@@ -99,7 +106,8 @@ export function RobTrafficLightMatrix({ assessments }: RobTrafficLightMatrixProp
             </span>
           </div>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            Systematic domain appraisal for all admitted empirical studies (Higgins et al., BMJ 2019;366:l4898).
+            Systematic domain appraisal for all admitted empirical studies (Higgins et al., BMJ
+            2019;366:l4898).
           </p>
         </div>
         {/* Legend */}
@@ -119,7 +127,8 @@ export function RobTrafficLightMatrix({ assessments }: RobTrafficLightMatrixProp
       {assessments.length === 0 ? (
         <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-12 text-center dark:border-zinc-800 dark:bg-zinc-900/50">
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            No Risk of Bias appraisals generated yet. Once papers pass Gate 2, methodological quality is automatically evaluated.
+            No Risk of Bias appraisals generated yet. Once papers pass Gate 2, methodological
+            quality is automatically evaluated.
           </p>
         </div>
       ) : (
@@ -128,19 +137,34 @@ export function RobTrafficLightMatrix({ assessments }: RobTrafficLightMatrixProp
             <thead>
               <tr className="border-b border-zinc-200 text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
                 <th className="py-3 pr-4 font-semibold">Included Study</th>
-                <th className="px-2 py-3 text-center font-semibold" title="Domain 1: Randomization process">
+                <th
+                  className="px-2 py-3 text-center font-semibold"
+                  title="Domain 1: Randomization process"
+                >
                   D1 Rand
                 </th>
-                <th className="px-2 py-3 text-center font-semibold" title="Domain 2: Deviations from intended interventions">
+                <th
+                  className="px-2 py-3 text-center font-semibold"
+                  title="Domain 2: Deviations from intended interventions"
+                >
                   D2 Dev
                 </th>
-                <th className="px-2 py-3 text-center font-semibold" title="Domain 3: Missing outcome data">
+                <th
+                  className="px-2 py-3 text-center font-semibold"
+                  title="Domain 3: Missing outcome data"
+                >
                   D3 Miss
                 </th>
-                <th className="px-2 py-3 text-center font-semibold" title="Domain 4: Measurement of the outcome">
+                <th
+                  className="px-2 py-3 text-center font-semibold"
+                  title="Domain 4: Measurement of the outcome"
+                >
                   D4 Meas
                 </th>
-                <th className="px-2 py-3 text-center font-semibold" title="Domain 5: Selection of the reported result">
+                <th
+                  className="px-2 py-3 text-center font-semibold"
+                  title="Domain 5: Selection of the reported result"
+                >
                   D5 Sel
                 </th>
                 <th className="px-3 py-3 text-center font-semibold">Overall Bias</th>
@@ -154,13 +178,13 @@ export function RobTrafficLightMatrix({ assessments }: RobTrafficLightMatrixProp
                 return (
                   <tr
                     key={a.id}
-                    className="group hover:bg-zinc-50/70 dark:hover:bg-zinc-800/40 transition-colors"
+                    className="group transition-colors hover:bg-zinc-50/70 dark:hover:bg-zinc-800/40"
                   >
                     <td className="py-3 pr-4">
-                      <div className="font-semibold text-zinc-900 dark:text-white line-clamp-1">
+                      <div className="line-clamp-1 font-semibold text-zinc-900 dark:text-white">
                         {a.paper_title}
                       </div>
-                      <div className="text-[11px] text-zinc-400 uppercase tracking-wide">
+                      <div className="text-[11px] tracking-wide text-zinc-400 uppercase">
                         Framework: {a.framework.toUpperCase()}
                       </div>
                     </td>
@@ -173,7 +197,7 @@ export function RobTrafficLightMatrix({ assessments }: RobTrafficLightMatrixProp
                           <button
                             type="button"
                             onClick={() => setSelectedAssessment(a)}
-                            className="cursor-pointer hover:scale-115 transition-transform"
+                            className="cursor-pointer transition-transform hover:scale-115"
                           >
                             <TrafficDot rating={rating} />
                           </button>
@@ -216,7 +240,7 @@ export function RobTrafficLightMatrix({ assessments }: RobTrafficLightMatrixProp
       {/* Detail Inspector Drawer / Modal */}
       {selectedAssessment && (
         <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/40 backdrop-blur-xs">
-          <div className="h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl dark:bg-zinc-900 sm:border-l sm:border-zinc-200 dark:sm:border-zinc-800">
+          <div className="h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl sm:border-l sm:border-zinc-200 dark:bg-zinc-900 dark:sm:border-zinc-800">
             <div className="flex items-center justify-between border-b border-zinc-200 pb-3 dark:border-zinc-800">
               <h4 className="text-sm font-bold text-zinc-950 dark:text-white">
                 Risk of Bias Grounding Evidence
@@ -224,7 +248,7 @@ export function RobTrafficLightMatrix({ assessments }: RobTrafficLightMatrixProp
               <button
                 type="button"
                 onClick={() => setSelectedAssessment(null)}
-                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-lg"
+                className="text-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
               >
                 ✕
               </button>
@@ -232,7 +256,7 @@ export function RobTrafficLightMatrix({ assessments }: RobTrafficLightMatrixProp
 
             <div className="mt-4 space-y-5">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                <span className="text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
                   Evaluated Paper
                 </span>
                 <h5 className="mt-0.5 text-sm font-bold text-zinc-900 dark:text-white">
@@ -248,7 +272,7 @@ export function RobTrafficLightMatrix({ assessments }: RobTrafficLightMatrixProp
 
               {/* Domain Scores breakdown */}
               <div className="space-y-3">
-                <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider dark:text-zinc-400">
+                <span className="text-xs font-bold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
                   Domain Level Evidence &amp; Citations
                 </span>
 
@@ -272,7 +296,7 @@ export function RobTrafficLightMatrix({ assessments }: RobTrafficLightMatrixProp
 
                       {quote ? (
                         <div className="mt-2 text-xs">
-                          <p className="italic text-zinc-700 dark:text-zinc-300">
+                          <p className="text-zinc-700 italic dark:text-zinc-300">
                             &ldquo;{quote}&rdquo;
                           </p>
                           {page && (

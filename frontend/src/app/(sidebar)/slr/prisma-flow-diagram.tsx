@@ -1,7 +1,6 @@
 'use client'
 
 import type { SLRPRISMAMetrics } from '@/lib/bff/slr/schema'
-import clsx from 'clsx'
 import { useState } from 'react'
 
 interface PrismaFlowDiagramProps {
@@ -61,12 +60,15 @@ export function PrismaFlowDiagram({ metrics }: PrismaFlowDiagramProps) {
               <span className="flex size-6 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">
                 1
               </span>
-              <h4 className="text-sm font-bold text-zinc-900 uppercase tracking-wide dark:text-white">
+              <h4 className="text-sm font-bold tracking-wide text-zinc-900 uppercase dark:text-white">
                 Identification
               </h4>
             </div>
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-              Total Identified: <strong className="text-zinc-900 dark:text-white">{metrics.records_identified_total}</strong>
+              Total Identified:{' '}
+              <strong className="text-zinc-900 dark:text-white">
+                {metrics.records_identified_total}
+              </strong>
             </span>
           </div>
 
@@ -106,8 +108,18 @@ export function PrismaFlowDiagram({ metrics }: PrismaFlowDiagramProps) {
 
         {/* Funnel Arrow 1 */}
         <div className="flex justify-center text-zinc-400 dark:text-zinc-600">
-          <svg className="size-6 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          <svg
+            className="size-6 animate-pulse"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 14l-7 7m0 0l-7-7m7 7V3"
+            />
           </svg>
         </div>
 
@@ -120,12 +132,15 @@ export function PrismaFlowDiagram({ metrics }: PrismaFlowDiagramProps) {
               <span className="flex size-6 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">
                 2
               </span>
-              <h4 className="text-sm font-bold text-zinc-900 uppercase tracking-wide dark:text-white">
+              <h4 className="text-sm font-bold tracking-wide text-zinc-900 uppercase dark:text-white">
                 Screening (Title &amp; Abstract)
               </h4>
             </div>
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-              Screened: <strong className="text-zinc-900 dark:text-white">{metrics.records_screened_abstract}</strong>
+              Screened:{' '}
+              <strong className="text-zinc-900 dark:text-white">
+                {metrics.records_screened_abstract}
+              </strong>
             </span>
           </div>
 
@@ -166,7 +181,9 @@ export function PrismaFlowDiagram({ metrics }: PrismaFlowDiagramProps) {
                   {abstractReasons.map(([reason, count]) => (
                     <div key={reason} className="flex items-center justify-between text-[11px]">
                       <span className="text-zinc-700 dark:text-zinc-300">• {reason}</span>
-                      <span className="font-semibold text-amber-900 dark:text-amber-200">{count}</span>
+                      <span className="font-semibold text-amber-900 dark:text-amber-200">
+                        {count}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -177,8 +194,18 @@ export function PrismaFlowDiagram({ metrics }: PrismaFlowDiagramProps) {
 
         {/* Funnel Arrow 2 */}
         <div className="flex justify-center text-zinc-400 dark:text-zinc-600">
-          <svg className="size-6 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          <svg
+            className="size-6 animate-pulse"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 14l-7 7m0 0l-7-7m7 7V3"
+            />
           </svg>
         </div>
 
@@ -191,12 +218,15 @@ export function PrismaFlowDiagram({ metrics }: PrismaFlowDiagramProps) {
               <span className="flex size-6 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">
                 3
               </span>
-              <h4 className="text-sm font-bold text-zinc-900 uppercase tracking-wide dark:text-white">
+              <h4 className="text-sm font-bold tracking-wide text-zinc-900 uppercase dark:text-white">
                 Eligibility (Full-Text Appraisal)
               </h4>
             </div>
             <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-              Full-Text Reports Assessed: <strong className="text-zinc-900 dark:text-white">{metrics.full_text_assessed}</strong>
+              Full-Text Reports Assessed:{' '}
+              <strong className="text-zinc-900 dark:text-white">
+                {metrics.full_text_assessed}
+              </strong>
             </span>
           </div>
 
@@ -237,7 +267,9 @@ export function PrismaFlowDiagram({ metrics }: PrismaFlowDiagramProps) {
                   {fullTextReasons.map(([reason, count]) => (
                     <div key={reason} className="flex items-center justify-between text-[11px]">
                       <span className="text-zinc-700 dark:text-zinc-300">• {reason}</span>
-                      <span className="font-semibold text-rose-900 dark:text-rose-200">{count}</span>
+                      <span className="font-semibold text-rose-900 dark:text-rose-200">
+                        {count}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -248,8 +280,18 @@ export function PrismaFlowDiagram({ metrics }: PrismaFlowDiagramProps) {
 
         {/* Funnel Arrow 3 */}
         <div className="flex justify-center text-zinc-400 dark:text-zinc-600">
-          <svg className="size-6 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          <svg
+            className="size-6 animate-pulse"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 14l-7 7m0 0l-7-7m7 7V3"
+            />
           </svg>
         </div>
 
@@ -262,7 +304,7 @@ export function PrismaFlowDiagram({ metrics }: PrismaFlowDiagramProps) {
               <span className="flex size-6 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white dark:bg-emerald-500">
                 4
               </span>
-              <h4 className="text-sm font-bold text-emerald-900 uppercase tracking-wide dark:text-emerald-200">
+              <h4 className="text-sm font-bold tracking-wide text-emerald-900 uppercase dark:text-emerald-200">
                 Included Studies
               </h4>
             </div>

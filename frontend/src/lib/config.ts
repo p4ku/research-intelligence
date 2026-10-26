@@ -5,14 +5,10 @@
 // ==============================================================================
 
 export const APP_NAME =
-  process.env.NEXT_PUBLIC_APP_NAME ||
-  process.env.APP_NAME ||
-  'Research Intelligence'
+  process.env.NEXT_PUBLIC_APP_NAME || process.env.APP_NAME || 'Research Intelligence'
 
 export const APP_SHORT_NAME =
-  process.env.NEXT_PUBLIC_APP_SHORT_NAME ||
-  process.env.APP_SHORT_NAME ||
-  'SRI'
+  process.env.NEXT_PUBLIC_APP_SHORT_NAME || process.env.APP_SHORT_NAME || 'SRI'
 
 export const APP_DESCRIPTION =
   process.env.NEXT_PUBLIC_APP_DESCRIPTION ||

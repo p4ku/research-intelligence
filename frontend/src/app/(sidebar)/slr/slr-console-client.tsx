@@ -39,7 +39,7 @@ export function SlrConsoleClient({
   const [activeTab, setActiveTab] = useState<'prisma' | 'arbiter' | 'rob'>('prisma')
   const [isLoading, setIsLoading] = useState<boolean>(false)
 
-  const selectedRun = initialRuns.find((r) => r.id === selectedRunId) || null
+  const _selectedRun = initialRuns.find((r) => r.id === selectedRunId) || null
   const pendingDisputesCount = disputes.filter((d) => d.status === 'pending').length
 
   async function handleRunChange(newRunId: string) {
@@ -64,7 +64,12 @@ export function SlrConsoleClient({
     setDisputes((prev) =>
       prev.map((d) =>
         d.id === resolvedId
-          ? { ...d, status: 'resolved', final_decision: finalDecision as any, resolved_at: new Date().toISOString() }
+          ? {
+              ...d,
+              status: 'resolved',
+              final_decision: finalDecision as 'include' | 'exclude',
+              resolved_at: new Date().toISOString(),
+            }
           : d,
       ),
     )
@@ -84,7 +89,8 @@ export function SlrConsoleClient({
             </span>
           </div>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            Systematic Literature Review analytics, inter-rater concordance, flow diagram &amp; dispute reconciliation.
+            Systematic Literature Review analytics, inter-rater concordance, flow diagram &amp;
+            dispute reconciliation.
           </p>
         </div>
 
@@ -114,11 +120,7 @@ export function SlrConsoleClient({
             ← Audit Queue
           </Button>
 
-          <Button
-            href="/briefing"
-            color="dark/zinc"
-            className="text-xs font-semibold"
-          >
+          <Button href="/briefing" color="dark/zinc" className="text-xs font-semibold">
             View Briefing →
           </Button>
         </div>
@@ -143,7 +145,7 @@ export function SlrConsoleClient({
           >
             <span>📊 PRISMA 2020 Flow</span>
             {metrics?.studies_included_synthesis ? (
-              <span className="rounded-full bg-zinc-700/50 px-1.5 py-0.2 text-[10px] text-white dark:bg-zinc-300 dark:text-zinc-900">
+              <span className="py-0.2 rounded-full bg-zinc-700/50 px-1.5 text-[10px] text-white dark:bg-zinc-300 dark:text-zinc-900">
                 {metrics.studies_included_synthesis}
               </span>
             ) : null}
@@ -161,11 +163,11 @@ export function SlrConsoleClient({
           >
             <span>⚖️ Arbiter Console</span>
             {pendingDisputesCount > 0 ? (
-              <span className="rounded-full bg-amber-500 px-1.5 py-0.2 text-[10px] font-extrabold text-zinc-950">
+              <span className="py-0.2 rounded-full bg-amber-500 px-1.5 text-[10px] font-extrabold text-zinc-950">
                 {pendingDisputesCount} pending
               </span>
             ) : (
-              <span className="rounded-full bg-zinc-200 px-1.5 py-0.2 text-[10px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+              <span className="py-0.2 rounded-full bg-zinc-200 px-1.5 text-[10px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                 {disputes.length}
               </span>
             )}
@@ -183,7 +185,7 @@ export function SlrConsoleClient({
           >
             <span>🚦 Risk of Bias Matrix (RoB 2)</span>
             {robAssessments.length > 0 && (
-              <span className="rounded-full bg-zinc-700/50 px-1.5 py-0.2 text-[10px] text-white dark:bg-zinc-300 dark:text-zinc-900">
+              <span className="py-0.2 rounded-full bg-zinc-700/50 px-1.5 text-[10px] text-white dark:bg-zinc-300 dark:text-zinc-900">
                 {robAssessments.length} studies
               </span>
             )}
@@ -193,7 +195,7 @@ export function SlrConsoleClient({
         {/* Tab Body */}
         {isLoading ? (
           <div className="flex h-64 items-center justify-center rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-            <span className="text-xs font-semibold text-zinc-500 animate-pulse">
+            <span className="animate-pulse text-xs font-semibold text-zinc-500">
               Loading SLR metrics &amp; appraisals…
             </span>
           </div>
@@ -201,10 +203,7 @@ export function SlrConsoleClient({
           <>
             {activeTab === 'prisma' && <PrismaFlowDiagram metrics={metrics} />}
             {activeTab === 'arbiter' && (
-              <ArbiterConsole
-                disputes={disputes}
-                onDisputeResolved={handleDisputeResolved}
-              />
+              <ArbiterConsole disputes={disputes} onDisputeResolved={handleDisputeResolved} />
             )}
             {activeTab === 'rob' && <RobTrafficLightMatrix assessments={robAssessments} />}
           </>

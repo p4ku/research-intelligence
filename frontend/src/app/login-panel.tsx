@@ -152,10 +152,9 @@ export function LoginPanel({ next, notice, lang }: { next?: string; notice?: str
       </form>
 
       <p className="mt-10 text-xs text-zinc-400 dark:text-zinc-500">
-        {fmt(
-          t('{appName} is an internal tool. Access is restricted to authorized accounts.'),
-          { appName: APP_NAME },
-        )}
+        {fmt(t('{appName} is an internal tool. Access is restricted to authorized accounts.'), {
+          appName: APP_NAME,
+        })}
       </p>
     </div>
   )

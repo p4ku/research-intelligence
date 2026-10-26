@@ -21,7 +21,7 @@ const plexMono = localFont({
   display: 'swap',
 })
 
-import { APP_NAME, APP_DESCRIPTION } from '@/lib/config'
+import { APP_DESCRIPTION, APP_NAME } from '@/lib/config'
 
 // Runtime env: the image is built once and deployed anywhere.
 const siteUrl = process.env.SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'

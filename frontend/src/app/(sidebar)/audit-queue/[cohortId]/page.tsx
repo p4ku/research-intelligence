@@ -15,8 +15,7 @@ export default async function CohortRedirectPage({
     notFound()
   }
 
-  const targetPaperId =
-    cohort.first_unreviewed_paper_id || cohort.papers[0]?.paper_id
+  const targetPaperId = cohort.first_unreviewed_paper_id || cohort.papers[0]?.paper_id
 
   if (!targetPaperId) {
     notFound()

@@ -54,7 +54,8 @@ describe('BFF Audit Route Handlers (Stub mode)', () => {
 
   test('POST /bff/audit/cohorts/[cohortId]/papers/[paperId]/submit processes review decision', async () => {
     process.env.BFF_SOURCE_AUDIT = 'stub'
-    const { POST: submitReview } = await import('./cohorts/[cohortId]/papers/[paperId]/submit/route')
+    const { POST: submitReview } =
+      await import('./cohorts/[cohortId]/papers/[paperId]/submit/route')
     const req = new NextRequest(
       `http://localhost:3000/bff/audit/cohorts/${mockCohortId}/papers/${mockPaperId}/submit`,
       {
@@ -76,10 +77,9 @@ describe('BFF Audit Route Handlers (Stub mode)', () => {
   test('POST /bff/audit/runs/[runId]/resume confirms run resumption', async () => {
     process.env.BFF_SOURCE_AUDIT = 'stub'
     const { POST: resumeRun } = await import('./runs/[runId]/resume/route')
-    const req = new NextRequest(
-      `http://localhost:3000/bff/audit/runs/${mockRunId}/resume`,
-      { method: 'POST' },
-    )
+    const req = new NextRequest(`http://localhost:3000/bff/audit/runs/${mockRunId}/resume`, {
+      method: 'POST',
+    })
     const res = await resumeRun(req, {
       params: Promise.resolve({ runId: mockRunId }),
     })

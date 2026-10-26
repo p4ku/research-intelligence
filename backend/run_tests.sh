@@ -50,7 +50,7 @@ if [ -n "$COVERAGE_BIN" ]; then
     if [ $# -gt 0 ]; then
         "$COVERAGE_BIN" run manage.py test "$@"
     else
-        "$COVERAGE_BIN" run manage.py test --parallel auto research_intelligence.tests mcp_server chat observability
+        "$COVERAGE_BIN" run manage.py test --parallel auto research_intelligence.tests mcp_server chat observability slr_review
     fi
     
     echo ""
@@ -63,6 +63,6 @@ else
     if [ $# -gt 0 ]; then
         exec "$PYTHON_BIN" manage.py test "$@"
     else
-        exec "$PYTHON_BIN" manage.py test --parallel auto research_intelligence.tests mcp_server chat observability
+        exec "$PYTHON_BIN" manage.py test --parallel auto research_intelligence.tests mcp_server chat observability slr_review
     fi
 fi

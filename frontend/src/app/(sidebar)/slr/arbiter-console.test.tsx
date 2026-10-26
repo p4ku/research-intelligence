@@ -1,7 +1,7 @@
+import { mockDisputes } from '@/lib/bff/slr/fixtures'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { ArbiterConsole } from './arbiter-console'
-import { mockDisputes } from '@/lib/bff/slr/fixtures'
 
 describe('ArbiterConsole Component Rendering', () => {
   test('renders dispute lists, side-by-side comparison, and arbiter action form', () => {

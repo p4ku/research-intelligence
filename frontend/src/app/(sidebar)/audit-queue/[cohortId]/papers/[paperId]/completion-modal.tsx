@@ -1,7 +1,6 @@
 'use client'
 
 import { Button } from '@/components/button'
-import { Link } from '@/components/link'
 
 interface CompletionModalProps {
   isOpen: boolean
@@ -13,7 +12,7 @@ interface CompletionModalProps {
 export function CompletionModal({
   isOpen,
   pipelineRunId,
-  cohortId,
+  cohortId: _cohortId,
 }: CompletionModalProps) {
   if (!isOpen) return null
 
@@ -28,8 +27,9 @@ export function CompletionModal({
             Audit Checkpoint Complete!
           </h2>
           <p className="mt-2 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
-            All sampled articles in this checkpoint cohort have been independently evaluated.
-            The consensus gate has been unlocked and the pipeline has automatically resumed downstream processing.
+            All sampled articles in this checkpoint cohort have been independently evaluated. The
+            consensus gate has been unlocked and the pipeline has automatically resumed downstream
+            processing.
           </p>
         </div>
 
@@ -43,11 +43,7 @@ export function CompletionModal({
               Monitor Pipeline Run →
             </Button>
           )}
-          <Button
-            href="/audit-queue"
-            plain
-            className="w-full justify-center text-xs"
-          >
+          <Button href="/audit-queue" plain className="w-full justify-center text-xs">
             Return to Audit Queue
           </Button>
         </div>

@@ -1,6 +1,5 @@
 'use client'
 
-import { Button } from '@/components/button'
 import type { AuditPaperDetail } from '@/lib/bff/audit/schema'
 import clsx from 'clsx'
 import { useState } from 'react'
@@ -66,7 +65,9 @@ export function PdfViewerPane({
   onClearEvidence,
 }: PdfViewerPaneProps) {
   const [viewMode, setViewMode] = useState<'pdf' | 'ocr'>(paper.pdf_url ? 'pdf' : 'ocr')
-  const pdfEndpoint = paper.pdf_url?.startsWith('/bff') ? paper.pdf_url : `/bff/papers/${paper.paper_id}/pdf`
+  const pdfEndpoint = paper.pdf_url?.startsWith('/bff')
+    ? paper.pdf_url
+    : `/bff/papers/${paper.paper_id}/pdf`
 
   const targetPage = activeEvidence?.page_number || 1
   const searchSnippet = activeEvidence?.quote
@@ -144,13 +145,13 @@ export function PdfViewerPane({
                   : 'Focused Evidence'}
                 :
               </span>{' '}
-              <span className="italic text-amber-950 dark:text-amber-100">
+              <span className="text-amber-950 italic dark:text-amber-100">
                 &ldquo;{activeEvidence.quote}&rdquo;
               </span>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5 ml-3">
+          <div className="ml-3 flex shrink-0 items-center gap-1.5">
             {paper.pdf_url && (
               <button
                 type="button"
@@ -202,7 +203,7 @@ export function PdfViewerPane({
               className="h-full w-full border-0"
             />
             {activeEvidence && (
-              <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2 rounded-lg border border-amber-300 bg-white/95 px-3 py-1.5 shadow-md backdrop-blur dark:border-amber-500/40 dark:bg-zinc-900/95">
+              <div className="absolute right-3 bottom-3 z-10 flex items-center gap-2 rounded-lg border border-amber-300 bg-white/95 px-3 py-1.5 shadow-md backdrop-blur dark:border-amber-500/40 dark:bg-zinc-900/95">
                 <span className="text-[11px] font-semibold text-amber-900 dark:text-amber-200">
                   🎯 Focused on Page {activeEvidence.page_number || 1}
                 </span>
@@ -223,21 +224,28 @@ export function PdfViewerPane({
               <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
                 <span>⚠️</span>
                 <span>
-                  <strong>PDF binary not available in storage.</strong> Reading from Abstract & Extracted Metadata.
+                  <strong>PDF binary not available in storage.</strong> Reading from Abstract &
+                  Extracted Metadata.
                 </span>
               </div>
             )}
 
             <div>
-              <h2 className="text-xl font-bold leading-snug text-zinc-900 dark:text-white">
+              <h2 className="text-xl leading-snug font-bold text-zinc-900 dark:text-white">
                 {paper.title}
               </h2>
-              <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-                {paper.authors}
-              </p>
+              <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{paper.authors}</p>
               <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
-                {paper.journal && <span>Journal: <strong>{paper.journal}</strong></span>}
-                {paper.publication_year && <span>Year: <strong>{paper.publication_year}</strong></span>}
+                {paper.journal && (
+                  <span>
+                    Journal: <strong>{paper.journal}</strong>
+                  </span>
+                )}
+                {paper.publication_year && (
+                  <span>
+                    Year: <strong>{paper.publication_year}</strong>
+                  </span>
+                )}
                 {paper.doi && (
                   <span>
                     DOI:{' '}
@@ -291,7 +299,7 @@ export function PdfViewerPane({
                             : 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20',
                         )}
                       >
-                        <p className="italic text-zinc-800 dark:text-zinc-200">
+                        <p className="text-zinc-800 italic dark:text-zinc-200">
                           &ldquo;{q.quote}&rdquo;
                         </p>
                         <div className="mt-2 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
@@ -336,4 +344,3 @@ export function PdfViewerPane({
     </div>
   )
 }
-

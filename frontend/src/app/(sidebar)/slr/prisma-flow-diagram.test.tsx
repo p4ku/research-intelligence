@@ -1,7 +1,7 @@
+import { mockPrismaMetrics } from '@/lib/bff/slr/fixtures'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { PrismaFlowDiagram } from './prisma-flow-diagram'
-import { mockPrismaMetrics } from '@/lib/bff/slr/fixtures'
 
 describe('PrismaFlowDiagram Component Rendering', () => {
   test('renders all 4 PRISMA 2020 tiers with attrition statistics', () => {

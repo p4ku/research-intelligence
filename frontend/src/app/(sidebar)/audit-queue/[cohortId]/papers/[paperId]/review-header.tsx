@@ -71,9 +71,7 @@ export function ReviewHeader({
                   title={`Paper ${idx + 1}: ${p.title}`}
                   className={clsx(
                     'size-2.5 rounded-full transition-all',
-                    isCurrent
-                      ? 'ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-zinc-900'
-                      : '',
+                    isCurrent ? 'ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-zinc-900' : '',
                     isDone
                       ? 'bg-emerald-500 hover:bg-emerald-600'
                       : 'bg-zinc-300 hover:bg-zinc-400 dark:bg-zinc-700 dark:hover:bg-zinc-600',

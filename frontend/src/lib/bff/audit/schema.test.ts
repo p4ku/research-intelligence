@@ -2,17 +2,8 @@ import { describe, expect, mock, test } from 'bun:test'
 
 mock.module('server-only', () => ({}))
 
-import {
-  auditCohortDetail,
-  auditPaperDetail,
-  auditQueueItem,
-  submitAuditDecision,
-} from './schema'
-import {
-  mockCohortDetail1,
-  mockPaperDetail1,
-  mockQueueItems,
-} from './fixtures'
+import { mockCohortDetail1, mockPaperDetail1, mockQueueItems } from './fixtures'
+import { auditCohortDetail, auditPaperDetail, auditQueueItem, submitAuditDecision } from './schema'
 
 describe('SLR Audit BFF Schemas', () => {
   test('auditQueueItem parses mock queue items cleanly', () => {

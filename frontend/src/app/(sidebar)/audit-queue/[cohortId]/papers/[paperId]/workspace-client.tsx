@@ -20,11 +20,7 @@ interface WorkspaceClientProps {
   cohort: AuditCohortDetail
 }
 
-export function WorkspaceClient({
-  cohortId,
-  paper,
-  cohort,
-}: WorkspaceClientProps) {
+export function WorkspaceClient({ cohortId, paper, cohort }: WorkspaceClientProps) {
   const router = useRouter()
   const [showCompletionModal, setShowCompletionModal] = useState<boolean>(false)
 
@@ -112,7 +108,7 @@ export function WorkspaceClient({
 
       <div className="grid flex-1 grid-cols-1 overflow-hidden lg:grid-cols-12">
         {/* Left Pane: PDF / Document Viewer (7 cols = ~58%) */}
-        <div className="h-full border-r border-zinc-200 overflow-hidden lg:col-span-7 dark:border-zinc-800">
+        <div className="h-full overflow-hidden border-r border-zinc-200 lg:col-span-7 dark:border-zinc-800">
           <PdfViewerPane
             paper={paper}
             activeEvidence={activeEvidence}
@@ -152,4 +148,3 @@ export function WorkspaceClient({
     </div>
   )
 }
-

@@ -11,25 +11,20 @@ export default async function PaperReviewPage({
 }) {
   const { cohortId, paperId } = await params
 
+  let paper
+  let cohort
   try {
-    const [paper, cohort] = await Promise.all([
-      audit.getPaper(cohortId, paperId),
-      audit.getCohort(cohortId),
-    ])
-
-    if (!paper) {
-      notFound()
-    }
-
-    return (
-      <WorkspaceClient
-        cohortId={cohortId}
-        paper={paper}
-        cohort={cohort}
-      />
-    )
+    const res = await Promise.all([audit.getPaper(cohortId, paperId), audit.getCohort(cohortId)])
+    paper = res[0]
+    cohort = res[1]
   } catch (err) {
     console.error('[audit-queue] failed to load paper audit workspace', err)
     notFound()
   }
+
+  if (!paper) {
+    notFound()
+  }
+
+  return <WorkspaceClient cohortId={cohortId} paper={paper} cohort={cohort} />
 }

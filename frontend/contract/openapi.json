@@ -4888,6 +4888,7 @@
         "enum": [
           "pending",
           "running",
+          "paused",
           "completed",
           "failed",
           "aborted"
@@ -6005,6 +6006,13 @@
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991
+          },
+          "run_type": {
+            "type": "string",
+            "enum": [
+              "intelligence",
+              "slr"
+            ]
           }
         },
         "required": [

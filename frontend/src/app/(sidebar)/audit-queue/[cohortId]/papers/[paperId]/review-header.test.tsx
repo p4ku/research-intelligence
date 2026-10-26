@@ -108,13 +108,17 @@ describe('ReviewHeader Component Rendering', () => {
       />,
     )
 
-    expect(html).toContain('Progress: <strong class="text-zinc-900 dark:text-white">1</strong> of 3')
+    expect(html).toContain(
+      'Progress: <strong class="text-zinc-900 dark:text-white">1</strong> of 3',
+    )
     expect(html).toContain('title="Paper 1: Study 1 on Lassa Virus"')
     expect(html).toContain('title="Paper 2: Study 2 on Ebola Virus"')
 
     // Prev is disabled (prevPaperId is null)
     expect(html).toContain('← Prev')
     // Next is active
-    expect(html).toContain('href="/audit-queue/c0a80123-0000-4000-8000-000000000001/papers/d0a80123-0000-4000-8000-000000000002"')
+    expect(html).toContain(
+      'href="/audit-queue/c0a80123-0000-4000-8000-000000000001/papers/d0a80123-0000-4000-8000-000000000002"',
+    )
   })
 })

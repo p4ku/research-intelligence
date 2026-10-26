@@ -1,6 +1,6 @@
+import { apiFetch } from '@/lib/api/server'
 import { bff } from '@/lib/bff/core/handler'
 import { problem } from '@/lib/bff/core/problem'
-import { apiFetch } from '@/lib/api/server'
 
 export const dynamic = 'force-dynamic'
 

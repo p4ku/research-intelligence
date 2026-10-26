@@ -16,10 +16,12 @@ const paperWithEvidence: AuditPaperDetail = {
   doi: '10.1056/NEJMoa1910993',
   pdf_url: '/api/papers/d0a80123-0000-4000-8000-000000000001/pdf/',
   has_full_text: true,
-  abstract: 'Randomized controlled trial of 681 patients. Overall mortality in the mAb114 group was 35.1% compared with 49.7% with ZMapp. Viral clearance was achieved rapidly in patients presenting with low initial viral load.',
+  abstract:
+    'Randomized controlled trial of 681 patients. Overall mortality in the mAb114 group was 35.1% compared with 49.7% with ZMapp. Viral clearance was achieved rapidly in patients presenting with low initial viral load.',
   ai_decision: 'include',
   ai_confidence: 0.98,
-  ai_reasoning: 'High-rigour phase III human randomized controlled trial with verified survival outcome.',
+  ai_reasoning:
+    'High-rigour phase III human randomized controlled trial with verified survival outcome.',
   matched_criteria: ['Human RCT', 'Ebola Virus', 'Mortality primary endpoint'],
   evidence_quotes: [
     {
@@ -28,7 +30,8 @@ const paperWithEvidence: AuditPaperDetail = {
       section: 'Results',
     },
     {
-      quote: 'Viral clearance was achieved rapidly in patients presenting with low initial viral load',
+      quote:
+        'Viral clearance was achieved rapidly in patients presenting with low initial viral load',
       page_number: 6,
       section: 'Discussion',
     },
@@ -80,7 +83,8 @@ const paperWithoutEvidence: AuditPaperDetail = {
   doi: null,
   pdf_url: null,
   has_full_text: false,
-  abstract: 'Narrative summary of historical therapeutic strategies without quantitative parameters.',
+  abstract:
+    'Narrative summary of historical therapeutic strategies without quantitative parameters.',
   ai_decision: 'exclude',
   ai_confidence: 0.85,
   ai_reasoning: 'Narrative review article without primary experimental or clinical data.',
@@ -180,7 +184,9 @@ describe('Evidence & Grounding Linking Integration Tests', () => {
       expect(html).toContain('🎯 Focused in Viewer')
 
       // Second evidence quote also present
-      expect(html).toContain('Viral clearance was achieved rapidly in patients presenting with low initial viral load')
+      expect(html).toContain(
+        'Viral clearance was achieved rapidly in patients presenting with low initial viral load',
+      )
       expect(html).toContain('Page 6')
       expect(html).toContain('Locate in PDF ↗')
     })
@@ -224,7 +230,9 @@ describe('Evidence & Grounding Linking Integration Tests', () => {
       expect(html).not.toContain('🎯 Focused on Page')
 
       // Plain abstract text rendered without <mark>
-      expect(html).toContain('Narrative summary of historical therapeutic strategies without quantitative parameters.')
+      expect(html).toContain(
+        'Narrative summary of historical therapeutic strategies without quantitative parameters.',
+      )
       expect(html).not.toContain('<mark')
       expect(html).not.toContain('Highlighted matches shown below')
 

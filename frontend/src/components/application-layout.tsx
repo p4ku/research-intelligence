@@ -27,9 +27,9 @@ import { SidebarLayout } from '@/components/sidebar-layout'
 import { Switch } from '@/components/switch'
 import { Spinner } from '@/components/ui/spinner'
 import { VersionStamp } from '@/components/version-stamp'
-import { APP_NAME } from '@/lib/config'
 import type { SessionUser } from '@/lib/auth/cookies'
 import { performSignOut } from '@/lib/auth/leave'
+import { APP_NAME } from '@/lib/config'
 import { FEATURES, isVisible, TOGGLE_KEYS, type FeatureKey, type Features } from '@/lib/features'
 import { FeaturesProvider, useFeatures, useSetFeature } from '@/lib/features-client'
 import type { Lang } from '@/lib/i18n'
@@ -40,8 +40,8 @@ import {
   LanguageIcon,
 } from '@heroicons/react/16/solid'
 import {
-  ChatBubbleLeftRightIcon,
   ChartBarSquareIcon,
+  ChatBubbleLeftRightIcon,
   ClipboardDocumentCheckIcon,
   Cog6ToothIcon,
   DocumentTextIcon,

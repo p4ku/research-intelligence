@@ -30,7 +30,9 @@ export type SLRPRISMAMetrics = z.infer<typeof slrPrismaMetricsSchema>
  * Domain evaluation item inside Risk of Bias.
  */
 export const robDomainScoreSchema = z.object({
-  rating: z.enum(['low_risk', 'some_concerns', 'high_risk', 'critical_risk', 'unclear']).or(z.string()),
+  rating: z
+    .enum(['low_risk', 'some_concerns', 'high_risk', 'critical_risk', 'unclear'])
+    .or(z.string()),
   quote: z.string().nullable().optional(),
   page: z.number().nullable().optional(),
 })
@@ -47,7 +49,10 @@ export const slrRobAssessmentSchema = z.object({
   pipeline_run: z.string(),
   framework: z.enum(['rob2', 'robins_i', 'nos']).or(z.string()).default('rob2'),
   domain_scores: z.record(z.string(), robDomainScoreSchema.or(z.any())).default({}),
-  overall_bias: z.enum(['low_risk', 'some_concerns', 'high_risk', 'critical_risk']).or(z.string()).default('some_concerns'),
+  overall_bias: z
+    .enum(['low_risk', 'some_concerns', 'high_risk', 'critical_risk'])
+    .or(z.string())
+    .default('some_concerns'),
   traffic_light_color: z.enum(['green', 'yellow', 'red']).or(z.string()).default('yellow'),
   is_human_verified: z.boolean().default(false),
   human_notes: z.string().nullable().optional(),

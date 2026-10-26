@@ -48,7 +48,10 @@ export default async function AskPage({
   if (state.kind !== 'ok') {
     return (
       <div className="space-y-8">
-        <PageHeader eyebrow={t('Assistant')} title={fmt(t('Ask {appName}'), { appName: APP_NAME })} />
+        <PageHeader
+          eyebrow={t('Assistant')}
+          title={fmt(t('Ask {appName}'), { appName: APP_NAME })}
+        />
         <WorkspaceNotice kind={state.kind} />
       </div>
     )

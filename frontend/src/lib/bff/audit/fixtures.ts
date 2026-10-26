@@ -95,7 +95,8 @@ export const mockPaperDetail1: AuditPaperDetail = {
       extracted_value: '1.34',
       uncertainty: '95% CI (1.12 - 1.61)',
       method: 'Maximum Likelihood (Empirical)',
-      text_evidence: 'We estimated a basic reproduction number R0 of 1.34 (95% CI 1.12-1.61) across affected local government areas.',
+      text_evidence:
+        'We estimated a basic reproduction number R0 of 1.34 (95% CI 1.12-1.61) across affected local government areas.',
       page_number: 3,
       status: 'pending',
     },
@@ -106,7 +107,8 @@ export const mockPaperDetail1: AuditPaperDetail = {
       extracted_value: '21.4% (32 / 150)',
       uncertainty: 'Denominator: 150 cases',
       method: 'In-hospital confirmed RT-PCR cohort',
-      text_evidence: 'Among hospitalized cases with confirmed RT-PCR diagnosis, the overall in-hospital case fatality ratio was 21.4% (32/150).',
+      text_evidence:
+        'Among hospitalized cases with confirmed RT-PCR diagnosis, the overall in-hospital case fatality ratio was 21.4% (32/150).',
       page_number: 5,
       status: 'pending',
     },

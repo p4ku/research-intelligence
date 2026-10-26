@@ -1,9 +1,4 @@
-import type {
-  SLRPRISMAMetrics,
-  SLRROBAssessment,
-  SLRDispute,
-  SLRPipelineRunItem,
-} from './schema'
+import type { SLRDispute, SLRPipelineRunItem, SLRPRISMAMetrics, SLRROBAssessment } from './schema'
 
 export const mockSLRRuns: SLRPipelineRunItem[] = [
   {
@@ -66,16 +61,37 @@ export const mockRobAssessments: SLRROBAssessment[] = [
     pipeline_run: 'a2a44548-6af3-47ce-a538-724427e69e0b',
     framework: 'rob2',
     domain_scores: {
-      D1_randomization: { rating: 'low_risk', quote: 'Patients were randomized 1:1 using computer-generated blocks.', page: 3 },
-      D2_deviations: { rating: 'low_risk', quote: 'Double-blind protocol preserved across all treatment arms.', page: 4 },
-      D3_missing_data: { rating: 'low_risk', quote: 'Complete case follow-up exceeded 98.5% at endpoint.', page: 6 },
-      D4_measurement: { rating: 'low_risk', quote: 'Blinded central pathology review confirmed all primary endpoints.', page: 8 },
-      D5_selection: { rating: 'low_risk', quote: 'Pre-registered clinical trial protocol matched analysis plan verbatim.', page: 11 },
+      D1_randomization: {
+        rating: 'low_risk',
+        quote: 'Patients were randomized 1:1 using computer-generated blocks.',
+        page: 3,
+      },
+      D2_deviations: {
+        rating: 'low_risk',
+        quote: 'Double-blind protocol preserved across all treatment arms.',
+        page: 4,
+      },
+      D3_missing_data: {
+        rating: 'low_risk',
+        quote: 'Complete case follow-up exceeded 98.5% at endpoint.',
+        page: 6,
+      },
+      D4_measurement: {
+        rating: 'low_risk',
+        quote: 'Blinded central pathology review confirmed all primary endpoints.',
+        page: 8,
+      },
+      D5_selection: {
+        rating: 'low_risk',
+        quote: 'Pre-registered clinical trial protocol matched analysis plan verbatim.',
+        page: 11,
+      },
     },
     overall_bias: 'low_risk',
     traffic_light_color: 'green',
     is_human_verified: true,
-    human_notes: 'Pristine multicenter randomized clinical trial with negligible risk across all domains.',
+    human_notes:
+      'Pristine multicenter randomized clinical trial with negligible risk across all domains.',
   },
   {
     id: 'rob-002',
@@ -84,11 +100,31 @@ export const mockRobAssessments: SLRROBAssessment[] = [
     pipeline_run: 'a2a44548-6af3-47ce-a538-724427e69e0b',
     framework: 'rob2',
     domain_scores: {
-      D1_randomization: { rating: 'some_concerns', quote: 'Allocation sequence generation details were not explicitly stated.', page: 4 },
-      D2_deviations: { rating: 'low_risk', quote: 'No significant protocol deviations recorded during observational phase.', page: 5 },
-      D3_missing_data: { rating: 'some_concerns', quote: '14% attrition observed in the secondary subgroup without imputation.', page: 9 },
-      D4_measurement: { rating: 'low_risk', quote: 'Automated diagnostic logging ensured standardized outcome capture.', page: 7 },
-      D5_selection: { rating: 'low_risk', quote: 'Outcomes reported consistent with initial trial registry.', page: 12 },
+      D1_randomization: {
+        rating: 'some_concerns',
+        quote: 'Allocation sequence generation details were not explicitly stated.',
+        page: 4,
+      },
+      D2_deviations: {
+        rating: 'low_risk',
+        quote: 'No significant protocol deviations recorded during observational phase.',
+        page: 5,
+      },
+      D3_missing_data: {
+        rating: 'some_concerns',
+        quote: '14% attrition observed in the secondary subgroup without imputation.',
+        page: 9,
+      },
+      D4_measurement: {
+        rating: 'low_risk',
+        quote: 'Automated diagnostic logging ensured standardized outcome capture.',
+        page: 7,
+      },
+      D5_selection: {
+        rating: 'low_risk',
+        quote: 'Outcomes reported consistent with initial trial registry.',
+        page: 12,
+      },
     },
     overall_bias: 'some_concerns',
     traffic_light_color: 'yellow',
@@ -102,16 +138,37 @@ export const mockRobAssessments: SLRROBAssessment[] = [
     pipeline_run: 'a2a44548-6af3-47ce-a538-724427e69e0b',
     framework: 'rob2',
     domain_scores: {
-      D1_randomization: { rating: 'high_risk', quote: 'Pseudorandom allocation alternating by odd/even admission dates.', page: 2 },
-      D2_deviations: { rating: 'some_concerns', quote: 'Clinicians were unblinded to triage recommendations.', page: 5 },
-      D3_missing_data: { rating: 'high_risk', quote: 'Over 28% of patient discharge forms lacked follow-up telemetry.', page: 8 },
-      D4_measurement: { rating: 'some_concerns', quote: 'Subjective clinician assessment utilized for borderline outcomes.', page: 6 },
-      D5_selection: { rating: 'high_risk', quote: 'Post-hoc subgroup metrics reported without pre-specified hypothesis.', page: 14 },
+      D1_randomization: {
+        rating: 'high_risk',
+        quote: 'Pseudorandom allocation alternating by odd/even admission dates.',
+        page: 2,
+      },
+      D2_deviations: {
+        rating: 'some_concerns',
+        quote: 'Clinicians were unblinded to triage recommendations.',
+        page: 5,
+      },
+      D3_missing_data: {
+        rating: 'high_risk',
+        quote: 'Over 28% of patient discharge forms lacked follow-up telemetry.',
+        page: 8,
+      },
+      D4_measurement: {
+        rating: 'some_concerns',
+        quote: 'Subjective clinician assessment utilized for borderline outcomes.',
+        page: 6,
+      },
+      D5_selection: {
+        rating: 'high_risk',
+        quote: 'Post-hoc subgroup metrics reported without pre-specified hypothesis.',
+        page: 14,
+      },
     },
     overall_bias: 'high_risk',
     traffic_light_color: 'red',
     is_human_verified: true,
-    human_notes: 'High risk of bias: allocation predictable, severe attrition and uncalibrated post-hoc reporting.',
+    human_notes:
+      'High risk of bias: allocation predictable, severe attrition and uncalibrated post-hoc reporting.',
   },
 ]
 
@@ -132,20 +189,25 @@ export const mockDisputes: SLRDispute[] = [
       reviewer_1: {
         reviewer_name: 'Dr. Anna Kowalska',
         decision: 'include',
-        notes: 'Contains formal compartmental ODE system with basic reproduction number (R0) derivations.',
-        quotes: ['We formulate an SEIR-V transmission framework parametrized with empirical field telemetry.'],
+        notes:
+          'Contains formal compartmental ODE system with basic reproduction number (R0) derivations.',
+        quotes: [
+          'We formulate an SEIR-V transmission framework parametrized with empirical field telemetry.',
+        ],
       },
       reviewer_2: {
         reviewer_name: 'Dr. John Smith',
         decision: 'exclude',
         exclusion_reason: 'Solely Animal Study (No Transmission Parameters)',
-        notes: 'Sampling limited to bat reservoir populations; human epidemiological transmission was not measured.',
+        notes:
+          'Sampling limited to bat reservoir populations; human epidemiological transmission was not measured.',
         quotes: ['Sera collected exclusively from Eidolon helvum frugivorous bats.'],
       },
       ai_agent: {
         decision: 'include',
         confidence: 0.74,
-        reasoning: 'The manuscript presents numerical parameter estimations of spillover potential matching criteria.',
+        reasoning:
+          'The manuscript presents numerical parameter estimations of spillover potential matching criteria.',
       },
     },
     created_at: '2026-10-26T21:10:00Z',
@@ -162,7 +224,8 @@ export const mockDisputes: SLRDispute[] = [
     arbiter: 1,
     final_decision: 'exclude',
     final_exclusion_reason: 'No Extractable Parameters / Models',
-    resolution_rationale: 'Binding Senior Arbiter ruling: Study strictly tracks phylogenetic trees without reporting clinical intervention parameters or transmission dynamics coefficients.',
+    resolution_rationale:
+      'Binding Senior Arbiter ruling: Study strictly tracks phylogenetic trees without reporting clinical intervention parameters or transmission dynamics coefficients.',
     evidence_synthesis: {
       reviewer_1: {
         reviewer_name: 'Dr. Anna Kowalska',

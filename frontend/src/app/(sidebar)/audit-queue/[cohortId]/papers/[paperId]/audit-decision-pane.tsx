@@ -3,7 +3,11 @@
 import { Button } from '@/components/button'
 import { Input } from '@/components/input'
 import { Select } from '@/components/select'
-import type { AuditPaperDetail, AuditReviewResult, SubmitAuditDecision } from '@/lib/bff/audit/schema'
+import type {
+  AuditPaperDetail,
+  AuditReviewResult,
+  SubmitAuditDecision,
+} from '@/lib/bff/audit/schema'
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 
@@ -42,14 +46,18 @@ export function AuditDecisionPane({
   onSelectEvidence,
 }: AuditDecisionPaneProps) {
   // Decision action: 'agree' | 'override_include' | 'override_exclude'
-  const defaultAction = paper.is_reviewed
-    ? (paper.reviewer_decision as any) || 'agree'
-    : 'agree'
+  const isScreeningAction = (
+    val: unknown,
+  ): val is 'agree' | 'override_include' | 'override_exclude' =>
+    val === 'agree' || val === 'override_include' || val === 'override_exclude'
+
+  const defaultAction =
+    paper.is_reviewed && isScreeningAction(paper.reviewer_decision)
+      ? paper.reviewer_decision
+      : 'agree'
 
   const [action, setAction] = useState<'agree' | 'override_include' | 'override_exclude'>(
-    defaultAction === 'modify' || defaultAction === 'reject' || defaultAction === 'verify'
-      ? 'agree'
-      : defaultAction
+    defaultAction,
   )
   const [exclusionReason, setExclusionReason] = useState<string>(
     paper.exclusion_reason || EXCLUSION_REASONS[0],
@@ -64,11 +72,11 @@ export function AuditDecisionPane({
     paper.extractions && paper.extractions.length > 0
       ? paper.extractions.map((e) => ({
           ...e,
-          action: (e.status === 'modify' || e.status === 'reject') ? e.status : 'verify',
+          action: e.status === 'modify' || e.status === 'reject' ? e.status : 'verify',
           correctedValue: e.extracted_value,
           correctedEvidence: e.text_evidence || '',
         }))
-      : []
+      : [],
   )
 
   const isOverride = action === 'override_include' || action === 'override_exclude'
@@ -106,7 +114,9 @@ export function AuditDecisionPane({
           const payload = {
             action: ext.action,
             corrected_fields: ext.action === 'modify' ? { value: ext.correctedValue } : null,
-            verified_evidence_quotes: ext.correctedEvidence ? [{ quote: ext.correctedEvidence }] : [],
+            verified_evidence_quotes: ext.correctedEvidence
+              ? [{ quote: ext.correctedEvidence }]
+              : [],
             reviewer_notes: reviewerNote.trim() || null,
             time_spent_seconds: 15,
           }
@@ -126,14 +136,11 @@ export function AuditDecisionPane({
         time_spent_seconds: 15,
       }
 
-      const res = await fetch(
-        `/bff/audit/cohorts/${cohortId}/papers/${paper.paper_id}/submit`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        },
-      )
+      const res = await fetch(`/bff/audit/cohorts/${cohortId}/papers/${paper.paper_id}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
@@ -142,8 +149,9 @@ export function AuditDecisionPane({
 
       const result: AuditReviewResult = await res.json()
       onSubmitted(result)
-    } catch (err: any) {
-      setErrorMsg(err.message || 'An error occurred while saving your review.')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'An error occurred while saving your review.'
+      setErrorMsg(msg)
     } finally {
       setIsSubmitting(false)
     }
@@ -154,7 +162,8 @@ export function AuditDecisionPane({
     function handleKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement
       const isInput =
-        target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault()
@@ -173,7 +182,15 @@ export function AuditDecisionPane({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [action, exclusionReason, reviewerNote, evidenceCitation, isSubmitting, isExtractionStage, extractionsState])
+  }, [
+    action,
+    exclusionReason,
+    reviewerNote,
+    evidenceCitation,
+    isSubmitting,
+    isExtractionStage,
+    extractionsState,
+  ])
 
   const confidencePct = Math.round(paper.ai_confidence * 100)
 
@@ -185,7 +202,7 @@ export function AuditDecisionPane({
           <div className="flex items-center justify-between">
             <span
               className={clsx(
-                'inline-flex items-center rounded-md px-2.5 py-1 text-xs font-bold uppercase tracking-wider',
+                'inline-flex items-center rounded-md px-2.5 py-1 text-xs font-bold tracking-wider uppercase',
                 paper.ai_decision === 'include'
                   ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300'
                   : 'bg-rose-500/10 text-rose-700 ring-1 ring-rose-500/30 dark:bg-rose-500/15 dark:text-rose-300',
@@ -248,13 +265,13 @@ export function AuditDecisionPane({
                         })
                       }
                       className={clsx(
-                        'group w-full text-left rounded-lg border p-2.5 text-xs transition-all',
+                        'group w-full rounded-lg border p-2.5 text-left text-xs transition-all',
                         isActive
                           ? 'border-blue-500 bg-blue-50/80 ring-2 ring-blue-500/30 dark:border-blue-400 dark:bg-blue-950/40'
                           : 'border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800/60',
                       )}
                     >
-                      <p className="italic text-zinc-800 dark:text-zinc-200">
+                      <p className="text-zinc-800 italic dark:text-zinc-200">
                         &ldquo;{q.quote}&rdquo;
                       </p>
                       <div className="mt-1.5 flex items-center justify-between text-[11px]">
@@ -296,9 +313,7 @@ export function AuditDecisionPane({
               <button
                 type="button"
                 onClick={() => {
-                  setExtractionsState((prev) =>
-                    prev.map((e) => ({ ...e, action: 'verify' }))
-                  )
+                  setExtractionsState((prev) => prev.map((e) => ({ ...e, action: 'verify' })))
                 }}
                 className={clsx(
                   'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all',
@@ -334,14 +349,31 @@ export function AuditDecisionPane({
 
                   <div className="mt-2 space-y-1 text-xs text-zinc-700 dark:text-zinc-300">
                     <p>
-                      • <strong className="font-semibold text-zinc-900 dark:text-white">Extracted Value:</strong>{' '}
-                      <span className="font-mono text-zinc-950 dark:text-zinc-100">{ext.extracted_value}</span>
+                      •{' '}
+                      <strong className="font-semibold text-zinc-900 dark:text-white">
+                        Extracted Value:
+                      </strong>{' '}
+                      <span className="font-mono text-zinc-950 dark:text-zinc-100">
+                        {ext.extracted_value}
+                      </span>
                     </p>
                     {ext.uncertainty && (
-                      <p>• <strong className="font-semibold text-zinc-900 dark:text-white">Uncertainty:</strong> {ext.uncertainty}</p>
+                      <p>
+                        •{' '}
+                        <strong className="font-semibold text-zinc-900 dark:text-white">
+                          Uncertainty:
+                        </strong>{' '}
+                        {ext.uncertainty}
+                      </p>
                     )}
                     {ext.method && (
-                      <p>• <strong className="font-semibold text-zinc-900 dark:text-white">Method:</strong> {ext.method}</p>
+                      <p>
+                        •{' '}
+                        <strong className="font-semibold text-zinc-900 dark:text-white">
+                          Method:
+                        </strong>{' '}
+                        {ext.method}
+                      </p>
                     )}
                     {ext.text_evidence && (
                       <button
@@ -353,13 +385,13 @@ export function AuditDecisionPane({
                           })
                         }
                         className={clsx(
-                          'group mt-1 w-full text-left rounded-lg border p-2 text-[11px] transition-all',
+                          'group mt-1 w-full rounded-lg border p-2 text-left text-[11px] transition-all',
                           activeEvidence?.quote === ext.text_evidence
                             ? 'border-amber-500 bg-amber-50/70 ring-2 ring-amber-400/40 dark:border-amber-500/50 dark:bg-amber-950/30'
                             : 'border-zinc-200 bg-zinc-100 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-800/80',
                         )}
                       >
-                        <div className="flex items-center justify-between mb-0.5">
+                        <div className="mb-0.5 flex items-center justify-between">
                           <span className="font-semibold text-zinc-600 dark:text-zinc-300">
                             Grounding Citation {ext.page_number ? `(Page ${ext.page_number})` : ''}
                           </span>
@@ -369,7 +401,7 @@ export function AuditDecisionPane({
                               : 'Jump to Page in PDF ↗'}
                           </span>
                         </div>
-                        <p className="italic text-zinc-700 dark:text-zinc-300">
+                        <p className="text-zinc-700 italic dark:text-zinc-300">
                           &ldquo;{ext.text_evidence}&rdquo;
                         </p>
                       </button>
@@ -383,7 +415,9 @@ export function AuditDecisionPane({
                       onClick={() => {
                         setExtractionsState((prev) =>
                           prev.map((item) =>
-                            item.extraction_id === ext.extraction_id ? { ...item, action: 'verify' } : item,
+                            item.extraction_id === ext.extraction_id
+                              ? { ...item, action: 'verify' }
+                              : item,
                           ),
                         )
                       }}
@@ -401,7 +435,9 @@ export function AuditDecisionPane({
                       onClick={() => {
                         setExtractionsState((prev) =>
                           prev.map((item) =>
-                            item.extraction_id === ext.extraction_id ? { ...item, action: 'modify' } : item,
+                            item.extraction_id === ext.extraction_id
+                              ? { ...item, action: 'modify' }
+                              : item,
                           ),
                         )
                       }}
@@ -419,7 +455,9 @@ export function AuditDecisionPane({
                       onClick={() => {
                         setExtractionsState((prev) =>
                           prev.map((item) =>
-                            item.extraction_id === ext.extraction_id ? { ...item, action: 'reject' } : item,
+                            item.extraction_id === ext.extraction_id
+                              ? { ...item, action: 'reject' }
+                              : item,
                           ),
                         )
                       }}
@@ -448,7 +486,9 @@ export function AuditDecisionPane({
                             const val = e.target.value
                             setExtractionsState((prev) =>
                               prev.map((item) =>
-                                item.extraction_id === ext.extraction_id ? { ...item, correctedValue: val } : item,
+                                item.extraction_id === ext.extraction_id
+                                  ? { ...item, correctedValue: val }
+                                  : item,
                               ),
                             )
                           }}
@@ -466,7 +506,9 @@ export function AuditDecisionPane({
                             const val = e.target.value
                             setExtractionsState((prev) =>
                               prev.map((item) =>
-                                item.extraction_id === ext.extraction_id ? { ...item, correctedEvidence: val } : item,
+                                item.extraction_id === ext.extraction_id
+                                  ? { ...item, correctedEvidence: val }
+                                  : item,
                               ),
                             )
                           }}
@@ -526,7 +568,8 @@ export function AuditDecisionPane({
                     Agree with AI Decision ({paper.ai_decision.toUpperCase()})
                   </span>
                   <p className="text-zinc-500 dark:text-zinc-400">
-                    Accept AI rationale and classification without modification. (Hotkey: <kbd className="font-mono">A</kbd>)
+                    Accept AI rationale and classification without modification. (Hotkey:{' '}
+                    <kbd className="font-mono">A</kbd>)
                   </p>
                 </div>
               </label>
@@ -552,7 +595,8 @@ export function AuditDecisionPane({
                     {overrideLabel}
                   </span>
                   <p className="text-zinc-500 dark:text-zinc-400">
-                    Overturn AI decision and record ground truth evidence. (Hotkey: <kbd className="font-mono">O</kbd>)
+                    Overturn AI decision and record ground truth evidence. (Hotkey:{' '}
+                    <kbd className="font-mono">O</kbd>)
                   </p>
                 </div>
               </label>
@@ -636,20 +680,36 @@ export function AuditDecisionPane({
         </Button>
         <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-zinc-400 dark:text-zinc-500">
           <span>
-            <kbd className="rounded border border-zinc-200 bg-zinc-100 px-1 py-0.5 font-mono text-[10px] dark:border-zinc-700 dark:bg-zinc-800">⌘↵</kbd> Submit
+            <kbd className="rounded border border-zinc-200 bg-zinc-100 px-1 py-0.5 font-mono text-[10px] dark:border-zinc-700 dark:bg-zinc-800">
+              ⌘↵
+            </kbd>{' '}
+            Submit
           </span>
           {!isExtractionStage && (
             <>
               <span>
-                <kbd className="rounded border border-zinc-200 bg-zinc-100 px-1 py-0.5 font-mono text-[10px] dark:border-zinc-700 dark:bg-zinc-800">A</kbd> Agree
+                <kbd className="rounded border border-zinc-200 bg-zinc-100 px-1 py-0.5 font-mono text-[10px] dark:border-zinc-700 dark:bg-zinc-800">
+                  A
+                </kbd>{' '}
+                Agree
               </span>
               <span>
-                <kbd className="rounded border border-zinc-200 bg-zinc-100 px-1 py-0.5 font-mono text-[10px] dark:border-zinc-700 dark:bg-zinc-800">O</kbd> Override
+                <kbd className="rounded border border-zinc-200 bg-zinc-100 px-1 py-0.5 font-mono text-[10px] dark:border-zinc-700 dark:bg-zinc-800">
+                  O
+                </kbd>{' '}
+                Override
               </span>
             </>
           )}
           <span>
-            <kbd className="rounded border border-zinc-200 bg-zinc-100 px-1 py-0.5 font-mono text-[10px] dark:border-zinc-700 dark:bg-zinc-800">←</kbd> / <kbd className="rounded border border-zinc-200 bg-zinc-100 px-1 py-0.5 font-mono text-[10px] dark:border-zinc-700 dark:bg-zinc-800">→</kbd> Navigate
+            <kbd className="rounded border border-zinc-200 bg-zinc-100 px-1 py-0.5 font-mono text-[10px] dark:border-zinc-700 dark:bg-zinc-800">
+              ←
+            </kbd>{' '}
+            /{' '}
+            <kbd className="rounded border border-zinc-200 bg-zinc-100 px-1 py-0.5 font-mono text-[10px] dark:border-zinc-700 dark:bg-zinc-800">
+              →
+            </kbd>{' '}
+            Navigate
           </span>
         </div>
       </div>

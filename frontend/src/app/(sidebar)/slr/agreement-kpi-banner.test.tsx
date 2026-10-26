@@ -1,7 +1,7 @@
+import { mockPrismaMetrics } from '@/lib/bff/slr/fixtures'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { AgreementKpiBanner } from './agreement-kpi-banner'
-import { mockPrismaMetrics } from '@/lib/bff/slr/fixtures'
 
 describe('AgreementKpiBanner Component Rendering', () => {
   test('renders all 4 statistical KPI metric cards with mock data', () => {

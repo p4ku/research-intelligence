@@ -1,4 +1,9 @@
-import { describe, expect, test } from 'bun:test'
+import {
+  mockDisputes,
+  mockPrismaMetrics,
+  mockRobAssessments,
+  mockSLRRuns,
+} from '@/lib/bff/slr/fixtures'
 import {
   resolveDisputeInputSchema,
   slrDisputeSchema,
@@ -6,12 +11,7 @@ import {
   slrPrismaMetricsSchema,
   slrRobAssessmentSchema,
 } from '@/lib/bff/slr/schema'
-import {
-  mockDisputes,
-  mockPrismaMetrics,
-  mockRobAssessments,
-  mockSLRRuns,
-} from '@/lib/bff/slr/fixtures'
+import { describe, expect, test } from 'bun:test'
 
 describe('SLR Stage 2 BFF Schema & Contract Validation', () => {
   test('validates PRISMA 2020 metrics schema against mock payload', () => {
@@ -52,7 +52,9 @@ describe('SLR Stage 2 BFF Schema & Contract Validation', () => {
       final_exclusion_reason: 'Solely Animal Study (No Transmission Parameters)',
     })
     expect(validExclude.final_decision).toBe('exclude')
-    expect(validExclude.final_exclusion_reason).toBe('Solely Animal Study (No Transmission Parameters)')
+    expect(validExclude.final_exclusion_reason).toBe(
+      'Solely Animal Study (No Transmission Parameters)',
+    )
 
     expect(() => {
       resolveDisputeInputSchema.parse({

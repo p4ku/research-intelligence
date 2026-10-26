@@ -75,7 +75,9 @@ export async function RunHead({ id, t, lang }: { id: string; t: T; lang: Lang })
         <div className="flex flex-col gap-3 rounded-lg border border-amber-300/80 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-amber-400/25 dark:bg-amber-500/10">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-base" aria-hidden="true">⏸</span>
+              <span className="text-base" aria-hidden="true">
+                ⏸
+              </span>
               <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
                 {t('Paused at Checkpoint Gate')}
               </p>

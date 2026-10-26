@@ -1,7 +1,7 @@
+import { mockRobAssessments } from '@/lib/bff/slr/fixtures'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { RobTrafficLightMatrix } from './rob-traffic-light-matrix'
-import { mockRobAssessments } from '@/lib/bff/slr/fixtures'
 
 describe('RobTrafficLightMatrix Component Rendering', () => {
   test('renders traffic light matrix table with domains and bias assessments', () => {

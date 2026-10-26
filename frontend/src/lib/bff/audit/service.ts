@@ -9,12 +9,7 @@ import * as z from 'zod'
 import { django } from '../core/http'
 import { sourceOf } from '../core/source'
 import { assertUuid } from '../core/validate'
-import {
-  mockCohortDetail1,
-  mockPaperDetail1,
-  mockQueueItems,
-  mockReviewResult,
-} from './fixtures'
+import { mockCohortDetail1, mockPaperDetail1, mockQueueItems, mockReviewResult } from './fixtures'
 import {
   auditCohortDetail,
   auditPaperDetail,
