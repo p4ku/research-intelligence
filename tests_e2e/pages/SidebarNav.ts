@@ -10,6 +10,7 @@ export class SidebarNav extends BasePage {
   readonly navAsk: Locator;
   readonly navRuns: Locator;
   readonly navAuditQueue: Locator;
+  readonly navSlr: Locator;
   readonly userMenuButton: Locator;
   readonly userNameLabel: Locator;
   readonly menuSettingsItem: Locator;
@@ -26,6 +27,7 @@ export class SidebarNav extends BasePage {
     this.navAsk = page.locator("a[href='/ask'], nav a:has-text('Ask'), nav a:has-text('Fragen'), aside a[href='/ask']").first();
     this.navRuns = page.locator("a[href='/runs'], nav a:has-text('Runs'), aside a[href='/runs']").first();
     this.navAuditQueue = page.locator("a[href='/audit-queue'], nav a:has-text('Audit Queue'), nav a:has-text('Prüfwarteschlange'), aside a[href='/audit-queue']").first();
+    this.navSlr = page.locator("a[href='/slr'], nav a:has-text('SLR Review'), aside a[href='/slr']").first();
 
     this.userMenuButton = page.locator(
       "aside footer button, aside footer [role='button'], aside footer [data-slot='item'], button:has([data-slot='avatar']), header button:has([data-slot='avatar'])"
@@ -129,6 +131,19 @@ export class SidebarNav extends BasePage {
           }
         } catch {
           await this.goto('/audit-queue');
+        }
+      }
+    } else if (['slr', 'slr-review', 'slr_console', '/slr'].includes(targetLower)) {
+      if (!currentUrl.includes('/slr')) {
+        try {
+          if (await this.navSlr.isVisible({ timeout: 3000 })) {
+            await this.navSlr.click();
+            await this.waitForURLContains('/slr');
+          } else {
+            await this.goto('/slr');
+          }
+        } catch {
+          await this.goto('/slr');
         }
       }
     } else if (['settings', '/settings'].includes(targetLower)) {

@@ -11,3 +11,4 @@ export * from './AskPage.js';
 export * from './RunsPage.js';
 export * from './AuditQueuePage.js';
 export * from './FeatureToggles.js';
+export * from './SlrConsolePage.js';
