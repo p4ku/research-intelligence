@@ -43,14 +43,7 @@ export class ApiHarness {
 
   async createWorkspace(
     token: string,
-    payload: {
-      name: string;
-      abstract_acceptance_criteria?: string;
-      abstract_rejection_criteria?: string;
-      full_text_acceptance_criteria?: string;
-      full_text_rejection_criteria?: string;
-      screening_llm_model?: string;
-    },
+    payload: Record<string, any>,
   ): Promise<WorkspaceData> {
     const res = await fetch(`${this.baseURL}/api/workspaces/`, {
       method: 'POST',
@@ -71,6 +64,56 @@ export class ApiHarness {
       throw new Error(`Create workspace failed (${res.status}): ${await res.text()}`);
     }
     return await res.json();
+  }
+
+  async updateSLRConfig(
+    token: string,
+    workspaceId: string,
+    payload: Record<string, any>,
+  ): Promise<any> {
+    const res = await fetch(`${this.baseURL}/api/slr/workspaces/${workspaceId}/config/`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      throw new Error(`Update SLR config failed (${res.status}): ${await res.text()}`);
+    }
+    return await res.json();
+  }
+
+  async getPipelineRun(token: string, runId: string): Promise<any> {
+    const res = await fetch(`${this.baseURL}/api/pipeline-runs/${runId}/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      throw new Error(`Get pipeline run failed (${res.status}): ${await res.text()}`);
+    }
+    return await res.json();
+  }
+
+  async cleanupOldTestWorkspaces(token: string, prefix: string = 'test_e2e_'): Promise<number> {
+    try {
+      const res = await fetch(`${this.baseURL}/api/workspaces/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return 0;
+      const data = await res.json();
+      const workspaces = Array.isArray(data) ? data : data.results || [];
+      const toDelete = workspaces.filter((ws: any) => ws.name && ws.name.startsWith(prefix));
+      let deleted = 0;
+      for (const ws of toDelete) {
+        if (await this.deleteWorkspace(token, ws.id)) {
+          deleted++;
+        }
+      }
+      return deleted;
+    } catch {
+      return 0;
+    }
   }
 
   async createScraper(
