@@ -1,0 +1,282 @@
+services:
+  # Cache and Celery task broker
+  redis:
+    image: redis:7-alpine
+    container_name: sri_redis_prod
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Local S3 replacement for storing original PDFs and Markdown files (optional fallback if AWS S3 not used)
+  minio:
+    image: minio/minio
+    container_name: sri_minio_prod
+    restart: always
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio_dev_user}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_dev_password}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Django REST API Backend (Connects to PostgreSQL running on EC2 host via host.docker.internal)
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sri_api_prod
+    restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=${APP_NAME:-Systematic Literature Review}
+      - APP_SHORT_NAME=${APP_SHORT_NAME:-SLR}
+      - APP_DESCRIPTION=${APP_DESCRIPTION:-Enterprise Systematic Literature Review (SLR) Platform.}
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-*}
+      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS}
+      - SITE_URL=${SITE_URL}
+      # Database connection to PostgreSQL running on EC2 host
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_NAME=${DB_NAME:-research_intelligence}
+      - DB_USER=${DB_USER:-slr_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_SSLMODE=${DB_SSLMODE:-prefer}
+      - REDIS_URL=redis://redis:6379/0
+      - GOOGLE_AGENT_API_KEY=${GOOGLE_AGENT_API_KEY}
+      - GOOGLE_AGENT_API_URL=${GOOGLE_AGENT_API_URL:-https://api.schwarzdigits.cloud/v1/google-agents}
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-eu}
+      - DOWNLOAD_PARALLEL_WORKERS=${DOWNLOAD_PARALLEL_WORKERS:-4}
+      - SCREENING_PARALLEL_WORKERS=${SCREENING_PARALLEL_WORKERS:-4}
+      - EXTRACTION_PARALLEL_WORKERS=${EXTRACTION_PARALLEL_WORKERS:-4}
+      - MAX_CONCURRENT_RUNS_PER_WORKSPACE=${MAX_CONCURRENT_RUNS_PER_WORKSPACE:-5}
+      # Unified Object Storage (Local MinIO / AWS S3 / Google Cloud Storage)
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-minio}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio_dev_user}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minio_dev_password}
+      - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-slr-research-intelligence}
+      - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-http://minio:9000}
+      - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
+      - GS_BUCKET_NAME=${GS_BUCKET_NAME}
+      # Mailgun Email Configuration
+      - MAILGUN_API_KEY=${MAILGUN_API_KEY}
+      - MAILGUN_API_URL=${MAILGUN_API_URL:-https://api.eu.mailgun.net/v3}
+      - MAILGUN_SENDER_DOMAIN=${MAILGUN_SENDER_DOMAIN}
+      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
+      - SENTRY_DSN=${SENTRY_DSN}
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  # FastMCP Server for AI Client integrations
+  mcp:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sri_mcp_prod
+    restart: always
+    command: python manage.py run_mcp
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8001/health || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    ports:
+      - "8001:8001"
+    environment:
+      - APP_NAME=${APP_NAME:-Systematic Literature Review}
+      - APP_SHORT_NAME=${APP_SHORT_NAME:-SLR}
+      - APP_DESCRIPTION=${APP_DESCRIPTION:-Enterprise Systematic Literature Review (SLR) Platform.}
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-*}
+      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS}
+      - SITE_URL=${SITE_URL}
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_NAME=${DB_NAME:-research_intelligence}
+      - DB_USER=${DB_USER:-slr_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_SSLMODE=${DB_SSLMODE:-prefer}
+      - REDIS_URL=redis://redis:6379/0
+      - GOOGLE_AGENT_API_KEY=${GOOGLE_AGENT_API_KEY}
+      - GOOGLE_AGENT_API_URL=${GOOGLE_AGENT_API_URL:-https://api.schwarzdigits.cloud/v1/google-agents}
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-eu}
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-minio}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio_dev_user}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minio_dev_password}
+      - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-slr-research-intelligence}
+      - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-http://minio:9000}
+      - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
+      - GS_BUCKET_NAME=${GS_BUCKET_NAME}
+      - MAILGUN_API_KEY=${MAILGUN_API_KEY}
+      - MAILGUN_API_URL=${MAILGUN_API_URL:-https://api.eu.mailgun.net/v3}
+      - MAILGUN_SENDER_DOMAIN=${MAILGUN_SENDER_DOMAIN}
+      - SENTRY_DSN=${SENTRY_DSN}
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  # Celery Async Pipeline Worker
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sri_worker_prod
+    restart: always
+    command: celery -A django_project worker --loglevel=info -Q celery,tenant-default,tenant-bulk-scraping
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: [ "CMD-SHELL", "pgrep -f celery || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    environment:
+      - APP_NAME=${APP_NAME:-Systematic Literature Review}
+      - APP_SHORT_NAME=${APP_SHORT_NAME:-SLR}
+      - APP_DESCRIPTION=${APP_DESCRIPTION:-Enterprise Systematic Literature Review (SLR) Platform.}
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-*}
+      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS}
+      - SITE_URL=${SITE_URL}
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_NAME=${DB_NAME:-research_intelligence}
+      - DB_USER=${DB_USER:-slr_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_SSLMODE=${DB_SSLMODE:-prefer}
+      - REDIS_URL=redis://redis:6379/0
+      - GOOGLE_AGENT_API_KEY=${GOOGLE_AGENT_API_KEY}
+      - GOOGLE_AGENT_API_URL=${GOOGLE_AGENT_API_URL:-https://api.schwarzdigits.cloud/v1/google-agents}
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-eu}
+      - DOWNLOAD_PARALLEL_WORKERS=${DOWNLOAD_PARALLEL_WORKERS:-4}
+      - SCREENING_PARALLEL_WORKERS=${SCREENING_PARALLEL_WORKERS:-4}
+      - EXTRACTION_PARALLEL_WORKERS=${EXTRACTION_PARALLEL_WORKERS:-4}
+      - MAX_CONCURRENT_RUNS_PER_WORKSPACE=${MAX_CONCURRENT_RUNS_PER_WORKSPACE:-5}
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-minio}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio_dev_user}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minio_dev_password}
+      - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-slr-research-intelligence}
+      - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-http://minio:9000}
+      - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
+      - GS_BUCKET_NAME=${GS_BUCKET_NAME}
+      - MAILGUN_API_KEY=${MAILGUN_API_KEY}
+      - MAILGUN_API_URL=${MAILGUN_API_URL:-https://api.eu.mailgun.net/v3}
+      - MAILGUN_SENDER_DOMAIN=${MAILGUN_SENDER_DOMAIN}
+      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
+      - SENTRY_DSN=${SENTRY_DSN}
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  # Celery Beat Scheduler
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sri_beat_prod
+    restart: always
+    command: celery -A django_project beat --loglevel=info -s /tmp/celerybeat-schedule
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: [ "CMD-SHELL", "pgrep -f celery || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    environment:
+      - APP_NAME=${APP_NAME:-Systematic Literature Review}
+      - APP_SHORT_NAME=${APP_SHORT_NAME:-SLR}
+      - APP_DESCRIPTION=${APP_DESCRIPTION:-Enterprise Systematic Literature Review (SLR) Platform.}
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY}
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_NAME=${DB_NAME:-research_intelligence}
+      - DB_USER=${DB_USER:-slr_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_SSLMODE=${DB_SSLMODE:-prefer}
+      - REDIS_URL=redis://redis:6379/0
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-eu}
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-minio}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio_dev_user}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minio_dev_password}
+      - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-slr-research-intelligence}
+      - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-http://minio:9000}
+      - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
+      - GS_BUCKET_NAME=${GS_BUCKET_NAME}
+      - MAILGUN_API_KEY=${MAILGUN_API_KEY}
+      - MAILGUN_API_URL=${MAILGUN_API_URL:-https://api.eu.mailgun.net/v3}
+      - MAILGUN_SENDER_DOMAIN=${MAILGUN_SENDER_DOMAIN}
+      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Next.js Frontend Dashboard (Production standalone server)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_APP_NAME=${APP_NAME:-Systematic Literature Review}
+        - NEXT_PUBLIC_APP_SHORT_NAME=${APP_SHORT_NAME:-SLR}
+        - NEXT_PUBLIC_APP_DESCRIPTION=${APP_DESCRIPTION:-Enterprise Systematic Literature Review (SLR) Platform.}
+    container_name: sri_frontend_prod
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL:-http://api:8000}
+      - SITE_URL=${SITE_URL:-http://localhost:3000}
+      - APP_NAME=${APP_NAME:-Systematic Literature Review}
+      - APP_SHORT_NAME=${APP_SHORT_NAME:-SLR}
+      - NEXT_PUBLIC_APP_NAME=${APP_NAME:-Systematic Literature Review}
+      - NEXT_PUBLIC_APP_SHORT_NAME=${APP_SHORT_NAME:-SLR}
+      - NEXT_PUBLIC_APP_DESCRIPTION=${APP_DESCRIPTION:-Enterprise Systematic Literature Review (SLR) Platform.}
+    depends_on:
+      - api
+
+volumes:
+  redis_data:
+  minio_data:
