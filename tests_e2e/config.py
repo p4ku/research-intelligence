@@ -13,6 +13,8 @@ ENV_TARGETS = {
     "production": "https://research-scanner.schwarz",
     "local": "http://localhost:8000",
     "slr": "https://slr.soinventive.co.uk",
+    "annotate": "https://annotate.soinventive.co.uk",
+    "annotate.soinventive.co.uk": "https://annotate.soinventive.co.uk",
 }
 
 

@@ -13,6 +13,8 @@ const ENV_TARGETS: Record<string, string> = {
   prod: 'https://research-scanner.schwarz',
   production: 'https://research-scanner.schwarz',
   slr: 'https://slr.soinventive.co.uk',
+  annotate: 'https://annotate.soinventive.co.uk',
+  'annotate.soinventive.co.uk': 'https://annotate.soinventive.co.uk',
 };
 
 const rawTarget = (process.env.E2E_TARGET_ENV || 'local').trim();

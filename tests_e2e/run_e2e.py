@@ -22,7 +22,7 @@ import logging
 import sys
 import time
 
-from tests_e2e.config import E2EConfig, ENV_TARGETS
+from tests_e2e.config import E2EConfig, ENV_TARGETS, resolve_target_url
 from tests_e2e.scenarios import (
     run_full_slr_pipeline_scenario,
     run_slr_review_gates_scenario,
@@ -364,7 +364,7 @@ def main():
     print_banner()
     args = parse_args()
 
-    base_url = args.url or ENV_TARGETS.get(args.target, "https://research-scanner.schwarz")
+    base_url = args.url or resolve_target_url(args.target)
     config = E2EConfig(
         target_env=args.target,
         base_url=base_url,

@@ -51,7 +51,7 @@ for arg in "$@"; do
             TARGET="local"
             TARGET_SET=true
             ;;
-        slr.soinventive.co.uk|http://*|https://*|*.*|*:*)
+        annotate|annotate.soinventive.co.uk|slr.soinventive.co.uk|http://*|https://*|*.*|*:*)
             TARGET="$arg"
             TARGET_SET=true
             ;;
