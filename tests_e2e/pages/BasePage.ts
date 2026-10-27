@@ -6,7 +6,9 @@ export class BasePage {
 
   constructor(page: Page, baseURL?: string) {
     this.page = page;
-    this.baseURL = (baseURL || '').replace(/\/$/, '');
+    const ctxBaseURL = (page.context() as any)?._options?.baseURL || '';
+    const envBaseURL = process.env.E2E_BASE_URL || (process.env.E2E_TARGET_ENV === 'annotate' || process.env.E2E_TARGET_ENV === 'slr' ? 'https://annotate.soinventive.co.uk' : '');
+    this.baseURL = (baseURL || ctxBaseURL || envBaseURL || '').replace(/\/$/, '');
   }
 
   async goto(path: string = '', timeout: number = 30000): Promise<Response | null> {

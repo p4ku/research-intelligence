@@ -447,6 +447,8 @@ export function SLRStudiesClient({
               <button
                 type="button"
                 onClick={() => setSelectedStudy(null)}
+                aria-label="Close drawer"
+                data-testid="close-drawer"
                 className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
               >
                 ✕

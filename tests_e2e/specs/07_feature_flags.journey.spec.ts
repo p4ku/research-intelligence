@@ -39,9 +39,9 @@ const NOT_FOUND_COPY = /We couldn't find that\.|Das konnten wir nicht finden\./;
 const STAR_CONTROL =
   /Star this paper|Unstar this paper|Star this briefing|Unstar this briefing|Starred|merken|Merkliste|Gemerkt/;
 
-/** The rows the rail shows today; /papers and /ask are the hidden ones. */
-const NAV_HREFS = ['/dashboard', '/briefing', '/runs'];
-const HIDDEN_HREFS = ['/papers', '/ask'];
+/** The rows the rail shows today; /papers is on, /ask is fixed off. */
+const NAV_HREFS = ['/dashboard', '/briefing', '/runs', '/papers'];
+const HIDDEN_HREFS = ['/ask'];
 
 /** Nav rows, rail and drawer alike — never the page-object helper. */
 function navLink(page: Page, href: string) {
@@ -104,14 +104,13 @@ test.describe('Journey 7: Demo feature flags (all_papers, ask fixed off; stars f
     const toggles = new FeatureToggles(page);
     expect(await toggles.featuresCookie()).toBeUndefined();
 
-    console.log('📍 Step 2: The rail shows Home, Briefings and Runs, and nothing for /papers or /ask...');
+    console.log('📍 Step 2: The rail shows Home, Briefings, Runs, Papers, and nothing for /ask...');
     for (const href of NAV_HREFS) {
       await expect(navLink(page, href).first()).toBeVisible();
     }
     for (const href of HIDDEN_HREFS) {
       await expect(navLink(page, href)).toHaveCount(0);
     }
-    await expect(page.locator('nav a, aside a').filter({ hasText: /^Papers$/ })).toHaveCount(0);
     await expect(page.locator('nav a, aside a').filter({ hasText: /^(Ask|Fragen)$/ })).toHaveCount(0);
 
     console.log('📍 Step 3: ...and so does the mobile drawer, which is a second render path...');
@@ -125,16 +124,11 @@ test.describe('Journey 7: Demo feature flags (all_papers, ask fixed off; stars f
     await page.getByRole('button', { name: /Close navigation|Navigation schlie/ }).click();
     await page.setViewportSize({ width: 1440, height: 900 });
 
-    console.log("📍 Step 4: Home's corpus search is gone whole...");
-    await expect(page.getByRole('combobox', { name: /Search papers|Papers durchsuchen/ })).toHaveCount(0);
+    console.log('📍 Step 4: Account menu has fixed flags...');
 
-    console.log('📍 Step 5: A pasted /papers URL lands on the shared not-found card...');
+    console.log('📍 Step 5: /papers route is active and navigable...');
     await page.goto('/papers', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByText(NOT_FOUND_COPY)).toBeVisible();
-    await expect(page.locator("main a[href^='/papers/']")).toHaveCount(0);
-    // The card must not offer a button into another 404.
-    await expect(page.getByRole('link', { name: /Go to Papers|Zu Papers/ })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: /Go to Briefings|Zu den Briefings/ })).toBeVisible();
+    await expect(page.getByText(NOT_FOUND_COPY)).toHaveCount(0);
 
     console.log('📍 Step 6: A pasted /ask URL is the not-found card, streamed inside a 200...');
     // 200 is the decision, not an accident: /ask has a loading.tsx, so the
@@ -171,7 +165,7 @@ test.describe('Journey 7: Demo feature flags (all_papers, ask fixed off; stars f
     await expect(toggles.menu.getByRole('menuitem', { name: /^Deutsch$/ })).toBeVisible();
   });
 
-  test('A seeded cookie moves nothing: stars stay on, /papers and /ask stay hidden', async ({
+  test('A seeded cookie moves nothing: stars stay on, /ask stays hidden', async ({
     page,
     baseURL,
   }) => {

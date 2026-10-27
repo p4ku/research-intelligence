@@ -35,8 +35,8 @@ export class IncludedStudiesPage extends BasePage {
     this.exportCsvButton = page.locator("button:has-text('Export Studies')").first();
     this.tableRows = page.locator("tbody tr");
     this.inspectButtons = page.locator("tbody tr button:has-text('Inspect')");
-    this.drawerHeading = page.locator("h4:has-text('Grounding Evidence Quotes')").first();
-    this.closeDrawerButton = page.locator("button:has-text('Close Drawer')").first();
+    this.drawerHeading = page.locator("h4:has-text('Grounding Evidence'), span:has-text('Methodological Quality Appraisal')").first();
+    this.closeDrawerButton = page.locator("button[aria-label='Close drawer'], button[data-testid='close-drawer'], button:has-text('✕')").first();
   }
 
   async isLoaded(): Promise<boolean> {

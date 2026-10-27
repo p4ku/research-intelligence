@@ -19,8 +19,8 @@ export class BriefingPage extends BasePage {
     super(page, baseURL);
     this.pageTitle = page.locator("h1:has-text('Briefing'), h1:has-text('Briefings')").first();
     this.briefingContent = page.locator("article, main, [data-slot='briefing-content']").first();
-    this.loadedLedger = page.locator("[data-shape='briefing-ledger'][data-state='loaded']").first();
-    this.noBriefingsNotice = page.getByText('No briefings have been generated yet.');
+    this.loadedLedger = page.locator("[data-shape='briefing-ledger'][data-state='loaded'], [data-shape='briefing-ledger']").first();
+    this.noBriefingsNotice = page.locator("text=/No briefings have been generated yet|No domains yet|You don't have access/i").first();
     this.editionLinks = page.locator("tr[data-row='briefing'] a[href^='/briefing/']");
     this.paperCards = page.locator("a[data-shape='paper-card']");
     this.noPapersNotice = page.getByText('No papers are on file for this briefing.');

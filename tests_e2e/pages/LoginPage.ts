@@ -49,7 +49,15 @@ export class LoginPage extends BasePage {
   }
 
   async login(identifier: string, password: string, waitForRedirect: boolean = true): Promise<boolean> {
-    const rootURL = this.baseURL || (process.env.E2E_TARGET_ENV === 'prod' ? 'https://research-scanner.schwarz' : 'http://localhost:3000');
+    const rootURL =
+      this.baseURL ||
+      (this.page.context() as any)?._options?.baseURL ||
+      process.env.E2E_BASE_URL ||
+      (process.env.E2E_TARGET_ENV === 'annotate' || process.env.E2E_TARGET_ENV === 'slr'
+        ? 'https://annotate.soinventive.co.uk'
+        : process.env.E2E_TARGET_ENV === 'prod'
+          ? 'https://research-scanner.schwarz'
+          : 'http://localhost:3000');
 
     // 1. Fetch and cache JWT session tokens via API on first need to avoid 5 req/min LoginRateThrottle
     if (!cachedAuth || cachedAuth.identifier !== identifier) {
