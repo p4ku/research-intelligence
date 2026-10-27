@@ -29,6 +29,18 @@ describe('PrismaFlowDiagram Component Rendering', () => {
     expect(html).toContain('Included Studies')
     expect(html).toContain('32')
     expect(html).toContain('24')
+    expect(html).toContain('View Included Studies (32)')
+    expect(html).toContain('/slr/studies')
+    expect(html).toContain('/audit-queue')
+  })
+
+  test('propagates runId to studies and briefing action links', () => {
+    const html = renderToStaticMarkup(
+      <PrismaFlowDiagram metrics={mockPrismaMetrics} runId="run-12345" />,
+    )
+
+    expect(html).toContain('/slr/studies?runId=run-12345')
+    expect(html).toContain('/briefing?runId=run-12345')
   })
 
   test('renders clean empty state fallback when metrics is null', () => {

@@ -21,6 +21,7 @@ interface SlrConsoleClientProps {
   initialRob: SLRROBAssessment[]
   initialDisputes: SLRDispute[]
   initialRunId: string | null
+  initialTab?: 'prisma' | 'arbiter' | 'rob'
 }
 
 export function SlrConsoleClient({
@@ -29,6 +30,7 @@ export function SlrConsoleClient({
   initialRob,
   initialDisputes,
   initialRunId,
+  initialTab,
 }: SlrConsoleClientProps) {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(
     initialRunId || (initialRuns.length > 0 ? initialRuns[0].id : null),
@@ -36,7 +38,7 @@ export function SlrConsoleClient({
   const [metrics, setMetrics] = useState<SLRPRISMAMetrics | null>(initialMetrics)
   const [robAssessments, setRobAssessments] = useState<SLRROBAssessment[]>(initialRob)
   const [disputes, setDisputes] = useState<SLRDispute[]>(initialDisputes)
-  const [activeTab, setActiveTab] = useState<'prisma' | 'arbiter' | 'rob'>('prisma')
+  const [activeTab, setActiveTab] = useState<'prisma' | 'arbiter' | 'rob'>(initialTab || 'prisma')
   const [isLoading, setIsLoading] = useState<boolean>(false)
 
   const _selectedRun = initialRuns.find((r) => r.id === selectedRunId) || null
@@ -120,6 +122,14 @@ export function SlrConsoleClient({
             ← Audit Queue
           </Button>
 
+          <Button
+            href={`/slr/studies${selectedRunId ? `?runId=${encodeURIComponent(selectedRunId)}` : ''}`}
+            color="emerald"
+            className="text-xs font-semibold"
+          >
+            Included Studies ({metrics?.studies_included_synthesis ?? 0}) →
+          </Button>
+
           <Button href="/briefing" color="dark/zinc" className="text-xs font-semibold">
             View Briefing →
           </Button>
@@ -201,7 +211,14 @@ export function SlrConsoleClient({
           </div>
         ) : (
           <>
-            {activeTab === 'prisma' && <PrismaFlowDiagram metrics={metrics} />}
+            {activeTab === 'prisma' && (
+              <PrismaFlowDiagram
+                metrics={metrics}
+                runId={selectedRunId}
+                workspaceId={_selectedRun?.workspace_id}
+                onSelectTab={setActiveTab}
+              />
+            )}
             {activeTab === 'arbiter' && (
               <ArbiterConsole disputes={disputes} onDisputeResolved={handleDisputeResolved} />
             )}

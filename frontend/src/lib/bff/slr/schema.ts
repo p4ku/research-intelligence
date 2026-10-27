@@ -46,6 +46,8 @@ export const slrRobAssessmentSchema = z.object({
   id: z.string(),
   paper: z.string(),
   paper_title: z.string(),
+  paper_doi: z.string().nullable().optional(),
+  paper_authors: z.string().nullable().optional(),
   pipeline_run: z.string(),
   framework: z.enum(['rob2', 'robins_i', 'nos']).or(z.string()).default('rob2'),
   domain_scores: z.record(z.string(), robDomainScoreSchema.or(z.any())).default({}),

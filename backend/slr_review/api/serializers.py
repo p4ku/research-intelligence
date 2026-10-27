@@ -114,6 +114,8 @@ class ResolveDisputeSerializer(serializers.Serializer):
 
 class RiskOfBiasAssessmentSerializer(serializers.ModelSerializer):
     paper_title = serializers.CharField(source='paper.title', read_only=True)
+    paper_doi = serializers.CharField(source='paper.doi', read_only=True, default='')
+    paper_authors = serializers.CharField(source='paper.authors', read_only=True, default='')
 
     class Meta:
         model = RiskOfBiasAssessment

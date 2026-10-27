@@ -133,7 +133,7 @@ export function AuditTable({ items }: { items: AuditQueueItem[] }) {
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xs dark:border-zinc-800 dark:bg-zinc-900">
           <Table>
             <TableHead>
               <TableRow>
@@ -143,7 +143,7 @@ export function AuditTable({ items }: { items: AuditQueueItem[] }) {
                 <TableHeader>Progress</TableHeader>
                 <TableHeader className="text-right">Remaining</TableHeader>
                 <TableHeader>Status</TableHeader>
-                <TableHeader className="text-right">Action</TableHeader>
+                <TableHeader className="text-right !pr-6 sm:!pr-6">Action</TableHeader>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -151,7 +151,12 @@ export function AuditTable({ items }: { items: AuditQueueItem[] }) {
                 const isComplete = item.status === 'completed'
                 const actionHref = `/audit-queue/${item.cohort_id}`
                 return (
-                  <TableRow key={item.cohort_id}>
+                  <TableRow
+                    key={item.cohort_id}
+                    href={actionHref}
+                    title={isComplete ? `View ${item.briefing_name}` : `Review ${item.briefing_name}`}
+                    className="cursor-pointer transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                  >
                     <TableCell>
                       <div className="font-medium text-zinc-900 dark:text-white">
                         {item.briefing_name}
@@ -175,14 +180,16 @@ export function AuditTable({ items }: { items: AuditQueueItem[] }) {
                     <TableCell>
                       <StatusPill status={item.status} />
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        href={actionHref}
-                        color={isComplete ? 'zinc' : 'dark/zinc'}
-                        className="text-xs"
-                      >
-                        {isComplete ? 'View' : 'Review →'}
-                      </Button>
+                    <TableCell className="text-right !pr-6 sm:!pr-6">
+                      <div className="flex justify-end pr-2">
+                        <Button
+                          href={actionHref}
+                          color={isComplete ? 'zinc' : 'dark/zinc'}
+                          className="relative z-10 text-xs font-semibold shadow-xs"
+                        >
+                          {isComplete ? 'View' : 'Review →'}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )

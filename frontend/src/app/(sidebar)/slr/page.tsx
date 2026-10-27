@@ -4,7 +4,7 @@ import { SlrConsoleClient } from './slr-console-client'
 export const dynamic = 'force-dynamic'
 
 interface SlrPageProps {
-  searchParams?: Promise<{ runId?: string }>
+  searchParams?: Promise<{ runId?: string; tab?: 'prisma' | 'arbiter' | 'rob' }>
 }
 
 export default async function SlrConsolePage({ searchParams }: SlrPageProps) {
@@ -27,6 +27,7 @@ export default async function SlrConsolePage({ searchParams }: SlrPageProps) {
         initialRob={robAssessments}
         initialDisputes={disputes}
         initialRunId={defaultRunId}
+        initialTab={sp.tab}
       />
     </div>
   )
