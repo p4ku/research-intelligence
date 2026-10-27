@@ -14,7 +14,6 @@ interface PrismaFlowDiagramProps {
 export function PrismaFlowDiagram({
   metrics,
   runId,
-  _workspaceId,
   onSelectTab,
 }: PrismaFlowDiagramProps) {
   const [showAbstractReasons, setShowAbstractReasons] = useState(true)
