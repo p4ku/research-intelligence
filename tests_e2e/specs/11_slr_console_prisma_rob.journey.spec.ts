@@ -72,21 +72,7 @@ test.describe('Journey 11: Unified SLR Console — PRISMA 2020 Flow, Arbiter Con
     // 4. Diagram PRISMA 2020 Statement Flow
     // =========================================================================
     console.log('🚀 Phase 4: Verifying PRISMA 2020 Statement Flow Diagram...')
-    const prismaTab = page.locator("button:has-text('PRISMA 2020 Flow')").first()
-    await prismaTab.click()
-
-    await expect(page.locator("text=/PRISMA 2020 Statement Flow Diagram/i").first()).toBeVisible({ timeout: 5000 })
-    await expect(page.locator("text=/1.*Identification/i").first()).toBeVisible({ timeout: 5000 })
-    await expect(page.locator("text=/2.*Screening/i").first()).toBeVisible({ timeout: 5000 })
-    await expect(page.locator("text=/3.*Eligibility/i").first()).toBeVisible({ timeout: 5000 })
-    await expect(page.locator("text=/4.*Included Studies/i").first()).toBeVisible({ timeout: 5000 })
-
-    // Test reason toggle button if visible
-    const toggleButton = page.locator("button:has-text('Hide reason breakdown'), button:has-text('Show reason breakdown')").first()
-    if (await toggleButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await toggleButton.click()
-      console.log('  ✓ Toggled PRISMA exclusion reason breakdown.')
-    }
+    await slrConsole.verifyPrismaFlow()
     console.log('  ✓ PRISMA 2020 Flow Diagram successfully verified.')
 
     // =========================================================================

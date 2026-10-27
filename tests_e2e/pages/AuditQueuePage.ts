@@ -182,12 +182,16 @@ export class AuditQueuePage extends BasePage {
     // Click on the text content cell of the row (not directly on the button)
     const titleCell = row.locator('td').first();
     await titleCell.click();
-    await this.page.waitForURL((url) => url.pathname.includes('/papers/'), { timeout: 25_000 });
+    await this.page.waitForURL(
+      (url) => url.pathname.startsWith('/audit-queue/') && url.pathname !== '/audit-queue',
+      { timeout: 25_000 },
+    );
     await this.waitForNetworkIdle();
   }
 
   async isOnReviewPage(): Promise<boolean> {
-    return this.page.url().includes('/audit-queue/') && this.page.url().includes('/papers/');
+    const pathname = new URL(this.page.url()).pathname;
+    return pathname.startsWith('/audit-queue/') && pathname !== '/audit-queue';
   }
 
   async selectAgreeWithAI(): Promise<void> {

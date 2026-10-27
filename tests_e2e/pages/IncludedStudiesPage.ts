@@ -28,7 +28,7 @@ export class IncludedStudiesPage extends BasePage {
     this.kpiMetaAnalysis = page.locator("text=/Quantitative Meta-Analysis/i").first();
     this.kpiLowRisk = page.locator("text=/Low Risk of Bias/i").first();
     this.searchInput = page.locator("input[placeholder*='Search included studies']").first();
-    this.filterAll = page.locator("button:has-text('All Admitted')").first();
+    this.filterAll = page.locator("button:has-text('All')").first();
     this.filterLowRisk = page.locator("button:has-text('Low Risk')").first();
     this.filterSomeConcerns = page.locator("button:has-text('Some Concerns')").first();
     this.filterHighRisk = page.locator("button:has-text('High Risk')").first();
@@ -66,8 +66,10 @@ export class IncludedStudiesPage extends BasePage {
     if (await this.filterLowRisk.isVisible({ timeout: 3000 }).catch(() => false)) {
       await this.filterLowRisk.click();
       await this.page.waitForTimeout(200);
-      await this.filterAll.click();
-      await this.page.waitForTimeout(200);
+      if (await this.filterAll.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await this.filterAll.click();
+        await this.page.waitForTimeout(200);
+      }
     }
   }
 
