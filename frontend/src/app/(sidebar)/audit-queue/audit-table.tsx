@@ -4,7 +4,7 @@ import { Button } from '@/components/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import type { AuditGate, AuditQueueItem, AuditStatus } from '@/lib/bff/audit/schema'
 import clsx from 'clsx'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 function gateLabel(gate: AuditGate): string {
   switch (gate) {
@@ -73,8 +73,18 @@ function ProgressBar({ completed, total }: { completed: number; total: number })
 export function AuditTable({ items }: { items: AuditQueueItem[] }) {
   const [tab, setTab] = useState<'pending' | 'all' | 'completed'>('pending')
 
-  const pendingItems = items.filter((item) => item.status !== 'completed')
-  const completedItems = items.filter((item) => item.status === 'completed')
+  const { pendingItems, completedItems } = useMemo(() => {
+    const pending: AuditQueueItem[] = []
+    const completed: AuditQueueItem[] = []
+    for (const item of items) {
+      if (item.status === 'completed') {
+        completed.push(item)
+      } else {
+        pending.push(item)
+      }
+    }
+    return { pendingItems: pending, completedItems: completed }
+  }, [items])
 
   const displayedItems =
     tab === 'pending' ? pendingItems : tab === 'completed' ? completedItems : items

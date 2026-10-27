@@ -9,7 +9,7 @@ import type {
   SLRROBAssessment,
 } from '@/lib/bff/slr/schema'
 import clsx from 'clsx'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { AgreementKpiBanner } from './agreement-kpi-banner'
 import { ArbiterConsole } from './arbiter-console'
 import { PrismaFlowDiagram } from './prisma-flow-diagram'
@@ -42,7 +42,10 @@ export function SlrConsoleClient({
   const [isLoading, setIsLoading] = useState<boolean>(false)
 
   const _selectedRun = initialRuns.find((r) => r.id === selectedRunId) || null
-  const pendingDisputesCount = disputes.filter((d) => d.status === 'pending').length
+  const pendingDisputesCount = useMemo(
+    () => disputes.filter((d) => d.status === 'pending').length,
+    [disputes],
+  )
 
   async function handleRunChange(newRunId: string) {
     setSelectedRunId(newRunId)

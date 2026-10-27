@@ -10,7 +10,7 @@ import type {
 } from '@/lib/bff/slr/schema'
 import clsx from 'clsx'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 interface SLRStudiesClientProps {
   initialRuns: SLRPipelineRunItem[]
@@ -92,16 +92,19 @@ export function SLRStudiesClient({
     }
   }
 
-  const filteredStudies = robAssessments.filter((study) => {
-    const matchesSearch =
-      searchQuery.trim() === '' ||
-      study.paper_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (study.paper_authors && study.paper_authors.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (study.paper_doi && study.paper_doi.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredStudies = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    return robAssessments.filter((study) => {
+      const matchesSearch =
+        q === '' ||
+        study.paper_title.toLowerCase().includes(q) ||
+        (study.paper_authors && study.paper_authors.toLowerCase().includes(q)) ||
+        (study.paper_doi && study.paper_doi.toLowerCase().includes(q))
 
-    const matchesBias = biasFilter === 'all' || study.overall_bias === biasFilter
-    return matchesSearch && matchesBias
-  })
+      const matchesBias = biasFilter === 'all' || study.overall_bias === biasFilter
+      return matchesSearch && matchesBias
+    })
+  }, [robAssessments, searchQuery, biasFilter])
 
   function exportCsv() {
     const headers = ['Study Title', 'DOI', 'Authors', 'Overall Bias', 'Status']
@@ -123,9 +126,17 @@ export function SLRStudiesClient({
     document.body.removeChild(link)
   }
 
-  const lowRiskCount = robAssessments.filter((r) => r.overall_bias === 'low_risk').length
-  const someConcernsCount = robAssessments.filter((r) => r.overall_bias === 'some_concerns').length
-  const highRiskCount = robAssessments.filter((r) => r.overall_bias === 'high_risk' || r.overall_bias === 'critical_risk').length
+  const { lowRiskCount, someConcernsCount, highRiskCount } = useMemo(() => {
+    let low = 0
+    let some = 0
+    let high = 0
+    for (const r of robAssessments) {
+      if (r.overall_bias === 'low_risk') low++
+      else if (r.overall_bias === 'some_concerns') some++
+      else if (r.overall_bias === 'high_risk' || r.overall_bias === 'critical_risk') high++
+    }
+    return { lowRiskCount: low, someConcernsCount: some, highRiskCount: high }
+  }, [robAssessments])
 
   return (
     <div className="space-y-6">

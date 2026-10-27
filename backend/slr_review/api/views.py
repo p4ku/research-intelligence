@@ -2,6 +2,7 @@ import uuid
 import logging
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.db.models import Count, Q
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -83,37 +84,59 @@ class AuditQueueListView(APIView):
         )
         if not user.is_superuser:
             from research_intelligence.models import WorkspaceMember
-            from django.db.models import Q
-            user_ws_ids = set(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
-            workspaces_with_members = set(WorkspaceMember.objects.values_list('workspace_id', flat=True))
+            user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
+            workspaces_with_members = WorkspaceMember.objects.values_list('workspace_id', flat=True)
             cohorts = cohorts.filter(
                 Q(config__workspace_id__in=user_ws_ids) |
                 ~Q(config__workspace_id__in=workspaces_with_members) |
                 Q(pipeline_run__triggered_by=user)
             ).distinct()
 
+        cohort_list = list(cohorts)
+        if not cohort_list:
+            return Response([], status=status.HTTP_200_OK)
+
+        # Batch count completed reviews across all cohorts in maximum 2 queries instead of N queries
+        extraction_cohort_ids = [c.id for c in cohort_list if c.stage == 'parameter_extraction']
+        screening_cohort_ids = [c.id for c in cohort_list if c.stage != 'parameter_extraction']
+
+        extraction_counts = {}
+        if extraction_cohort_ids:
+            for row in (
+                ExtractionReview.objects.filter(
+                    sample_cohort_id__in=extraction_cohort_ids,
+                    reviewer=user
+                )
+                .values('sample_cohort_id')
+                .annotate(cnt=Count('paper_id', distinct=True))
+            ):
+                extraction_counts[row['sample_cohort_id']] = row['cnt']
+
+        screening_counts = {}
+        if screening_cohort_ids:
+            for row in (
+                ScreeningReview.objects.filter(
+                    sample_cohort_id__in=screening_cohort_ids,
+                    reviewer=user
+                )
+                .values('sample_cohort_id')
+                .annotate(cnt=Count('paper_id', distinct=True))
+            ):
+                screening_counts[row['sample_cohort_id']] = row['cnt']
+
         results = []
-        for cohort in cohorts:
+        for cohort in cohort_list:
             sampled_ids = [p.id for p in cohort.sampled_papers.all()]
             total_assigned = len(sampled_ids)
             if total_assigned == 0:
                 continue
 
             if cohort.stage == 'parameter_extraction':
-                completed_count = ExtractionReview.objects.filter(
-                    sample_cohort=cohort,
-                    reviewer=user,
-                    paper_id__in=sampled_ids
-                ).values('paper_id').distinct().count()
+                completed_count = extraction_counts.get(cohort.id, 0)
             else:
-                stage_review = 'abstract' if cohort.stage == 'abstract_screening' else 'full_text'
-                completed_count = ScreeningReview.objects.filter(
-                    sample_cohort=cohort,
-                    reviewer=user,
-                    stage=stage_review,
-                    paper_id__in=sampled_ids
-                ).count()
+                completed_count = screening_counts.get(cohort.id, 0)
 
+            completed_count = min(completed_count, total_assigned)
             remaining_count = max(0, total_assigned - completed_count)
 
             if cohort.is_audit_complete or remaining_count == 0:
@@ -158,7 +181,7 @@ class AuditCohortDetailView(APIView):
             return denied
         user = request.user
 
-        papers = list(cohort.sampled_papers.all().order_by('created_at', 'id'))
+        papers = list(cohort.sampled_papers.only('id', 'title', 'doi', 'created_at').order_by('created_at', 'id'))
         if cohort.stage == 'parameter_extraction':
             reviewed_paper_ids = set(
                 ExtractionReview.objects.filter(
@@ -251,7 +274,7 @@ class AuditPaperDetailView(APIView):
             ).select_related('extraction_definition')
             existing_extraction_reviews = {
                 er.extraction_id: er
-                for er in ExtractionReview.objects.filter(sample_cohort=cohort, reviewer=request.user)
+                for er in ExtractionReview.objects.filter(sample_cohort=cohort, paper=paper, reviewer=request.user)
             }
             for ext in paper_extractions:
                 fd = ext.fields_data or {}
@@ -275,7 +298,7 @@ class AuditPaperDetailView(APIView):
                     "page_number": fd.get('page') or fd.get('page_number'),
                     "status": er.action if er else "pending",
                 })
-            first_er = ExtractionReview.objects.filter(sample_cohort=cohort, paper=paper, reviewer=request.user).first()
+            first_er = next(iter(existing_extraction_reviews.values()), None)
             if first_er:
                 is_reviewed = True
                 reviewer_decision = first_er.action
@@ -520,9 +543,8 @@ class DisputeListView(APIView):
             disputes = disputes.filter(status=status_filter)
         if not request.user.is_superuser:
             from research_intelligence.models import WorkspaceMember
-            user_ws_ids = set(WorkspaceMember.objects.filter(user=request.user).values_list('workspace_id', flat=True))
-            workspaces_with_members = set(WorkspaceMember.objects.values_list('workspace_id', flat=True))
-            from django.db.models import Q
+            user_ws_ids = WorkspaceMember.objects.filter(user=request.user).values_list('workspace_id', flat=True)
+            workspaces_with_members = WorkspaceMember.objects.values_list('workspace_id', flat=True)
             disputes = disputes.filter(
                 Q(sample_cohort__config__workspace_id__in=user_ws_ids) |
                 ~Q(sample_cohort__config__workspace_id__in=workspaces_with_members)
@@ -606,6 +628,15 @@ class PRISMAMetricsView(APIView):
         denied = check_slr_workspace_access(request.user, pipeline_run.workspace)
         if denied:
             return denied
+
+        force_refresh = request.query_params.get('refresh', '').lower() in ('1', 'true')
+        # If pipeline run is completed/failed and metrics already exists, return cached metrics
+        if not force_refresh:
+            existing_metrics = SLRPRISMAMetrics.objects.filter(pipeline_run=pipeline_run).first()
+            if existing_metrics and pipeline_run.status in ('completed', 'failed', 'cancelled'):
+                serializer = SLRPRISMAMetricsSerializer(existing_metrics)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
         metrics = MetricsService.compute_prisma_metrics(pipeline_run)
         serializer = SLRPRISMAMetricsSerializer(metrics)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -620,8 +651,8 @@ class RiskOfBiasListView(APIView):
         denied = check_slr_workspace_access(request.user, pipeline_run.workspace)
         if denied:
             return denied
-        assessments = RiskOfBiasAssessment.objects.filter(pipeline_run=pipeline_run).select_related('paper')
-        if not assessments.exists():
+        assessments = list(RiskOfBiasAssessment.objects.filter(pipeline_run=pipeline_run).select_related('paper'))
+        if not assessments:
             slr_cfg = getattr(pipeline_run.workspace, 'slr_config', None)
             if slr_cfg and slr_cfg.enable_rob_assessment:
                 from slr_review.services.rob_service import RiskOfBiasService
@@ -630,7 +661,7 @@ class RiskOfBiasListView(APIView):
                 with transaction.atomic():
                     for p in included_papers:
                         RiskOfBiasService.assess_paper_rob(p, pipeline_run, framework=slr_cfg.rob_framework)
-                assessments = RiskOfBiasAssessment.objects.filter(pipeline_run=pipeline_run).select_related('paper')
+                assessments = list(RiskOfBiasAssessment.objects.filter(pipeline_run=pipeline_run).select_related('paper'))
         serializer = RiskOfBiasAssessmentSerializer(assessments, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
