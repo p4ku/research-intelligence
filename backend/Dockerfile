@@ -27,7 +27,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --default-timeout=120 --retries 5 -r requirements.txt
 
 
 # Stage 2: Minimal Runtime Container
