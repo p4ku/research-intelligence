@@ -6,6 +6,7 @@ import {
   RunsPage,
   BriefingPage,
   SlrConsolePage,
+  IncludedStudiesPage,
 } from '../pages/index.js';
 import { ApiHarness } from '../lib/api-harness.js';
 
@@ -142,6 +143,7 @@ test.describe('Journey 10: SLR Checkpoint Gates & Full User Lifecycle via React 
     const runsPage = new RunsPage(page);
     const briefingPage = new BriefingPage(page);
     const slrConsole = new SlrConsolePage(page);
+    const includedStudies = new IncludedStudiesPage(page);
 
     // =========================================================================
     // Phase 1: Authentication via React Login Panel
@@ -263,8 +265,8 @@ test.describe('Journey 10: SLR Checkpoint Gates & Full User Lifecycle via React 
     const isG2CohortAvailable = await auditQueue.waitForWorkspaceCohort(workspaceName, { expectedGate: 'Full-text' });
     expect(isG2CohortAvailable).toBe(true);
 
-    console.log('  ✓ Gate 2 Full-Text Cohort appeared in Audit Queue! Entering Review...');
-    await auditQueue.clickReviewForWorkspace(workspaceName);
+    console.log('  ✓ Gate 2 Full-Text Cohort appeared in Audit Queue! Entering Review via whole-row click...');
+    await auditQueue.clickTableRowForWorkspace(workspaceName);
 
     let g2PaperIdx = 0;
     while (await auditQueue.isOnReviewPage()) {
@@ -381,6 +383,22 @@ test.describe('Journey 10: SLR Checkpoint Gates & Full User Lifecycle via React 
     console.log('  Verifying Cochrane Risk of Bias (RoB 2) Matrix & Grounding Drawer...');
     await slrConsole.verifyRobMatrixAndDrawer();
     console.log('  ✓ Cochrane Risk of Bias Traffic Light Matrix & Drawer verified!');
+
+    // 5. PRISMA Stage 4 Included Studies Catalogue (/slr/studies)
+    console.log('  Navigating to PRISMA Stage 4 Included Studies Catalogue (/slr/studies)...');
+    await slrConsole.navigateToIncludedStudies();
+    expect(await includedStudies.isLoaded()).toBe(true);
+    console.log('  ✓ Included Studies Catalogue loaded successfully on /slr/studies.');
+
+    await includedStudies.verifySummaryCards();
+    await includedStudies.testSearchAndFilters('Transformer');
+    await includedStudies.testGroundingEvidenceDrawer();
+
+    // Return to /slr via breadcrumb
+    console.log('  Returning to /slr console via breadcrumbs...');
+    await includedStudies.clickBreadcrumbBack();
+    expect(await slrConsole.isLoaded()).toBe(true);
+    console.log('  ✓ Successfully returned to /slr console via breadcrumbs.');
 
     console.log('=================================================================');
     console.log('🎉 FULL SLR USER JOURNEY VIA REACT INTERFACE PASSED SUCCESSFULLY!');

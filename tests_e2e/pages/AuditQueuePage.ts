@@ -158,10 +158,30 @@ export class AuditQueuePage extends BasePage {
     await this.waitForNetworkIdle();
   }
 
+  async clickTableRowForWorkspace(workspaceName: string): Promise<void> {
+    const wsRow = this.tableRows.filter({ hasText: workspaceName }).first();
+    await expect(wsRow).toBeVisible({ timeout: 15_000 });
+    // Click on the table cell rather than the button to test whole-row clickability
+    const textCell = wsRow.locator('td').first();
+    await textCell.click();
+    await this.page.waitForURL((url) => url.pathname.includes('/papers/'), { timeout: 25_000 });
+    await this.waitForNetworkIdle();
+  }
+
   async clickFirstReview(): Promise<void> {
     const firstReviewBtn = this.reviewButtons.first();
     await expect(firstReviewBtn).toBeVisible({ timeout: 15_000 });
     await firstReviewBtn.click();
+    await this.page.waitForURL((url) => url.pathname.includes('/papers/'), { timeout: 25_000 });
+    await this.waitForNetworkIdle();
+  }
+
+  async clickTableRowNavigation(rowIndex: number = 0): Promise<void> {
+    const row = this.tableRows.nth(rowIndex);
+    await expect(row).toBeVisible({ timeout: 15_000 });
+    // Click on the text content cell of the row (not directly on the button)
+    const titleCell = row.locator('td').first();
+    await titleCell.click();
     await this.page.waitForURL((url) => url.pathname.includes('/papers/'), { timeout: 25_000 });
     await this.waitForNetworkIdle();
   }

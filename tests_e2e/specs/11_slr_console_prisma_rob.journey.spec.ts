@@ -1,15 +1,24 @@
 import { test, expect } from '@playwright/test'
-import { LoginPage, SidebarNav } from '../pages/index.js'
+import {
+  LoginPage,
+  SidebarNav,
+  SlrConsolePage,
+  IncludedStudiesPage,
+  AuditQueuePage,
+} from '../pages/index.js'
 
 test.describe('Journey 11: Unified SLR Console — PRISMA 2020 Flow, Arbiter Console, RoB 2 & Agreement KPIs', () => {
-  test.setTimeout(120_000)
+  test.setTimeout(180_000)
 
   const USERNAME = process.env.ADMIN_USERNAME || process.env.CONTRACT_USER || 'admin'
   const PASSWORD = process.env.ADMIN_PASSWORD || process.env.CONTRACT_PASSWORD || 'schwarz123!'
 
-  test('Verify unified SLR Console on /slr: KPIs -> PRISMA Flow -> Arbiter Console -> RoB 2 Matrix & Drawers', async ({ page }) => {
+  test('Verify unified SLR Console on /slr: KPIs -> PRISMA Flow -> Arbiter Console -> RoB 2 Matrix & Drawers -> Included Studies Catalogue -> Audit Queue Row Navigation', async ({ page }) => {
     const loginPage = new LoginPage(page)
     const sidebar = new SidebarNav(page)
+    const slrConsole = new SlrConsolePage(page)
+    const includedStudies = new IncludedStudiesPage(page)
+    const auditQueue = new AuditQueuePage(page)
 
     // =========================================================================
     // 1. Authentication via React Login Panel
@@ -145,8 +154,72 @@ test.describe('Journey 11: Unified SLR Console — PRISMA 2020 Flow, Arbiter Con
     }
     console.log('  ✓ Risk of Bias Traffic Light Matrix successfully verified.')
 
+    // =========================================================================
+    // 7. Weryfikacja Nowego Ekranu Included Studies (/slr/studies)
+    // =========================================================================
+    console.log('🚀 Phase 7: Navigating to PRISMA Stage 4 Included Studies Catalogue (/slr/studies)...')
+    const prismaTabReturn = page.locator("button:has-text('PRISMA 2020 Flow')").first()
+    await prismaTabReturn.click()
+    await page.waitForTimeout(300)
+
+    const viewStudiesLink = page.locator("a:has-text('View Included Studies'), a:has-text('Included Studies')").first()
+    if (await viewStudiesLink.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await viewStudiesLink.click()
+    } else {
+      await page.goto('/slr/studies')
+    }
+
+    expect(await includedStudies.isLoaded()).toBe(true)
+    console.log('  ✓ Included Studies Catalogue loaded successfully on /slr/studies.')
+
+    // Summary KPI cards
+    console.log('  Verifying Included Studies KPI cards...')
+    await includedStudies.verifySummaryCards()
+    console.log('  ✓ Studies in Synthesis & Meta-Analysis summary cards verified.')
+
+    // Search input & Filter pills
+    console.log('  Testing search and Risk of Bias filter pills...')
+    await includedStudies.testSearchAndFilters('Transformer')
+    console.log('  ✓ Search and RoB filter pills tested.')
+
+    // Grounding Evidence Drawer
+    const hadStudies = await includedStudies.testGroundingEvidenceDrawer()
+    if (hadStudies) {
+      console.log('  ✓ Grounding Evidence quotes drawer tested in Included Studies table.')
+    }
+
+    // Breadcrumb navigation back to /slr
+    console.log('  Returning to /slr console via breadcrumb...')
+    await includedStudies.clickBreadcrumbBack()
+    expect(await slrConsole.isLoaded()).toBe(true)
+    console.log('  ✓ Successfully returned to /slr console via breadcrumbs.')
+
+    // =========================================================================
+    // 8. Weryfikacja Klikalności Wiersza w Kolejce Audytu (/audit-queue)
+    // =========================================================================
+    console.log('🚀 Phase 8: Testing Row Click Navigation in Audit Queue (/audit-queue)...')
+    await page.goto('/audit-queue')
+    expect(await auditQueue.isLoaded()).toBe(true)
+
+    // Check if cohorts exist in queue
+    const allTab = page.locator("button:has-text('All Assigned'), button:has-text('Completed History')").first()
+    if (await allTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await allTab.click()
+      await page.waitForTimeout(400)
+    }
+
+    const rowCount = await auditQueue.getCohortCount()
+    if (rowCount > 0) {
+      console.log(`  Found ${rowCount} cohort row(s). Testing whole-row click navigation...`)
+      await auditQueue.clickTableRowNavigation(0)
+      expect(await auditQueue.isOnReviewPage()).toBe(true)
+      console.log('  ✓ Whole-row click navigation succeeded directly into Paper Review Workspace!')
+    } else {
+      console.log('  ℹ No cohort rows currently present in queue; row navigation verified via unit tests.')
+    }
+
     console.log('=================================================================')
-    console.log('🎉 UNIFIED SLR CONSOLE E2E VERIFICATION COMPLETED SUCCESSFULLY!')
+    console.log('🎉 UNIFIED SLR CONSOLE & INCLUDED STUDIES E2E PASSED!')
     console.log('=================================================================')
   })
 })

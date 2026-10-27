@@ -12,3 +12,4 @@ export * from './RunsPage.js';
 export * from './AuditQueuePage.js';
 export * from './FeatureToggles.js';
 export * from './SlrConsolePage.js';
+export * from './IncludedStudiesPage.js';

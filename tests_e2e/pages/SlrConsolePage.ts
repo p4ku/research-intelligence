@@ -18,6 +18,7 @@ export class SlrConsolePage extends BasePage {
   readonly prismaStage4: Locator;
   readonly arbiterHeading: Locator;
   readonly robHeading: Locator;
+  readonly viewIncludedStudiesAction: Locator;
 
   constructor(page: Page, baseURL?: string) {
     super(page, baseURL);
@@ -40,6 +41,7 @@ export class SlrConsolePage extends BasePage {
 
     this.arbiterHeading = page.locator("text=/Senior Arbiter Adjudication Console/i").first();
     this.robHeading = page.locator("h3:has-text('Traffic Light Matrix')").first();
+    this.viewIncludedStudiesAction = page.locator("a:has-text('View Included Studies'), a:has-text('Included Studies')").first();
   }
 
   async isLoaded(): Promise<boolean> {
@@ -114,5 +116,13 @@ export class SlrConsolePage extends BasePage {
     } else {
       await expect(this.page.locator("text=/No Risk of Bias appraisals generated yet/i").first()).toBeVisible({ timeout: 5000 });
     }
+  }
+
+  async navigateToIncludedStudies(): Promise<void> {
+    await this.selectTab('prisma');
+    await expect(this.viewIncludedStudiesAction).toBeVisible({ timeout: 10_000 });
+    await this.viewIncludedStudiesAction.click();
+    await this.page.waitForURL((url) => url.pathname.includes('/slr/studies'), { timeout: 15_000 });
+    await this.waitForNetworkIdle();
   }
 }
