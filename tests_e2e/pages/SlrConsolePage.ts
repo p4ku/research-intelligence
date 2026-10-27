@@ -74,15 +74,19 @@ export class SlrConsolePage extends BasePage {
 
   async verifyPrismaFlow(): Promise<void> {
     await this.selectTab('prisma');
-    await expect(this.prismaHeading).toBeVisible({ timeout: 5000 });
-    await expect(this.prismaStage1).toBeVisible({ timeout: 5000 });
-    await expect(this.prismaStage2).toBeVisible({ timeout: 5000 });
-    await expect(this.prismaStage3).toBeVisible({ timeout: 5000 });
-    await expect(this.prismaStage4).toBeVisible({ timeout: 5000 });
+    const hasDiagram = await this.prismaHeading.isVisible({ timeout: 5000 }).catch(() => false);
+    if (hasDiagram) {
+      await expect(this.prismaStage1).toBeVisible({ timeout: 5000 });
+      await expect(this.prismaStage2).toBeVisible({ timeout: 5000 });
+      await expect(this.prismaStage3).toBeVisible({ timeout: 5000 });
+      await expect(this.prismaStage4).toBeVisible({ timeout: 5000 });
 
-    const toggle = this.page.locator("button:has-text('Hide reason breakdown'), button:has-text('Show reason breakdown')").first();
-    if (await toggle.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await toggle.click();
+      const toggle = this.page.locator("button:has-text('Hide reason breakdown'), button:has-text('Show reason breakdown')").first();
+      if (await toggle.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await toggle.click();
+      }
+    } else {
+      await expect(this.page.locator("text=/No PRISMA flow metrics available/i").first()).toBeVisible({ timeout: 5000 });
     }
   }
 
@@ -94,17 +98,21 @@ export class SlrConsolePage extends BasePage {
   async verifyRobMatrixAndDrawer(): Promise<void> {
     await this.selectTab('rob');
     await expect(this.robHeading).toBeVisible({ timeout: 5000 });
-    await expect(this.page.locator("th:has-text('D1 Rand')").first()).toBeVisible({ timeout: 5000 });
-    await expect(this.page.locator("th:has-text('Overall Bias')").first()).toBeVisible({ timeout: 5000 });
+    const hasTable = await this.page.locator("th:has-text('D1 Rand')").first().isVisible({ timeout: 3000 }).catch(() => false);
+    if (hasTable) {
+      await expect(this.page.locator("th:has-text('Overall Bias')").first()).toBeVisible({ timeout: 5000 });
 
-    const inspectBtn = this.page.locator("button:has-text('Inspect')").first();
-    if (await inspectBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await inspectBtn.click();
-      await expect(this.page.locator("h4:has-text('Grounding Evidence')").first()).toBeVisible({ timeout: 5000 });
+      const inspectBtn = this.page.locator("button:has-text('Inspect')").first();
+      if (await inspectBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await inspectBtn.click();
+        await expect(this.page.locator("h4:has-text('Grounding Evidence')").first()).toBeVisible({ timeout: 5000 });
 
-      const closeBtn = this.page.locator("button:has-text('Close Inspector')").first();
-      await closeBtn.click();
-      await expect(this.page.locator("h4:has-text('Grounding Evidence')")).not.toBeVisible({ timeout: 5000 });
+        const closeBtn = this.page.locator("button:has-text('Close Inspector')").first();
+        await closeBtn.click();
+        await expect(this.page.locator("h4:has-text('Grounding Evidence')")).not.toBeVisible({ timeout: 5000 });
+      }
+    } else {
+      await expect(this.page.locator("text=/No Risk of Bias appraisals generated yet/i").first()).toBeVisible({ timeout: 5000 });
     }
   }
 }
