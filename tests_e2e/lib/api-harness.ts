@@ -45,20 +45,40 @@ export class ApiHarness {
     token: string,
     payload: Record<string, any>,
   ): Promise<WorkspaceData> {
+    const envProvider = process.env.E2E_LLM_PROVIDER;
+    const defaultProvider = envProvider || 'google';
+    const defaultModel = process.env.E2E_LLM_MODEL || 'google/gemini-3.8-flash';
+
+    const mergedPayload: Record<string, any> = {
+      abstract_acceptance_criteria: 'Accept relevant research papers.',
+      abstract_rejection_criteria: 'Reject irrelevant papers.',
+      full_text_acceptance_criteria: 'Accept empirical papers.',
+      full_text_rejection_criteria: 'Reject pure opinion.',
+      screening_llm_model: defaultModel,
+      llm_provider: defaultProvider,
+      ...payload,
+    };
+
+    if (envProvider) {
+      mergedPayload.llm_provider = envProvider;
+      if (process.env.E2E_LLM_MODEL) {
+        mergedPayload.screening_llm_model = process.env.E2E_LLM_MODEL;
+      }
+      if (Array.isArray(mergedPayload.extraction_definitions)) {
+        mergedPayload.extraction_definitions = mergedPayload.extraction_definitions.map((ed: any) => ({
+          ...ed,
+          llm_model: process.env.E2E_LLM_MODEL || ed.llm_model || defaultModel,
+        }));
+      }
+    }
+
     const res = await fetch(`${this.baseURL}/api/workspaces/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        abstract_acceptance_criteria: 'Accept relevant research papers.',
-        abstract_rejection_criteria: 'Reject irrelevant papers.',
-        full_text_acceptance_criteria: 'Accept empirical papers.',
-        full_text_rejection_criteria: 'Reject pure opinion.',
-        screening_llm_model: 'google/gemini-3.8-flash',
-        ...payload,
-      }),
+      body: JSON.stringify(mergedPayload),
     });
     if (!res.ok) {
       throw new Error(`Create workspace failed (${res.status}): ${await res.text()}`);

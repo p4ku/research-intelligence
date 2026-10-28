@@ -270,6 +270,9 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
             "4. Strategic Recommendations & Technology Translation Roadmap"
         )
 
+        model_to_use = getattr(config, "screening_llm_model", os.getenv("E2E_LLM_MODEL", "google/gemini-3.8-flash"))
+        provider_to_use = getattr(config, "llm_provider", os.getenv("E2E_LLM_PROVIDER", "google"))
+
         ext_defs_payload = [
             {
                 "name": f"Performance_Metrics_{random_suffix}",
@@ -295,7 +298,7 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
                     "norm_val = round(min(max(acc / 10.0, 0.0), 10.0), 2)\n"
                     "return {'accuracy_pct_postprocessed': norm_val, 'normalized_acc': norm_val}\n"
                 ),
-                "llm_model": "google/gemini-3.8-flash",
+                "llm_model": model_to_use,
                 "version": 1,
                 "requires_consensus": False,
                 "is_active": True,
@@ -324,7 +327,7 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
                     "readiness_index = round(0.6 * innov + 0.4 * (trl * 1.1), 2)\n"
                     "return {'readiness_index': readiness_index, 'innovation_score_postprocessed': innov}\n"
                 ),
-                "llm_model": "google/gemini-3.8-flash",
+                "llm_model": model_to_use,
                 "version": 1,
                 "requires_consensus": False,
                 "is_active": True,
@@ -349,8 +352,8 @@ def run_slr_review_gates_scenario(config: Optional[E2EConfig] = None) -> Dict[st
             narrative_report_system_prompt=narrative_system,
             narrative_report_prompt=narrative_prompt,
             narrative_report_top_n_papers=10,
-            screening_llm_model="google/gemini-3.8-flash",
-            llm_provider="google",
+            screening_llm_model=model_to_use,
+            llm_provider=provider_to_use,
             ocr_provider="pypdf",
             reasoning_effort="medium",
             monthly_token_limit=10000000,

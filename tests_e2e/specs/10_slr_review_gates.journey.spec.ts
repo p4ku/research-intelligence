@@ -75,8 +75,8 @@ test.describe('Journey 10: SLR Checkpoint Gates & Full User Lifecycle via React 
       signal_score_code: 'fit = float(fit_score) if fit_score else 8.0\nnov = float(novelty_score) if novelty_score else 7.5\nreturn round(0.5 * fit + 0.5 * nov, 2)',
       narrative_report_system_prompt: 'Synthesize an Executive Briefing in Markdown.',
       narrative_report_prompt: 'Synthesize an Executive Briefing for workspace {workspace_name}.\nPapers:\n{papers}',
-      screening_llm_model: 'google/gemini-3.8-flash',
-      llm_provider: 'google',
+      screening_llm_model: process.env.E2E_LLM_MODEL || 'google/gemini-3.8-flash',
+      llm_provider: process.env.E2E_LLM_PROVIDER || 'google',
       ocr_provider: 'pypdf',
       extraction_definitions: [
         {
@@ -96,7 +96,7 @@ test.describe('Journey 10: SLR Checkpoint Gates & Full User Lifecycle via React 
             },
           },
           postprocessing_code: 'acc = float(accuracy_pct) if "accuracy_pct" in locals() and accuracy_pct is not None else 90.0\nreturn {"accuracy_pct": acc}',
-          llm_model: 'google/gemini-3.8-flash',
+          llm_model: process.env.E2E_LLM_MODEL || 'google/gemini-3.8-flash',
           is_active: true,
         },
       ],

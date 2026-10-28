@@ -19,6 +19,7 @@ Usage Examples:
 import argparse
 import json
 import logging
+import os
 import sys
 import time
 
@@ -149,6 +150,25 @@ def parse_args():
         "--no-reprocess",
         action="store_true",
         help="Disable reprocess_existing (default: enabled so repeated runs reprocess existing papers)",
+    )
+    parser.add_argument(
+        "--llm-provider",
+        type=str,
+        default=os.getenv("E2E_LLM_PROVIDER", "google"),
+        help="LLM provider for workspace screening & synthesis (google, openrouter; default: google)",
+    )
+    parser.add_argument(
+        "--openrouter",
+        "--opentouter",
+        action="store_true",
+        dest="openrouter",
+        help="Shortcut to use OpenRouter as the LLM provider (equivalent to --llm-provider=openrouter)",
+    )
+    parser.add_argument(
+        "--llm-model",
+        type=str,
+        default=os.getenv("E2E_LLM_MODEL", "google/gemini-3.8-flash"),
+        help="LLM model name for workspace screening & extraction (default: google/gemini-3.8-flash)",
     )
     return parser.parse_args()
 
@@ -364,6 +384,10 @@ def main():
     print_banner()
     args = parse_args()
 
+    llm_provider = "openrouter" if args.openrouter else args.llm_provider
+    os.environ["E2E_LLM_PROVIDER"] = llm_provider
+    os.environ["E2E_LLM_MODEL"] = args.llm_model
+
     base_url = args.url or resolve_target_url(args.target)
     config = E2EConfig(
         target_env=args.target,
@@ -378,6 +402,8 @@ def main():
         delete_after=args.cleanup_after,
         cleanup_after=args.cleanup_after,
         reprocess_existing=not args.no_reprocess,
+        llm_provider=llm_provider,
+        screening_llm_model=args.llm_model,
     )
 
     t0 = time.time()

@@ -295,9 +295,10 @@ Executes complete browser user journeys across `/dashboard`, `/briefing`, `/runs
 ./tests_e2e/run_frontend_e2e.sh slr.soinventive.co.uk slr
 
 # Run specific user journey specs:
-./tests_e2e/run_frontend_e2e.sh prod specs/08_multi_persona_and_full_lifecycle.journey.spec.ts
-./tests_e2e/run_frontend_e2e.sh prod specs/09_run_admission_and_stop_rbac.journey.spec.ts
-./tests_e2e/run_frontend_e2e.sh prod specs/10_slr_review_gates.journey.spec.ts
+# Run with OpenRouter instead of default Google AI:
+./tests_e2e/run_frontend_e2e.sh annotate --openrouter
+./tests_e2e/run_frontend_e2e.sh annotate slr --openrouter
+./tests_e2e/run_frontend_e2e.sh prod specs/10_slr_review_gates.journey.spec.ts --openrouter
 ```
 
 ### 2. Backend Live Pipeline E2E Tests
@@ -306,7 +307,8 @@ Executes autonomous multi-agent Research Scanner reviews, screening triage, full
 ```bash
 # Run SLR Checkpoint Gates Live E2E (Abstract Gate -> Quorum -> Full-Text Gate -> Extraction Gate -> Completion):
 ./tests_e2e/run_e2e.sh prod slr_gates
-./tests_e2e/run_e2e.sh slr.soinventive.co.uk slr_gates
+./tests_e2e/run_e2e.sh annotate slr_gates
+./tests_e2e/run_e2e.sh annotate slr_gates --openrouter
 
 # Run ALL 24 backend E2E scenarios sequentially with immediate workspace cleanup:
 ./tests_e2e/run_e2e.sh prod all --cleanup-after
@@ -325,6 +327,8 @@ pytest tests_e2e/test_full_pipeline_e2e.py -s -v
 | Variable | Default Value | Description |
 | :--- | :--- | :--- |
 | `E2E_TARGET_ENV` | `prod` (or `staging` / `local`) | Target cloud environment or local stack. |
+| `E2E_LLM_PROVIDER` | `google` | LLM provider used for test workspaces (`google` or `openrouter`). Flag: `--openrouter`. |
+| `E2E_LLM_MODEL` | `google/gemini-3.8-flash` | LLM model identifier for screening & extractions. |
 | `ADMIN_USERNAME` / `E2E_USERNAME` | `admin` | Superuser / staff administrator username. |
 | `ADMIN_PASSWORD` / `E2E_PASSWORD` | `schwarz123!` | Administrator password. |
 | `E2E_BASE_URL` | `https://research-scanner.schwarz` (prod) | Next.js frontend root URL for Playwright tests. |

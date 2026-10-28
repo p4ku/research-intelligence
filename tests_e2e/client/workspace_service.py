@@ -14,15 +14,19 @@ class WorkspaceService:
         self.client = client
 
     @staticmethod
-    def get_default_e2e_extraction_definitions(prefix: str = "test_e2e_") -> List[Dict[str, Any]]:
+    def get_default_e2e_extraction_definitions(
+        prefix: str = "test_e2e_",
+        llm_model: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Returns standard extraction target definitions for E2E scenarios.
         """
+        model = (llm_model or os.getenv("E2E_LLM_MODEL", "google/gemini-3.8-flash")).strip()
         return [
             {
                 "name": f"{prefix}fit_score",
                 "exit_metrics": ["fit_score"],
-                "llm_model": "google/gemini-3.8-flash",
+                "llm_model": model,
                 "system_prompt": "Evaluate strategic fit for enterprise research from 0.0 to 100.0.",
                 "user_prompt_template": "Paper Title: {title}\nAbstract/Content:\n{content}\nEvaluate strategic fit (0-100).",
                 "response_schema": {
@@ -38,7 +42,7 @@ class WorkspaceService:
             {
                 "name": f"{prefix}novelty_score",
                 "exit_metrics": ["novelty_score"],
-                "llm_model": "google/gemini-3.8-flash",
+                "llm_model": model,
                 "system_prompt": "Evaluate scientific novelty and originality from 0.0 to 100.0.",
                 "user_prompt_template": "Paper Title: {title}\nAbstract/Content:\n{content}\nEvaluate novelty score (0-100).",
                 "response_schema": {
@@ -54,7 +58,7 @@ class WorkspaceService:
             {
                 "name": f"{prefix}trl_level",
                 "exit_metrics": ["trl_level"],
-                "llm_model": "google/gemini-3.8-flash",
+                "llm_model": model,
                 "system_prompt": "Evaluate Technology Readiness Level from 1 to 9.",
                 "user_prompt_template": "Paper Title: {title}\nAbstract/Content:\n{content}\nEvaluate TRL level (1-9).",
                 "response_schema": {
@@ -88,8 +92,8 @@ class WorkspaceService:
         narrative_report_prompt: Optional[str] = None,
         narrative_report_top_n_papers: Optional[int] = 10,
         signal_score_code: Optional[str] = None,
-        screening_llm_model: str = "google/gemini-3.8-flash",
-        llm_provider: str = "google",
+        screening_llm_model: Optional[str] = None,
+        llm_provider: Optional[str] = None,
         ocr_provider: Optional[str] = None,
         reasoning_effort: str = "medium",
         skip_abstract_screening: bool = False,
@@ -100,6 +104,9 @@ class WorkspaceService:
         scrapers: Optional[List[Dict[str, Any]]] = None,
         subscribers: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
+        resolved_provider = (llm_provider or os.getenv("E2E_LLM_PROVIDER", "google")).strip().lower()
+        resolved_model = (screening_llm_model or os.getenv("E2E_LLM_MODEL", "google/gemini-3.8-flash")).strip()
+
         payload = {
             "name": name,
             "abstract_acceptance_criteria": abstract_acceptance_criteria,
@@ -118,8 +125,8 @@ class WorkspaceService:
             "narrative_report_prompt": narrative_report_prompt,
             "narrative_report_top_n_papers": narrative_report_top_n_papers,
             "signal_score_code": signal_score_code,
-            "screening_llm_model": screening_llm_model,
-            "llm_provider": llm_provider,
+            "screening_llm_model": resolved_model,
+            "llm_provider": resolved_provider,
             "ocr_provider": ocr_provider,
             "reasoning_effort": reasoning_effort,
             "skip_abstract_screening": skip_abstract_screening,
@@ -130,7 +137,10 @@ class WorkspaceService:
         if monthly_usd_limit is not None:
             payload["monthly_usd_limit"] = monthly_usd_limit
         if extraction_definitions is None:
-            extraction_definitions = self.get_default_e2e_extraction_definitions(prefix=f"{name}_")
+            extraction_definitions = self.get_default_e2e_extraction_definitions(
+                prefix=f"{name}_",
+                llm_model=resolved_model,
+            )
         if extraction_definitions:
             payload["extraction_definitions"] = extraction_definitions
         if scrapers:

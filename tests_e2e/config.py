@@ -53,6 +53,8 @@ class E2EConfig:
     cleanup_before: bool = os.getenv("E2E_CLEANUP_BEFORE", "true").lower() in ("true", "1", "yes")
     delete_after: bool = os.getenv("E2E_CLEANUP_AFTER", "false").lower() in ("true", "1", "yes")
     reprocess_existing: bool = os.getenv("E2E_REPROCESS_EXISTING", "true").lower() in ("true", "1", "yes")
+    llm_provider: str = os.getenv("E2E_LLM_PROVIDER", "google").lower()
+    screening_llm_model: str = os.getenv("E2E_LLM_MODEL", "google/gemini-3.8-flash")
 
     def __init__(
         self,
@@ -68,6 +70,8 @@ class E2EConfig:
         delete_after: Optional[bool] = None,
         cleanup_after: Optional[bool] = None,
         reprocess_existing: Optional[bool] = None,
+        llm_provider: Optional[str] = None,
+        screening_llm_model: Optional[str] = None,
     ):
         self.target_env = (target_env if target_env is not None else os.getenv("E2E_TARGET_ENV", "prod")).strip().lower()
         self.base_url = (base_url if base_url is not None else os.getenv("E2E_API_URL", resolve_target_url(self.target_env))).rstrip("/")
@@ -81,6 +85,10 @@ class E2EConfig:
         resolved_delete = cleanup_after if cleanup_after is not None else delete_after
         self.delete_after = resolved_delete if resolved_delete is not None else (os.getenv("E2E_CLEANUP_AFTER", "false").lower() in ("true", "1", "yes"))
         self.reprocess_existing = reprocess_existing if reprocess_existing is not None else (os.getenv("E2E_REPROCESS_EXISTING", "true").lower() in ("true", "1", "yes"))
+        self.llm_provider = (llm_provider if llm_provider is not None else os.getenv("E2E_LLM_PROVIDER", "google")).strip().lower()
+        self.screening_llm_model = (screening_llm_model if screening_llm_model is not None else os.getenv("E2E_LLM_MODEL", "google/gemini-3.8-flash")).strip()
+        os.environ["E2E_LLM_PROVIDER"] = self.llm_provider
+        os.environ["E2E_LLM_MODEL"] = self.screening_llm_model
 
     @property
     def timeout_sec(self) -> int:
@@ -125,5 +133,7 @@ class E2EConfig:
             max_timeout_sec=int(os.getenv("E2E_TIMEOUT_SEC", "900")),
             cleanup_before=os.getenv("E2E_CLEANUP_BEFORE", "true").lower() in ("true", "1", "yes"),
             delete_after=os.getenv("E2E_CLEANUP_AFTER", "false").lower() in ("true", "1", "yes"),
+            llm_provider=os.getenv("E2E_LLM_PROVIDER", "google"),
+            screening_llm_model=os.getenv("E2E_LLM_MODEL", "google/gemini-3.8-flash"),
         )
 
