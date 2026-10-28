@@ -1801,8 +1801,9 @@ class WorkspaceAdmin(admin.ModelAdmin):
     }
     list_display = (
         'name',
-        'ocr_provider',
+        'llm_provider',
         'screening_llm_model',
+        'ocr_provider',
         'reasoning_effort',
         'skip_abstract_screening',
         'tokens_consumed_display',
@@ -5558,6 +5559,7 @@ class LLMUsageRecordAdmin(admin.ModelAdmin):
     list_display = (
         'formatted_timestamp',
         'operation_type_badge',
+        'llm_provider_badge',
         'llm_model_badge',
         'workspace_display',
         'tokens_in_fmt',
@@ -5573,8 +5575,8 @@ class LLMUsageRecordAdmin(admin.ModelAdmin):
         LLMUsageUserFilter,
         'workspace',
         'operation_type',
-        'llm_model',
         'llm_provider',
+        'llm_model',
         'timestamp',
     )
     search_fields = (
@@ -5585,6 +5587,7 @@ class LLMUsageRecordAdmin(admin.ModelAdmin):
         'user__email',
         'pipeline_run_id',
         'component_run_id',
+        'llm_provider',
         'llm_model',
     )
     readonly_fields = [f.name for f in LLMUsageRecord._meta.fields]
@@ -5670,6 +5673,23 @@ class LLMUsageRecordAdmin(admin.ModelAdmin):
         )
     operation_type_badge.short_description = "Operation"
     operation_type_badge.admin_order_field = "operation_type"
+
+    def llm_provider_badge(self, obj):
+        provider = (obj.llm_provider or "google").lower()
+        if provider == "openrouter":
+            return format_html(
+                '<span style="background: linear-gradient(135deg, #6366f1, #a855f7); color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; white-space: nowrap; display: inline-block; letter-spacing: 0.3px;">⚡ OpenRouter</span>'
+            )
+        elif provider == "google":
+            return format_html(
+                '<span style="background: #1a73e8; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; white-space: nowrap; display: inline-block;">Google AI</span>'
+            )
+        else:
+            return format_html(
+                f'<span style="background: #475569; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; white-space: nowrap; display: inline-block;">{escape(provider.title())}</span>'
+            )
+    llm_provider_badge.short_description = "Provider"
+    llm_provider_badge.admin_order_field = "llm_provider"
 
     def llm_model_badge(self, obj):
         model_short = obj.llm_model.replace("google/", "").replace("openai/", "").replace("anthropic/", "")
