@@ -3,6 +3,7 @@ Workspace, Scrapers, and Extraction Definitions Service for E2E Tests.
 """
 
 import logging
+import os
 from typing import Dict, Any, List, Optional
 from .api_client import APIClient
 

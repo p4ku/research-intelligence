@@ -22,6 +22,7 @@ Validates the full privilege hierarchy across all 3 platform personas:
 """
 
 import logging
+import os
 import random
 from typing import Dict, Any, Optional
 

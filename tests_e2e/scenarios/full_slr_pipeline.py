@@ -21,6 +21,7 @@ Automates the complete researcher journey:
 """
 
 import logging
+import os
 import random
 import time
 from typing import Dict, Any, Optional
@@ -179,11 +180,14 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             "return round(base * multiplier, 2)\n"
         )
 
+        model_to_use = getattr(cfg, "screening_llm_model", os.getenv("E2E_LLM_MODEL", "google/gemini-3.8-flash"))
+        provider_to_use = getattr(cfg, "llm_provider", os.getenv("E2E_LLM_PROVIDER", "google"))
+
         extraction_definitions_payload = [
             {
                 "name": f"test_e2e_novelty_{random_suffix}",
                 "exit_metrics": ["novelty_score"],
-                "llm_model": "google/gemini-3.8-flash",
+                "llm_model": model_to_use,
                 "system_prompt": (
                     "You are an expert peer reviewer evaluating scientific novelty according to NeurIPS reviewer guidelines.\n\n"
                     "Novelty Scale & Bands (1 to 100):\n"
@@ -213,7 +217,7 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             {
                 "name": f"test_e2e_rigour_{random_suffix}",
                 "exit_metrics": ["rigour_score"],
-                "llm_model": "google/gemini-3.8-flash",
+                "llm_model": model_to_use,
                 "system_prompt": (
                     "You are an expert scientific peer reviewer assessing scientific Rigour and technical soundness based on NeurIPS review guidelines.\n\n"
                     "Rigour Scale & Bands (1 to 100):\n"
@@ -241,7 +245,7 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             {
                 "name": f"test_e2e_schwarz_fit_{random_suffix}",
                 "exit_metrics": ["fit_score"],
-                "llm_model": "google/gemini-3.8-flash",
+                "llm_model": model_to_use,
                 "system_prompt": (
                     "You are a specialized enterprise technology evaluator assessing how closely research papers map to strategic business needs of the Schwarz Group.\n\n"
                     "Score the overall Schwarz Fit on a 1–100 scale, evaluate each dimension, and provide a grounded justification."
@@ -264,7 +268,7 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             {
                 "name": f"test_e2e_significance_{random_suffix}",
                 "exit_metrics": ["significance_score"],
-                "llm_model": "google/gemini-3.8-flash",
+                "llm_model": model_to_use,
                 "system_prompt": (
                     "You are an expert scientific evaluator reviewing paper significance based on NeurIPS reviewer guidelines.\n\n"
                     "Significance Scale & Bands (1 to 100):\n"
@@ -288,7 +292,7 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             {
                 "name": f"test_e2e_trl_{random_suffix}",
                 "exit_metrics": ["trl_level"],
-                "llm_model": "google/gemini-3.8-flash",
+                "llm_model": model_to_use,
                 "system_prompt": (
                     "You are an expert scientific evaluator responsible for extracting and evaluating the Technology Readiness Level (TRL) of research papers based on the European Commission definition (Horizon Europe General Annex G).\n\n"
                     "Evaluation Framework & Scale (1 to 9):\n"
@@ -326,7 +330,8 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             full_text_screening_response_schema=full_text_response_schema,
             full_text_screening_exit_metric="fit_score",
             signal_score_code=signal_score_code,
-            screening_llm_model="google/gemini-3.8-flash",
+            screening_llm_model=model_to_use,
+            llm_provider=provider_to_use,
             ocr_provider=None,  # Direct multimodal PDF mode
             reasoning_effort="medium",
             extraction_definitions=extraction_definitions_payload,
