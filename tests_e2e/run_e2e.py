@@ -187,7 +187,14 @@ def print_banner():
     )
 
 
-def print_llm_cost_summary(c: dict, total_elapsed: float, total_papers: int = 0, title: str = "LLM TOKENS & FINANCIAL COST SUMMARY"):
+def print_llm_cost_summary(
+    c: dict,
+    total_elapsed: float,
+    total_papers: int = 0,
+    title: str = "LLM TOKENS & FINANCIAL COST SUMMARY",
+    llm_provider: Optional[str] = None,
+    llm_model: Optional[str] = None,
+):
     p_in = int(c.get("pipeline_tokens_in", 0) or 0)
     p_out = int(c.get("pipeline_tokens_out", 0) or 0)
     p_tok = int(c.get("pipeline_total_tokens", 0) or (p_in + p_out))
@@ -204,10 +211,20 @@ def print_llm_cost_summary(c: dict, total_elapsed: float, total_papers: int = 0,
     tot_usd = float(c.get("total_usd_spent", 0.0) or (p_usd + c_usd))
     tot_eur = tot_usd * 0.92
 
+    provider = (llm_provider or os.getenv("E2E_LLM_PROVIDER", "google")).strip().lower()
+    model = (llm_model or os.getenv("E2E_LLM_MODEL", "google/gemini-3.8-flash")).strip()
+
+    if provider == "openrouter":
+        engine_label = f"OpenRouter API ({model})"
+        header_model = f"OPENROUTER - {model.upper()}"
+    else:
+        engine_label = f"Google Vertex AI / GenAI ({model})"
+        header_model = f"GOOGLE - {model.upper()}"
+
     print("\n" + "=" * 70)
-    print(f"💎  {title} (GOOGLE GEMINI 3.8 FLASH)")
+    print(f"💎  {title} ({header_model})")
     print("=" * 70)
-    print(f"  🤖 Inference Engine     : Google Vertex AI / GenAI (gemini-3.8-flash)")
+    print(f"  🤖 Inference Engine     : {engine_label}")
     print(f"  ⏱️  Total Run Time       : {total_elapsed:.1f}s")
     if total_papers > 0:
         print(f"  📄 Ingested Papers      : {total_papers} papers")
@@ -332,7 +349,15 @@ def print_suite_summary(scenario_results: list, total_elapsed: float, config=Non
     )
 
 
-def print_summary_card(results: dict, total_elapsed: float):
+def print_summary_card(
+    results: dict,
+    total_elapsed: float,
+    llm_provider: Optional[str] = None,
+    llm_model: Optional[str] = None,
+):
+    provider = (llm_provider or os.getenv("E2E_LLM_PROVIDER", "google")).strip()
+    model = (llm_model or os.getenv("E2E_LLM_MODEL", "google/gemini-3.8-flash")).strip()
+
     print("\n" + "=" * 70)
     print("📋  E2E PIPELINE EXECUTION SCORECARD & AUDIT REPORT")
     print("=" * 70)
@@ -340,6 +365,8 @@ def print_summary_card(results: dict, total_elapsed: float):
     print(f"  🆔 Workspace UUID       : {results.get('workspace_id')}")
     print(f"  ⚙️  Process UUID         : {results.get('process_id')}")
     print(f"  🔄 Pipeline Run UUID    : {results.get('pipeline_run_id')}")
+    print(f"  🤖 LLM Provider        : {provider.upper()} ({provider})")
+    print(f"  🧠 LLM Model           : {model}")
     print(f"  ⏱️  Total Duration       : {total_elapsed:.1f}s")
     print(f"  📄 Total Papers Scraped : {results.get('total_papers_fetched', 0)}")
     print(f"  ✅ Accepted Full-Text   : {results.get('accepted_papers_count', 0)}")
@@ -376,7 +403,9 @@ def print_summary_card(results: dict, total_elapsed: float):
         print_llm_cost_summary(
             results["cost_metrics"],
             total_elapsed=total_elapsed,
-            total_papers=results.get("total_papers_fetched", 0)
+            total_papers=results.get("total_papers_fetched", 0),
+            llm_provider=provider,
+            llm_model=model,
         )
 
 
@@ -420,7 +449,7 @@ def main():
         elif args.scenario == "slr":
             results = run_full_slr_pipeline_scenario(config)
             total_elapsed = time.time() - t0
-            print_summary_card(results, total_elapsed)
+            print_summary_card(results, total_elapsed, llm_provider=llm_provider, llm_model=args.llm_model)
 
         elif args.scenario == "lifecycle":
             res = run_agent_lifecycle_scenario(config)
