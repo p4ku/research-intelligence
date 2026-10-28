@@ -69,6 +69,7 @@ from .agents import (
 from .diagnostics import (
     get_document_registry_stats_logic,
     test_google_llm_logic,
+    test_openrouter_llm_logic,
     list_user_activity_logs_logic,
     send_pipeline_run_digest_email_logic,
 )
@@ -166,6 +167,7 @@ __all__ = [
     "delete_research_agent_logic",
     "get_workflow_dag_schema_logic",
     "test_google_llm_logic",
+    "test_openrouter_llm_logic",
     "list_user_activity_logs_logic",
     "send_pipeline_run_digest_email_logic",
     "configure_slr_workspace_logic",

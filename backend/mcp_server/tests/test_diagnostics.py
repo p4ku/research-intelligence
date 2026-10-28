@@ -3,6 +3,7 @@ from research_intelligence.models import DocumentRegistry
 from mcp_server.tools import (
     get_document_registry_stats_logic,
     test_google_llm_logic as run_test_google_llm_logic,
+    test_openrouter_llm_logic as run_test_openrouter_llm_logic,
     list_user_activity_logs_logic,
 )
 from .base import BaseMCPTestCase
@@ -24,6 +25,17 @@ class MCPDiagnosticsTestCase(BaseMCPTestCase):
     def test_google_llm_tool(self, mock_generate):
         mock_generate.return_value = "Google LLM connectivity test successful with model gemini-3.8-flash."
         res = self.parse_res(run_test_google_llm_logic(self.admin, prompt="Test prompt", model="gemini-3.8-flash"))
+        self.assertTrue(res.get("success", False))
+        self.assertIn("connectivity test", res["message"].lower())
+
+    @patch("research_intelligence.llm_providers.factory.get_llm_provider")
+    def test_openrouter_llm_tool(self, mock_get_provider):
+        mock_prov = MagicMock()
+        mock_prov.model_name = "google/gemini-3.8-flash"
+        mock_prov.generate.return_value = "OpenRouter LLM connectivity test successful."
+        mock_get_provider.return_value = mock_prov
+
+        res = self.parse_res(run_test_openrouter_llm_logic(self.admin, prompt="Test prompt", model="google/gemini-3.8-flash"))
         self.assertTrue(res.get("success", False))
         self.assertIn("connectivity test", res["message"].lower())
 

@@ -109,6 +109,7 @@ from mcp_server.tools import (
     get_pipeline_logs_logic,
     get_document_registry_stats_logic,
     test_google_llm_logic,
+    test_openrouter_llm_logic,
     list_user_activity_logs_logic,
     send_pipeline_run_digest_email_logic,
     ask_paper_logic,
@@ -776,7 +777,8 @@ def create_workspace(
     - skip_abstract_screening: Defaults to False. If True, skips Abstract Screening and downloads all candidate papers for direct Full-Text Screening.
     - reprocess_existing: Defaults to False. If True, sets default workspace policy to re-evaluate and re-screen existing papers on pipeline runs.
     - ocr_provider: Defaults to None (skips OCR and passes native PDF binary directly to multimodal Gemini 3.8 Flash). Set to 'pypdf', 'mistral', or 'gemini' only if text layout markdown is explicitly required.
-    - screening_llm_model: Default 'google/gemini-3.8-flash'.
+    - screening_llm_model: Target LLM model name (default 'google/gemini-3.8-flash').
+    - llm_provider: Provider backend ('google' or 'openrouter', default 'google').
     - signal_score_code: Optional sandboxed Python math formula to rank papers (e.g. 'score = 0.6 * fit_score + 0.4 * novelty_score\\nreturn score').
     
     NEXT STEPS:
@@ -868,6 +870,8 @@ def update_workspace(
     - reprocess_existing: Set default workspace policy to re-evaluate and re-screen existing workspace papers.
     - signal_score_code: Custom Python AST snippet to calculate composite scores (e.g. 'score = 0.5*fit_score + 0.3*novelty_score + 0.2*trl_level\\nreturn round(score, 2)').
     - ocr_provider: 'pypdf', 'mistral', 'gemini', or None/'none' (leave None to skip OCR and pass native PDF to Gemini).
+    - llm_provider: 'google' or 'openrouter'. Switch provider for abstract/full-text screening and parameter extraction.
+    - screening_llm_model: Target LLM model name (e.g. 'google/gemini-3.8-flash', 'anthropic/claude-3.5-sonnet').
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -2497,6 +2501,23 @@ def test_google_llm(
     except Exception as e:
         return str(e)
     return test_google_llm_logic(user, prompt, model, location)
+
+
+@mcp.tool()
+@with_db_connection
+def test_openrouter_llm(
+    prompt: str | None = None,
+    model: str | None = None
+) -> str:
+    """
+    Test connectivity to OpenRouter Gateway models (e.g. google/gemini-3.8-flash, anthropic/claude-3.5-sonnet) and verify API credentials.
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "workspaces:read")
+    except Exception as e:
+        return str(e)
+    return test_openrouter_llm_logic(user, prompt, model)
 
 
 @mcp.tool()

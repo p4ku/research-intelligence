@@ -343,6 +343,44 @@ class MCPWorkspacesTestCase(BaseMCPTestCase):
         self.assertEqual(ws.narrative_report_prompt, "Updated briefing prompt: {papers_json}")
         self.assertEqual(ws.narrative_report_top_n_papers, 20)
 
+    def test_workspace_llm_provider_mcp_lifecycle(self):
+        # 1. Create with openrouter
+        res = self.parse_res(create_workspace_logic(
+            self.admin,
+            name="OpenRouter MCP WS",
+            llm_provider="openrouter",
+            screening_llm_model="google/gemini-3.8-flash"
+        ))
+        self.assertEqual(res["status"], "success")
+        ws_id = res["workspace_id"]
+        ws = Workspace.objects.get(id=ws_id)
+        self.assertEqual(ws.llm_provider, "openrouter")
+        self.assertEqual(ws.screening_llm_model, "google/gemini-3.8-flash")
+
+        # 2. Verify get_workspace exposes it
+        details = self.parse_res(get_workspace_logic(self.admin, workspace_id=ws_id))
+        self.assertEqual(details["llm_provider"], "openrouter")
+        self.assertEqual(details["screening_llm_model"], "google/gemini-3.8-flash")
+
+        # 3. Update to google
+        up_res = self.parse_res(update_workspace_logic(
+            self.admin,
+            workspace_id=ws_id,
+            llm_provider="google"
+        ))
+        self.assertEqual(up_res["status"], "success")
+        ws.refresh_from_db()
+        self.assertEqual(ws.llm_provider, "google")
+
+        # 4. Error on invalid provider
+        err_res = self.parse_res(update_workspace_logic(
+            self.admin,
+            workspace_id=ws_id,
+            llm_provider="invalid_provider_xyz"
+        ))
+        self.assertEqual(err_res["status"], "error")
+        self.assertIn("invalid llm_provider", err_res["error"].lower())
+
 
 
 
