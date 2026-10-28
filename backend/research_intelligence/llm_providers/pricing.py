@@ -3,8 +3,10 @@ from decimal import Decimal
 # Cost in USD per 1 Million tokens (Gemini Developer API pricing from https://ai.google.dev/gemini-api/docs/pricing)
 # Context caching provides a 75% discount on cached input prompt tokens (cost is 25% of standard input rate)
 MODEL_PRICING = {
-    # Gemini 3.x Flash Family
+    # Gemini 3.x Flash Family (Base rates: $0.75 / 1M prompt, $3.75 / 1M completion; Fusion tier: $0.825 / $4.125)
+    "google/gemini-3.8-flash": {"in": Decimal("0.75"), "out": Decimal("3.75"), "cached_in": Decimal("0.1875")},
     "gemini-3.8-flash": {"in": Decimal("0.75"), "out": Decimal("3.75"), "cached_in": Decimal("0.1875")},
+    "openrouter/fusion/google/gemini-3.8-flash": {"in": Decimal("0.825"), "out": Decimal("4.125"), "cached_in": Decimal("0.0825")},
     "gemini-3.7-flash": {"in": Decimal("0.75"), "out": Decimal("3.75"), "cached_in": Decimal("0.1875")},
     "gemini-3.6-flash": {"in": Decimal("0.75"), "out": Decimal("3.75"), "cached_in": Decimal("0.1875")},
     "gemini-3.5-flash": {"in": Decimal("0.75"), "out": Decimal("3.75"), "cached_in": Decimal("0.1875")},
@@ -24,6 +26,18 @@ MODEL_PRICING = {
     "gemini-1.5-flash": {"in": Decimal("0.075"), "out": Decimal("0.30"), "cached_in": Decimal("0.01875")},
     "gemini-1.5-pro": {"in": Decimal("1.25"), "out": Decimal("5.00"), "cached_in": Decimal("0.3125")},
 
+    # OpenRouter Popular Models (rates per 1M tokens)
+    "meta-llama/llama-3.3-70b-instruct": {"in": Decimal("0.13"), "out": Decimal("0.40")},
+    "meta-llama/llama-3.1-8b-instruct": {"in": Decimal("0.02"), "out": Decimal("0.05")},
+    "anthropic/claude-3.5-sonnet": {"in": Decimal("3.00"), "out": Decimal("15.00")},
+    "anthropic/claude-3.7-sonnet": {"in": Decimal("3.00"), "out": Decimal("15.00")},
+    "openai/gpt-4o": {"in": Decimal("2.50"), "out": Decimal("10.00")},
+    "openai/gpt-4o-mini": {"in": Decimal("0.15"), "out": Decimal("0.60")},
+    "deepseek/deepseek-chat": {"in": Decimal("0.14"), "out": Decimal("0.28")},
+    "deepseek/deepseek-r1": {"in": Decimal("0.55"), "out": Decimal("2.19")},
+    "qwen/qwen-2.5-72b-instruct": {"in": Decimal("0.35"), "out": Decimal("0.40")},
+    "mistralai/mistral-large-2411": {"in": Decimal("2.00"), "out": Decimal("6.00")},
+
     # Fallback default: Gemini 3.8 Flash Standard Tier
     "default": {"in": Decimal("0.75"), "out": Decimal("3.75"), "cached_in": Decimal("0.1875")},
 }
@@ -36,20 +50,21 @@ def calculate_llm_cost(
     tokens_cached: int = 0
 ) -> Decimal:
     """
-    Calculates estimated USD cost for a given LLM model and token counts based on official Gemini API pricing.
-    Supports discounted context caching tokens (75% discount on prompt tokens according to official Gemini pricing).
-    
-    Robustness guarantees:
-    - If Google API omits or returns 0/None for cached tokens, standard input pricing is applied.
-    - If Google API returns prompt_token_count as total prompt tokens (which includes cached_content_token_count),
-      the uncached portion is computed as max(0, tokens_in - tokens_cached) so cached tokens are never double-billed.
-    - If tokens_in is already supplied as net uncached tokens, both are billed at their respective rates.
+    Calculates estimated USD cost for a given LLM model and token counts based on official API pricing.
+    Supports discounted context caching tokens.
     """
     if not model_name:
         pricing = MODEL_PRICING["default"]
     else:
-        clean_name = str(model_name).lower().replace("google/", "").replace("google-agent/", "").strip()
-        pricing = MODEL_PRICING.get(clean_name, MODEL_PRICING["default"])
+        base_slug = str(model_name).lower().strip()
+        raw_slug = base_slug.split(":")[0].strip()
+        if base_slug in MODEL_PRICING:
+            pricing = MODEL_PRICING[base_slug]
+        elif raw_slug in MODEL_PRICING:
+            pricing = MODEL_PRICING[raw_slug]
+        else:
+            clean_name = raw_slug.replace("openrouter/", "").replace("google/", "").replace("google-agent/", "").strip()
+            pricing = MODEL_PRICING.get(clean_name, MODEL_PRICING.get(raw_slug, MODEL_PRICING["default"]))
 
     cached_rate = pricing.get("cached_in", pricing["in"] * Decimal("0.25"))
 

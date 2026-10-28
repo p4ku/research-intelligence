@@ -158,11 +158,34 @@ def probe_llm_providers() -> dict:
             "error": str(e),
         }
 
+    openrouter_start = time.perf_counter()
     openrouter_key = os.environ.get("OPENROUTER_API_KEY") or getattr(settings, "OPENROUTER_API_KEY", None)
-    llm_providers["openrouter"] = {
-        "status": "configured" if bool(openrouter_key and openrouter_key != "mock-openrouter-key") else "not_configured",
-        "provider_name": "OpenRouter Gateway",
-    }
+    if openrouter_key and openrouter_key != "mock-openrouter-key":
+        try:
+            from research_intelligence.llm_providers.openrouter import OpenRouterAPIProvider
+            op_provider = OpenRouterAPIProvider(api_key=openrouter_key)
+            test_resp = op_provider.generate("Reply with 'OK' only.", timeout=(5.0, 10.0))
+            latency = round((time.perf_counter() - openrouter_start) * 1000, 2)
+            llm_providers["openrouter"] = {
+                "status": "online",
+                "provider_name": "OpenRouter Gateway",
+                "model": op_provider.model_name,
+                "latency_ms": latency,
+                "response": str(test_resp)[:100],
+            }
+        except Exception as e:
+            latency = round((time.perf_counter() - openrouter_start) * 1000, 2)
+            llm_providers["openrouter"] = {
+                "status": "offline",
+                "provider_name": "OpenRouter Gateway",
+                "latency_ms": latency,
+                "error": str(e),
+            }
+    else:
+        llm_providers["openrouter"] = {
+            "status": "not_configured",
+            "provider_name": "OpenRouter Gateway",
+        }
 
     return llm_providers
 

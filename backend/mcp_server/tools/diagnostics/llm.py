@@ -50,6 +50,7 @@ def test_google_llm_logic(
             location=target_location
         )
 
+
         response_text = str(response)
 
         return json.dumps({
@@ -57,8 +58,8 @@ def test_google_llm_logic(
             "message": "Google LLM connectivity test passed successfully.",
             "requested_model": target_model,
             "requested_location": target_location,
-            "resolved_project_id": provider.project_id,
-            "resolved_location": provider.location,
+            "resolved_project_id": getattr(provider, "project_id", None),
+            "resolved_location": getattr(provider, "location", None),
             "credentials_diagnostics": creds_info,
             "llm_response": response_text
         }, indent=2)
@@ -72,3 +73,34 @@ def test_google_llm_logic(
             "requested_location": target_location,
             "credentials_diagnostics": creds_info
         }, indent=2)
+
+
+def test_openrouter_llm_logic(
+    user,
+    prompt: str | None = None,
+    model: str | None = None
+) -> str:
+    """
+    Test execution of OpenRouter Gateway LLM model (e.g. google/gemini-3.8-flash) and verify API credentials & response generation.
+    """
+    test_prompt = prompt or "Hello! Please reply with 'OpenRouter LLM connectivity test successful' and state your active model name in 1 sentence."
+    from research_intelligence.llm_providers.factory import get_llm_provider
+    try:
+        provider = get_llm_provider("openrouter")
+        target_model = model or provider.model_name
+        response = provider.generate(prompt=test_prompt, model=target_model)
+        return json.dumps({
+            "success": True,
+            "message": "OpenRouter LLM connectivity test passed successfully.",
+            "requested_model": target_model,
+            "provider": "openrouter",
+            "llm_response": str(response)
+        }, indent=2)
+    except Exception as e:
+        logger.exception(f"Error testing OpenRouter LLM: {str(e)}")
+        return json.dumps({
+            "success": False,
+            "error": str(e),
+            "provider": "openrouter"
+        }, indent=2)
+

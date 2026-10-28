@@ -100,6 +100,12 @@ if not SITE_URL:
     else:
         SITE_URL = "http://localhost:8000"
 
+# LLM Provider Settings (OpenRouter Gateway & Google GenAI / Vertex AI)
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_DEFAULT_MODEL = os.getenv("OPENROUTER_DEFAULT_MODEL", "google/gemini-3.8-flash")
+OPENROUTER_HTTP_REFERER = os.getenv("OPENROUTER_HTTP_REFERER", SITE_URL or "https://research-intelligence.com")
+GOOGLE_AGENT_API_KEY = os.getenv("GOOGLE_AGENT_API_KEY", os.getenv("GEMINI_API_KEY", os.getenv("GOOGLE_API_KEY", "")))
+
 # Security Hardening Settings
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'SAMEORIGIN'
@@ -178,18 +184,23 @@ WSGI_APPLICATION = 'django_project.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 
-# Boot-time Google credentials diagnostics
+# Boot-time LLM credentials diagnostics
 if not is_testing:
     sa_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+    openrouter_configured = bool(OPENROUTER_API_KEY and OPENROUTER_API_KEY != "mock-openrouter-key")
     
-    if not sa_json:
+    if not sa_json and not openrouter_configured:
         sys.stderr.write(
             "\n"
-            "⚠️ [BOOT WARNING] GOOGLE_SERVICE_ACCOUNT_JSON is not configured in the environment!\n"
-            "⚠️ [BOOT WARNING] Google GenAI / Vertex AI models will fail to authenticate.\n"
+            "⚠️ [BOOT WARNING] Neither GOOGLE_SERVICE_ACCOUNT_JSON nor OPENROUTER_API_KEY is configured in the environment!\n"
+            "⚠️ [BOOT WARNING] LLM generation steps will fail to authenticate.\n"
             "\n"
         )
-    else:
+    elif openrouter_configured:
+        sys.stderr.write(
+            f"ℹ️ [BOOT INFO] OpenRouter API active (default model: {OPENROUTER_DEFAULT_MODEL}).\n"
+        )
+    elif sa_json:
         try:
             import json
             json.loads(sa_json)

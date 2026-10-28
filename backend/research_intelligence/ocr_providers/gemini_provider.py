@@ -36,6 +36,7 @@ class GeminiOCRProvider(BaseOCRProvider):
         self.model_name = model_name
         self.provider = GoogleAgentAPIProvider()
 
+
     def _extract_images_as_base64(self, file_path: str, is_html: bool) -> str:
         """Extract embedded images from PDF pages and return them formatted as Base64 HTML or Markdown."""
         images_content = ""
