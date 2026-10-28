@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 🚀 Schwarz Research Intelligence - Next.js Frontend E2E Test Runner (TypeScript / Playwright)
+# 🚀 Research Intelligence - Next.js Frontend E2E Test Runner (TypeScript / Playwright)
 # ==============================================================================
 # Usage:
 #   ./tests_e2e/run_frontend_e2e.sh                     # Runs all TS specs on Local dev (Default, http://localhost:3000)
@@ -135,7 +135,7 @@ TARGET_UPPER=$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')
 LLM_PROVIDER_UPPER=$(echo "$LLM_PROVIDER" | tr '[:lower:]' '[:upper:]')
 
 echo "=================================================================="
-echo "🧪 Running Schwarz Research Intelligence Frontend E2E (TypeScript)..."
+echo "🧪 Running Research Intelligence Frontend E2E (TypeScript)..."
 echo "📍 Target Environment : ${TARGET_UPPER}"
 echo "📍 LLM Provider        : ${LLM_PROVIDER_UPPER} ($LLM_PROVIDER)"
 echo "📍 LLM Model           : ${LLM_MODEL}"

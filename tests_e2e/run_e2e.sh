@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 🚀 Schwarz Research Intelligence - Live E2E Pipeline Simulator & Test Runner
+# 🚀 Research Intelligence - Live E2E Pipeline Simulator & Test Runner
 # ==============================================================================
 # Usage:
 #   ./tests_e2e/run_e2e.sh                    # Runs against Production (Default LLM: google)
@@ -98,7 +98,7 @@ TARGET_UPPER=$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')
 LLM_PROVIDER_UPPER=$(echo "$LLM_PROVIDER" | tr '[:lower:]' '[:upper:]')
 
 echo "=================================================================="
-echo "🧪 Running Schwarz Research Intelligence Live E2E Pipeline..."
+echo "🧪 Running Research Intelligence Live E2E Pipeline..."
 echo "📍 Target Environment : ${TARGET_UPPER}"
 echo "📍 LLM Provider        : ${LLM_PROVIDER_UPPER} ($LLM_PROVIDER)"
 echo "📍 LLM Model           : ${LLM_MODEL}"

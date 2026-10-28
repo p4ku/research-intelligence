@@ -1,3 +1,3 @@
 """
-Schwarz Research Intelligence - E2E Testing Suite
+Research Intelligence - E2E Testing Suite
 """

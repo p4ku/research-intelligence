@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Schwarz Research Intelligence - Standalone E2E Pipeline Simulator & Test Runner.
+Research Intelligence - Standalone E2E Pipeline Simulator & Test Runner.
 
 Usage Examples:
   # Run against Staging (Default):
@@ -22,6 +22,7 @@ import logging
 import os
 import sys
 import time
+from typing import Optional
 
 from tests_e2e.config import E2EConfig, ENV_TARGETS, resolve_target_url
 from tests_e2e.scenarios import (
@@ -67,7 +68,7 @@ logger = logging.getLogger("e2e_runner")
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Schwarz Research Intelligence - E2E Live Pipeline Simulator"
+        description="Research Intelligence - E2E Live Pipeline Simulator"
     )
     parser.add_argument(
         "--target",
@@ -176,13 +177,13 @@ def parse_args():
 def print_banner():
     print(
         r"""
-  ███████╗██████╗ ██╗    ███████╗██████╗ ███████╗
-  ██╔════╝██╔══██╗██║    ██╔════╝╚════██╗██╔════╝
-  ███████╗██████╔╝██║    █████╗   █████╔╝█████╗  
-  ╚════██║██╔══██╗██║    ██╔══╝  ██╔═══╝ ██╔══╝  
-  ███████║██║  ██║██║    ███████╗███████╗███████╗
-  ╚══════╝╚═╝  ╚═╝╚═╝    ╚══════╝╚══════╝╚══════╝
-  Schwarz Research Intelligence - Live E2E Simulator
+  ██████╗ ██╗    ███████╗██████╗ ███████╗
+  ██╔══██╗██║    ██╔════╝╚════██╗██╔════╝
+  ██████╔╝██║    █████╗   █████╔╝█████╗  
+  ██╔══██╗██║    ██╔══╝  ██╔═══╝ ██╔══╝  
+  ██║  ██║██║    ███████╗███████╗███████╗
+  ╚═╝  ╚═╝╚═╝    ╚══════╝╚══════╝╚══════╝
+  Research Intelligence - Live E2E Simulator
         """
     )
 

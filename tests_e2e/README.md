@@ -1,6 +1,6 @@
-# 🧪 Schwarz Research Intelligence - End-to-End (E2E) Test Suite
+# 🧪 Research Intelligence - End-to-End (E2E) Test Suite
 
-State-of-the-art live API test suite and full pipeline simulator for **Schwarz Research Intelligence (SRI)** against **Production**, **Staging**, or **Local** environments.
+State-of-the-art live API test suite and full pipeline simulator for **Research Intelligence (RI)** against **Production**, **Staging**, or **Local** environments.
 
 ---
 

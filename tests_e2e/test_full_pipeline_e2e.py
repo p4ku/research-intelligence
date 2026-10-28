@@ -1,5 +1,5 @@
 """
-Pytest E2E Test Suite for Schwarz Research Intelligence Platform.
+Pytest E2E Test Suite for Research Intelligence Platform.
 
 Usage:
   pytest tests_e2e/test_full_pipeline_e2e.py -s -v
