@@ -9,7 +9,7 @@ import type {
   SubmitAuditDecision,
 } from '@/lib/bff/audit/schema'
 import clsx from 'clsx'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const EXCLUSION_REASONS = [
   'Wrong Pathogen / Topic',
@@ -68,16 +68,47 @@ export function AuditDecisionPane({
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   // Extractions state for Extraction Stage
+  const normalizeExtractionAction = (status: string): 'verify' | 'modify' | 'reject' => {
+    if (status === 'modify' || status === 'modified') return 'modify'
+    if (status === 'reject' || status === 'rejected') return 'reject'
+    return 'verify'
+  }
+
   const [extractionsState, setExtractionsState] = useState(
     paper.extractions && paper.extractions.length > 0
       ? paper.extractions.map((e) => ({
           ...e,
-          action: e.status === 'modify' || e.status === 'reject' ? e.status : 'verify',
+          action: normalizeExtractionAction(e.status),
           correctedValue: e.extracted_value,
           correctedEvidence: e.text_evidence || '',
         }))
       : [],
   )
+
+  const startedAtRef = useRef<number>(Date.now())
+
+  useEffect(() => {
+    startedAtRef.current = Date.now()
+    const nextDefaultAction =
+      paper.is_reviewed && isScreeningAction(paper.reviewer_decision)
+        ? paper.reviewer_decision
+        : 'agree'
+    setAction(nextDefaultAction)
+    setExclusionReason(paper.exclusion_reason || EXCLUSION_REASONS[0])
+    setReviewerNote(paper.reviewer_note || '')
+    setEvidenceCitation(paper.evidence_citation || '')
+    setErrorMsg(null)
+    setExtractionsState(
+      paper.extractions && paper.extractions.length > 0
+        ? paper.extractions.map((e) => ({
+            ...e,
+            action: normalizeExtractionAction(e.status),
+            correctedValue: e.extracted_value,
+            correctedEvidence: e.text_evidence || '',
+          }))
+        : [],
+    )
+  }, [paper.paper_id])
 
   const isOverride = action === 'override_include' || action === 'override_exclude'
   const isOverrideExclude = action === 'override_exclude'
@@ -108,8 +139,9 @@ export function AuditDecisionPane({
     setErrorMsg(null)
 
     try {
+      const elapsedSeconds = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000))
       if (isExtractionStage && extractionsState.length > 0) {
-        // Submit each extraction review
+        // Submit each extraction review through BFF
         for (const ext of extractionsState) {
           const payload = {
             action: ext.action,
@@ -118,13 +150,22 @@ export function AuditDecisionPane({
               ? [{ quote: ext.correctedEvidence }]
               : [],
             reviewer_notes: reviewerNote.trim() || null,
-            time_spent_seconds: 15,
+            time_spent_seconds: elapsedSeconds,
           }
-          await fetch(`/api/slr/cohorts/${cohortId}/extractions/${ext.extraction_id}/audit/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          })
+          const extRes = await fetch(
+            `/bff/audit/cohorts/${cohortId}/extractions/${ext.extraction_id}/audit`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            },
+          )
+          if (!extRes.ok) {
+            const errData = await extRes.json().catch(() => ({}))
+            throw new Error(
+              errData.detail || errData.error || 'Failed to submit extraction audit decision.',
+            )
+          }
         }
       }
 
@@ -133,7 +174,7 @@ export function AuditDecisionPane({
         exclusion_reason: isOverrideExclude ? exclusionReason : null,
         reviewer_note: reviewerNote.trim() || null,
         evidence_citation: evidenceCitation.trim() || null,
-        time_spent_seconds: 15,
+        time_spent_seconds: elapsedSeconds,
       }
 
       const res = await fetch(`/bff/audit/cohorts/${cohortId}/papers/${paper.paper_id}/submit`, {

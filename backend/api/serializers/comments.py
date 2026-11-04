@@ -230,7 +230,7 @@ def get_paper_messages_payload(paper, target_pr_id=None, request=None) -> list[d
         run_filter |= Q(pipeline_run_id=target_pr_id)
 
     comments_qs = (
-        PaperComment.objects.filter(paper=paper, workspace=paper.workspace)
+        PaperComment.objects.filter(paper=paper, workspace=paper.workspace, is_deleted=False)
         .filter(run_filter)
         .select_related('user', 'resolved_by')
         .prefetch_related('reactions__user')

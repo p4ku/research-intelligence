@@ -37,14 +37,30 @@ export const slr = {
         : (rawRes as { results?: Record<string, unknown>[] })?.results || []
       if (rawRuns.length === 0) return []
       return rawRuns.map((r: Record<string, unknown>) => {
-        const ws = r.workspace as Record<string, unknown> | undefined
+        const ws =
+          typeof r.workspace === 'object' && r.workspace !== null
+            ? (r.workspace as Record<string, unknown>)
+            : undefined
+        const wsId =
+          typeof r.workspace === 'string'
+            ? r.workspace
+            : String(ws?.id || r.workspace_id || '')
+        const wsName =
+          (typeof r.workspace_name === 'string' && r.workspace_name) ||
+          (ws?.name as string) ||
+          'SLR Workspace'
+        const createdAt =
+          (typeof r.created_at === 'string' && r.created_at) ||
+          (typeof r.started_at === 'string' && r.started_at) ||
+          (typeof r.run_date === 'string' && r.run_date) ||
+          new Date().toISOString()
         return {
           id: String(r.id),
-          name: (r.name as string) || (ws?.name as string) || `Run ${String(r.id).slice(0, 8)}`,
-          workspace_id: String(ws?.id || r.workspace_id || ''),
-          workspace_name: (ws?.name as string) || 'SLR Workspace',
+          name: (r.name as string) || (ws?.name as string) || (r.workspace_name as string) || `Run ${String(r.id).slice(0, 8)}`,
+          workspace_id: wsId,
+          workspace_name: wsName,
           status: String(r.status || 'unknown'),
-          created_at: String(r.created_at || new Date().toISOString()),
+          created_at: createdAt,
         }
       })
     } catch {
@@ -77,13 +93,17 @@ export const slr = {
   /**
    * Retrieves list of reviewer disputes requiring arbitration.
    */
-  async getDisputes(statusFilter: string = 'all'): Promise<SLRDispute[]> {
+  async getDisputes(statusFilter: string = 'all', runId?: string | null): Promise<SLRDispute[]> {
     if (sourceOf('audit') === 'stub') {
       if (statusFilter === 'all') return mockDisputes
       return mockDisputes.filter((d) => d.status === statusFilter)
     }
-    const query = statusFilter === 'all' ? '' : `?status=${encodeURIComponent(statusFilter)}`
-    return django(`/api/slr/disputes/${query}`, z.array(slrDisputeSchema))
+    const params = new URLSearchParams()
+    params.set('status', statusFilter || 'all')
+    if (runId) {
+      params.set('run_id', assertUuid(runId, 'run_id'))
+    }
+    return django(`/api/slr/disputes/?${params.toString()}`, z.array(slrDisputeSchema))
   },
 
   /**

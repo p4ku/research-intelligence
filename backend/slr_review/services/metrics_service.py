@@ -3,8 +3,8 @@ from typing import Dict, Any, Tuple, Optional
 from collections import Counter
 from django.db import transaction
 
-from research_intelligence.models import PipelineRun, PaperMetric
-from slr_review.models import SLRPRISMAMetrics, ScreeningReview
+from research_intelligence.models import PipelineRun, PaperMetric, ComponentRun
+from slr_review.models import SLRPRISMAMetrics, ScreeningReview, AdjudicationDispute
 
 logger = logging.getLogger(__name__)
 
@@ -20,42 +20,101 @@ class MetricsService:
     @transaction.atomic
     def compute_prisma_metrics(cls, pipeline_run: PipelineRun) -> SLRPRISMAMetrics:
         """Computes and updates PRISMA 2020 statement counts for pipeline_run."""
+        from django.db.models import Q, Count
         metrics_qs = PaperMetric.objects.filter(pipeline_run=pipeline_run)
 
         # Identification & Deduplication
-        total_identified = metrics_qs.count()
-        # In multi-source ingestion, duplicates_removed may be recorded in pipeline_run.configuration_override
-        dups_removed = (pipeline_run.configuration_override or {}).get('duplicates_removed', 0)
+        abstract_screened = metrics_qs.count()
+        dups_removed = int((pipeline_run.configuration_override or {}).get('duplicates_removed', 0) or 0)
+        if dups_removed == 0:
+            search_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run, step_type='search')
+            for sr in search_runs:
+                sr_metrics = sr.metrics or {}
+                dups_removed += int(sr_metrics.get('duplicates_count', 0) or sr_metrics.get('duplicates_removed', 0) or 0)
+
+        total_identified = abstract_screened + dups_removed
+
+        records_by_source = {}
+        for row in metrics_qs.values('paper__source_database').annotate(cnt=Count('id')):
+            src = row['paper__source_database'] or 'unknown'
+            records_by_source[src] = row['cnt']
 
         # Full-Text Screening (papers that passed or were evaluated at full-text)
-        from django.db.models import Q
         has_ft_eval = Q(full_text_screening_reasoning__isnull=False) & ~Q(full_text_screening_reasoning='')
         full_text_candidates = metrics_qs.filter(
             Q(screening_status__in=['full_text_passed', 'accepted']) |
             (Q(screening_status__in=['rejected', 'borderline']) & has_ft_eval)
         )
         full_text_assessed = full_text_candidates.count()
-        full_text_excluded_count = full_text_candidates.filter(screening_status='rejected').count()
+        ft_excluded_qs = full_text_candidates.filter(screening_status='rejected')
+        full_text_excluded_count = ft_excluded_qs.count()
 
         # Abstract Screening (papers rejected before full-text)
-        abstract_screened = total_identified
         abstract_excluded_qs = metrics_qs.filter(screening_status='rejected').exclude(has_ft_eval)
         abstract_excluded_count = abstract_excluded_qs.count()
 
-        # Reasons tally
+        # Resolved disputes lookup by (paper_id, stage)
+        resolved_disputes = {
+            (d.paper_id, 'abstract' if d.stage in ('abstract', 'abstract_screening') else 'full_text'): d
+            for d in AdjudicationDispute.objects.filter(
+                sample_cohort__pipeline_run=pipeline_run,
+                status='resolved'
+            )
+        }
+
+        # Abstract exclusion reasons tally
         abstract_reasons = Counter()
-        for m_data in abstract_excluded_qs.values_list('metrics_data', flat=True):
-            reason = (m_data or {}).get('exclusion_reason') or 'Eligibility criteria not met'
+        abs_review_reasons = {}
+        for sr in ScreeningReview.objects.filter(
+            pipeline_run=pipeline_run,
+            stage='abstract',
+            decision='exclude'
+        ).exclude(exclusion_reason__isnull=True).exclude(exclusion_reason='').order_by('submitted_at', 'id'):
+            abs_review_reasons.setdefault(sr.paper_id, sr.exclusion_reason)
+
+        for row in abstract_excluded_qs.values('paper_id', 'metrics_data'):
+            pid = row['paper_id']
+            m_data = row['metrics_data'] or {}
+            disp = resolved_disputes.get((pid, 'abstract'))
+            reason = (
+                (disp.final_exclusion_reason if disp and disp.final_decision == 'exclude' and disp.final_exclusion_reason else None)
+                or m_data.get('human_exclusion_reason')
+                or m_data.get('exclusion_reason')
+                or abs_review_reasons.get(pid)
+                or 'Eligibility criteria not met'
+            )
             abstract_reasons[reason] += 1
 
+        # Full-text exclusion reasons tally (1 canonical reason per rejected full-text paper)
         full_text_reasons = Counter()
-        reasons_list = ScreeningReview.objects.filter(
+        ft_review_reasons = {}
+        for sr in ScreeningReview.objects.filter(
             pipeline_run=pipeline_run,
             stage='full_text',
             decision='exclude'
-        ).exclude(exclusion_reason__isnull=True).values_list('exclusion_reason', flat=True)
-        for r_reason in reasons_list:
-            if r_reason:
+        ).exclude(exclusion_reason__isnull=True).exclude(exclusion_reason='').order_by('submitted_at', 'id'):
+            ft_review_reasons.setdefault(sr.paper_id, sr.exclusion_reason)
+
+        ft_excluded_rows = list(ft_excluded_qs.values('paper_id', 'metrics_data'))
+        if ft_excluded_rows:
+            for row in ft_excluded_rows:
+                pid = row['paper_id']
+                m_data = row['metrics_data'] or {}
+                disp = resolved_disputes.get((pid, 'full_text'))
+                reason = (
+                    (disp.final_exclusion_reason if disp and disp.final_decision == 'exclude' and disp.final_exclusion_reason else None)
+                    or m_data.get('human_exclusion_reason')
+                    or m_data.get('exclusion_reason')
+                    or ft_review_reasons.get(pid)
+                    or 'Eligibility criteria not met'
+                )
+                full_text_reasons[reason] += 1
+        else:
+            # Fallback if reviews exist without full_text_screening_reasoning populated on PaperMetric
+            for pid, r_reason in ft_review_reasons.items():
+                disp = resolved_disputes.get((pid, 'full_text'))
+                if disp and disp.final_decision == 'include':
+                    continue
                 full_text_reasons[r_reason] += 1
 
         # Included studies
@@ -71,6 +130,7 @@ class MetricsService:
             pipeline_run=pipeline_run,
             defaults={
                 'records_identified_total': total_identified,
+                'records_by_source': records_by_source,
                 'duplicates_removed': dups_removed,
                 'records_screened_abstract': abstract_screened,
                 'records_excluded_abstract': abstract_excluded_count,
@@ -115,22 +175,36 @@ class MetricsService:
             return 1.0
 
         kappa = (observed_agreement - expected_agreement) / (1.0 - expected_agreement)
-        return round(max(0.0, min(1.0, kappa)), 4)
+        return round(max(-1.0, min(1.0, kappa)), 4)
 
     @classmethod
     def calculate_human_inter_rater_kappa(cls, pipeline_run: PipelineRun) -> Optional[float]:
-        """Calculates Cohen's Kappa between Reviewer 1 and Reviewer 2 on sampled papers."""
-        reviews = ScreeningReview.objects.filter(pipeline_run=pipeline_run).only('paper_id', 'decision')
-        by_paper = {}
+        """
+        Calculates Cohen's Kappa between Reviewer 1 and Reviewer 2 on sampled papers,
+        grouped by (paper_id, stage) with distinct reviewers so cross-stage votes
+        from a single reviewer are never paired against each other.
+        """
+        reviews = (
+            ScreeningReview.objects.filter(pipeline_run=pipeline_run)
+            .only('paper_id', 'stage', 'reviewer_id', 'decision', 'submitted_at')
+            .order_by('submitted_at', 'id')
+        )
+        by_paper_stage = {}
         for r in reviews:
-            by_paper.setdefault(r.paper_id, []).append(r)
+            norm_stage = 'abstract' if r.stage in ('abstract', 'abstract_screening') else 'full_text'
+            key = (r.paper_id, norm_stage)
+            stage_map = by_paper_stage.setdefault(key, {})
+            stage_map[r.reviewer_id] = r.decision
 
         r1_votes = []
         r2_votes = []
-        for p_id, p_reviews in by_paper.items():
-            if len(p_reviews) >= 2:
-                r1_votes.append(p_reviews[0].decision)
-                r2_votes.append(p_reviews[1].decision)
+        for (_p_id, _stage), reviewer_map in by_paper_stage.items():
+            if len(reviewer_map) >= 2:
+                ordered_decisions = [
+                    dec for _rev_id, dec in sorted(reviewer_map.items(), key=lambda kv: str(kv[0]))
+                ]
+                r1_votes.append(ordered_decisions[0])
+                r2_votes.append(ordered_decisions[1])
 
         return cls.calculate_cohens_kappa(r1_votes, r2_votes)
 
@@ -138,38 +212,59 @@ class MetricsService:
     def calculate_ai_agreement_metrics(cls, pipeline_run: PipelineRun) -> Tuple[Optional[float], Optional[float], Optional[float]]:
         """
         Calculates Cohen's Kappa, Sensitivity, and Specificity between AI predictions
-        and Human Consensus ground truth.
+        and Human Consensus ground truth (honoring Senior Arbiter rulings on split votes).
         """
-        reviews = ScreeningReview.objects.filter(pipeline_run=pipeline_run).only('paper_id', 'decision')
-        by_paper = {}
+        reviews = (
+            ScreeningReview.objects.filter(pipeline_run=pipeline_run)
+            .only('paper_id', 'stage', 'reviewer_id', 'decision', 'submitted_at')
+            .order_by('submitted_at', 'id')
+        )
+        by_paper_stage = {}
+        paper_ids = set()
         for r in reviews:
-            by_paper.setdefault(r.paper_id, []).append(r.decision)
+            norm_stage = 'abstract' if r.stage in ('abstract', 'abstract_screening') else 'full_text'
+            by_paper_stage.setdefault((r.paper_id, norm_stage), []).append(r.decision)
+            paper_ids.add(r.paper_id)
 
-        if not by_paper:
+        if not by_paper_stage:
             return None, None, None
 
-        # Batch query PaperMetric to avoid N+1 queries
+        # Batch query PaperMetric and resolved AdjudicationDispute to avoid N+1 queries
         metrics_by_paper = {
             m.paper_id: m
             for m in PaperMetric.objects.filter(
-                paper_id__in=by_paper.keys(),
+                paper_id__in=paper_ids,
                 pipeline_run=pipeline_run
             ).only('paper_id', 'screening_status', 'metrics_data')
+        }
+        resolved_disputes = {
+            (d.paper_id, 'abstract' if d.stage in ('abstract', 'abstract_screening') else 'full_text'): d.final_decision
+            for d in AdjudicationDispute.objects.filter(
+                sample_cohort__pipeline_run=pipeline_run,
+                status='resolved'
+            )
+            if d.final_decision in ('include', 'exclude')
         }
 
         ai_votes = []
         human_votes = []
         tp = fp = tn = fn = 0
 
-        for paper_id, human_decisions in by_paper.items():
-            # Consensus vote
-            consensus = 'include' if human_decisions.count('include') >= human_decisions.count('exclude') else 'exclude'
+        for (paper_id, stage), human_decisions in by_paper_stage.items():
+            # Consensus vote: honor binding Senior Arbiter ruling if resolved dispute exists
+            if (paper_id, stage) in resolved_disputes:
+                consensus = resolved_disputes[(paper_id, stage)]
+            else:
+                consensus = 'include' if human_decisions.count('include') >= human_decisions.count('exclude') else 'exclude'
 
             metric = metrics_by_paper.get(paper_id)
             if not metric:
                 continue
             m_data = metric.metrics_data or {}
-            orig_ai_status = m_data.get('original_ai_screening_status', metric.screening_status)
+            orig_ai_status = (
+                m_data.get(f'original_ai_{stage}_status')
+                or m_data.get('original_ai_screening_status', metric.screening_status)
+            )
             ai_decision = 'include' if orig_ai_status in ('abstract_passed', 'full_text_passed', 'accepted') else 'exclude'
 
             ai_votes.append(ai_decision)

@@ -35,6 +35,7 @@ def trigger_search_job_logic(
     start_date: str = None,
     end_date: str = None,
     n_last_days: int = None,
+    pipeline_run_id: str = None,
 ) -> str:
     """
     Trigger a Celery background scraping job for a workspace within a PipelineRun.
@@ -79,25 +80,46 @@ def trigger_search_job_logic(
         "end_date": end_date,
     }
 
-    # Create new PipelineRun (admission: per-workspace cap and no duplicate window)
-    try:
-        with transaction.atomic():
-            workspace = admit_run(workspace.id, config_override)
-            pipeline_run = PipelineRun.objects.create(
-                workspace=workspace,
-                status='running',
-                current_stage='search',
-                reprocess_existing=bool(reprocess_val),
-                triggered_by=user if getattr(user, 'is_authenticated', False) or getattr(user, 'id', None) else None,
-                configuration_override=config_override,
-                step_history=[{
-                    "step": "search",
-                    "event": "started",
-                    "timestamp": timezone.now().isoformat()
-                }]
-            )
-    except RunAdmissionRefused as refused:
-        return json.dumps(refused.as_error_json(), indent=2)
+    if pipeline_run_id:
+        try:
+            pr_uuid = uuid.UUID(str(pipeline_run_id))
+            pipeline_run = PipelineRun.objects.get(id=pr_uuid, workspace=workspace)
+        except (ValueError, PipelineRun.DoesNotExist):
+            return json.dumps({"status": "error", "error": f"PipelineRun with ID '{pipeline_run_id}' not found in workspace."}, indent=2)
+        pipeline_run.status = 'running'
+        pipeline_run.current_stage = 'search'
+        pipeline_run.reprocess_existing = bool(reprocess_val)
+        merged_cfg = dict(pipeline_run.configuration_override or {})
+        merged_cfg.update({k: v for k, v in config_override.items() if v is not None})
+        pipeline_run.configuration_override = merged_cfg
+        p_hist = list(pipeline_run.step_history or [])
+        p_hist.append({
+            "step": "search",
+            "event": "started",
+            "timestamp": timezone.now().isoformat()
+        })
+        pipeline_run.step_history = p_hist
+        pipeline_run.save(update_fields=['status', 'current_stage', 'reprocess_existing', 'configuration_override', 'step_history'])
+    else:
+        # Create new PipelineRun (admission: per-workspace cap and no duplicate window)
+        try:
+            with transaction.atomic():
+                workspace = admit_run(workspace.id, config_override)
+                pipeline_run = PipelineRun.objects.create(
+                    workspace=workspace,
+                    status='running',
+                    current_stage='search',
+                    reprocess_existing=bool(reprocess_val),
+                    triggered_by=user if getattr(user, 'is_authenticated', False) or getattr(user, 'id', None) else None,
+                    configuration_override=config_override,
+                    step_history=[{
+                        "step": "search",
+                        "event": "started",
+                        "timestamp": timezone.now().isoformat()
+                    }]
+                )
+        except RunAdmissionRefused as refused:
+            return json.dumps(refused.as_error_json(), indent=2)
 
     created_runs = []
     for scraper in scrapers:
@@ -601,9 +623,10 @@ def trigger_reporting_job_logic(
 
     from research_intelligence.tasks.auxiliary.email_digest import dispatch_pipeline_subscriber_digest
 
-    pipeline_run.status = 'running'
-    pipeline_run.current_stage = 'reporting'
-    pipeline_run.save(update_fields=['status', 'current_stage'])
+    pipeline_run.status = 'completed'
+    pipeline_run.current_stage = 'completed'
+    pipeline_run.completed_at = timezone.now()
+    pipeline_run.save(update_fields=['status', 'current_stage', 'completed_at'])
 
     comp_run = ComponentRun.objects.create(
         pipeline_run=pipeline_run,
@@ -620,14 +643,13 @@ def trigger_reporting_job_logic(
             recipient_override=recipient_override
         )
         comp_run.status = 'completed'
+        comp_run.completed_at = timezone.now()
         comp_run.metrics = {
             "report_generated": True,
-            "emails_sent": digest_res.get("emails_sent", 0),
-            "subscribers_count": digest_res.get("subscribers_count", 0)
+            "emails_sent": digest_res.get("sent_count", digest_res.get("emails_sent", 0)),
+            "subscribers_count": digest_res.get("total_recipients", digest_res.get("subscribers_count", 0))
         }
-        comp_run.save(update_fields=['status', 'metrics'])
-        pipeline_run.status = 'completed'
-        pipeline_run.save(update_fields=['status'])
+        comp_run.save(update_fields=['status', 'completed_at', 'metrics'])
     except Exception as e:
         logger.exception(f"Error executing reporting job: {e}")
         comp_run.status = 'failed'

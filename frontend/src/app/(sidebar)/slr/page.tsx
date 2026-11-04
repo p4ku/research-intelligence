@@ -16,7 +16,7 @@ export default async function SlrConsolePage({ searchParams }: SlrPageProps) {
   const [metrics, robAssessments, disputes] = await Promise.all([
     defaultRunId ? slr.getMetrics(defaultRunId).catch(() => null) : Promise.resolve(null),
     defaultRunId ? slr.getRiskOfBias(defaultRunId).catch(() => []) : Promise.resolve([]),
-    slr.getDisputes('all').catch(() => []),
+    slr.getDisputes('all', defaultRunId).catch(() => []),
   ])
 
   return (

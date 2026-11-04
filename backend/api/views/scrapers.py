@@ -58,6 +58,13 @@ class ScraperViewSet(viewsets.ModelViewSet):
         ).exists()
         if not has_access:
             raise PermissionDenied("You do not have permission to manage scrapers in this workspace.")
+        target_workspace = serializer.validated_data.get('workspace')
+        if target_workspace and target_workspace != scraper.workspace:
+            has_target_access = WorkspaceMember.objects.filter(
+                workspace=target_workspace, user=user, role__in=['admin', 'manager']
+            ).exists()
+            if not has_target_access:
+                raise PermissionDenied("You do not have permission to move scrapers to the target workspace.")
         serializer.save()
 
     def perform_destroy(self, instance):

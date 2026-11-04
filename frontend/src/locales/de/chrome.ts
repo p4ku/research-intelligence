@@ -8,6 +8,8 @@ export const dict: Record<string, string> = {
   'nav|Papers': 'Papers',
   'nav|Ask': 'Fragen',
   'nav|Runs': 'Läufe',
+  'nav|Audit Queue': 'Prüf-Warteschlange',
+  'nav|SLR Review': 'SLR-Prüfung',
   // Studio nav (src/components/application-layout.tsx). 'Skeletons' is the
   // gallery's own name; 'Briefings app' is the way back to the reading app.
   'nav|Skeletons': 'Skeletons',

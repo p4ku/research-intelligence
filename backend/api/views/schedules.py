@@ -68,6 +68,14 @@ class WorkflowScheduleViewSet(viewsets.ModelViewSet):
         if error:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied(error)
+        target_workspace = serializer.validated_data.get('workspace')
+        if target_workspace and target_workspace != workspace:
+            _, _, target_error = check_workspace_access(
+                self.request.user, str(target_workspace.id), required_roles=['admin', 'manager']
+            )
+            if target_error:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied(target_error)
         serializer.save()
 
     def perform_destroy(self, instance):

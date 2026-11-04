@@ -11,7 +11,7 @@ from django.core.files.base import ContentFile
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from research_intelligence.models import Workspace
 from research_intelligence.tasks.auxiliary.health import health_ping_task
 
@@ -239,8 +239,7 @@ class DeepDiagnosticsView(APIView):
     failing/slow component can block or hang the endpoint.
     Supports granular filtering via ?service=database, ?service=celery, etc.
     """
-    permission_classes = [AllowAny]
-    authentication_classes = []
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         parameters=[

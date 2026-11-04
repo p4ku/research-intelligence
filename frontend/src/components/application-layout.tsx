@@ -269,9 +269,12 @@ function ApplicationLayoutInner({ user, children, area = 'core' }: ShellProps) {
     let ignore = false
     fetch('/bff/audit/queue')
       .then((res) => (res.ok ? res.json() : []))
-      .then((items: Array<{ remaining_count?: number }>) => {
+      .then((items: Array<{ remaining_count?: number; status?: string }>) => {
         if (!ignore && Array.isArray(items)) {
-          const total = items.reduce((acc, curr) => acc + (curr.remaining_count ?? 0), 0)
+          const total = items.reduce(
+            (acc, curr) => acc + (curr.status === 'completed' ? 0 : (curr.remaining_count ?? 0)),
+            0,
+          )
           setPendingAuditCount(total)
         }
       })

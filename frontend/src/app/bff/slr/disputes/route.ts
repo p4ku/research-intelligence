@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic'
 
 export const GET = bff('audit', async (req: NextRequest) => {
   const status = req.nextUrl.searchParams.get('status') || 'all'
-  const disputes = await slr.getDisputes(status)
+  const runId = req.nextUrl.searchParams.get('run_id')
+  const disputes = await slr.getDisputes(status, runId)
   return Response.json(disputes)
 })

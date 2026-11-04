@@ -93,7 +93,10 @@ class ConsensusService:
             return
 
         m_data = dict(metric.metrics_data or {})
-        # Preserve original AI decision
+        # Preserve original AI decision (both overall and stage-specific)
+        stage_ai_key = f'original_ai_{stage}_status'
+        if stage_ai_key not in m_data:
+            m_data[stage_ai_key] = metric.screening_status
         if 'original_ai_screening_status' not in m_data:
             m_data['original_ai_screening_status'] = metric.screening_status
 
@@ -189,10 +192,14 @@ class ConsensusService:
 
         if metric:
             reasoning = metric.full_text_screening_reasoning if stage in ('full_text', 'full_text_screening') else metric.abstract_screening_reasoning
+            m_data = metric.metrics_data or {}
+            orig_ai_status = m_data.get(f'original_ai_{stage}_status') or m_data.get('original_ai_screening_status', metric.screening_status)
+            ai_is_included = orig_ai_status in ('abstract_passed', 'full_text_passed', 'accepted')
             evidence_synthesis["ai_agent"] = {
-                "status": metric.screening_status,
+                "status": orig_ai_status,
+                "decision": "include" if ai_is_included else "exclude",
                 "reasoning": reasoning,
-                "confidence": (metric.metrics_data or {}).get("confidence", 0.9)
+                "confidence": m_data.get("confidence", 0.9)
             }
 
         # Handle conservative_include policy automatically if configured
@@ -286,11 +293,40 @@ class ConsensusService:
 
         # Extraction Gate completion
         if stage == 'parameter_extraction':
-            reviewed_papers = set(
-                ExtractionReview.objects.filter(sample_cohort=sample_cohort)
-                .values_list('paper_id', flat=True)
+            from research_intelligence.models import Extraction
+            from django.db.models import Count
+            sampled_paper_ids = [p.id for p in sampled_papers]
+            ext_quorum = max(1, getattr(sample_cohort.config, 'extraction_quorum_size', 1) or 1)
+            paper_extraction_ids = list(
+                Extraction.objects.filter(
+                    workspace_id=sample_cohort.config.workspace_id,
+                    paper_id__in=sampled_paper_ids
+                ).values_list('id', flat=True)
             )
-            is_complete = all(p.id in reviewed_papers for p in sampled_papers)
+            if paper_extraction_ids:
+                extractions_with_quorum = (
+                    ExtractionReview.objects.filter(
+                        sample_cohort=sample_cohort,
+                        extraction_id__in=paper_extraction_ids
+                    )
+                    .values('extraction_id')
+                    .annotate(vote_count=Count('reviewer_id', distinct=True))
+                    .filter(vote_count__gte=ext_quorum)
+                    .count()
+                )
+                is_complete = (extractions_with_quorum >= len(paper_extraction_ids))
+            else:
+                papers_with_quorum = (
+                    ExtractionReview.objects.filter(
+                        sample_cohort=sample_cohort,
+                        paper_id__in=sampled_paper_ids
+                    )
+                    .values('paper_id')
+                    .annotate(vote_count=Count('reviewer_id', distinct=True))
+                    .filter(vote_count__gte=ext_quorum)
+                    .count()
+                )
+                is_complete = (papers_with_quorum >= len(sampled_paper_ids))
             if is_complete and not sample_cohort.is_audit_complete:
                 cls._finalize_cohort(sample_cohort)
             return is_complete
@@ -337,6 +373,33 @@ class ConsensusService:
         sample_cohort.completed_at = timezone.now()
         sample_cohort.save(update_fields=['is_audit_complete', 'completed_at'])
         logger.info(f"AuditSampleCohort {sample_cohort.id} marked COMPLETE. Triggering pipeline resume...")
+
+        # Synchronize Risk of Bias assessments after full-text screening human overrides
+        if sample_cohort.stage == 'full_text_screening' and sample_cohort.config.enable_rob_assessment:
+            try:
+                from slr_review.models import RiskOfBiasAssessment
+                from .rob_service import RiskOfBiasService
+                run = sample_cohort.pipeline_run
+                rejected_paper_ids = list(
+                    PaperMetric.objects.filter(
+                        pipeline_run=run,
+                        screening_status='rejected'
+                    ).values_list('paper_id', flat=True)
+                )
+                if rejected_paper_ids:
+                    RiskOfBiasAssessment.objects.filter(
+                        pipeline_run=run,
+                        paper_id__in=rejected_paper_ids
+                    ).delete()
+                included_papers = list(run.get_papers(screening_status=['full_text_passed', 'accepted']))
+                existing_rob_ids = set(
+                    RiskOfBiasAssessment.objects.filter(pipeline_run=run).values_list('paper_id', flat=True)
+                )
+                for p in included_papers:
+                    if p.id not in existing_rob_ids:
+                        RiskOfBiasService.assess_paper_rob(p, run, framework=sample_cohort.config.rob_framework)
+            except Exception as e:
+                logger.error(f"Error syncing RoB assessments for run {sample_cohort.pipeline_run_id}: {e}", exc_info=True)
 
         # Recompute PRISMA & Agreement metrics
         try:

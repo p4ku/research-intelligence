@@ -283,6 +283,12 @@ class CreatePipelineRunSerializer(serializers.Serializer):
         max_value=3650,
         help_text="Default number of past days if dates are omitted (default: 7)"
     )
+    run_type = serializers.ChoiceField(
+        choices=['intelligence', 'slr'],
+        required=False,
+        default='intelligence',
+        help_text="Type of run: 'intelligence' for standard briefing, 'slr' for Systematic Literature Review"
+    )
 
     def validate_start_date(self, value):
         return validate_iso_date(value, "start_date")
@@ -361,6 +367,12 @@ class StartPipelineRunSerializer(serializers.Serializer):
         default=None,
         allow_null=True,
         help_text="Optional search query modifier"
+    )
+    run_type = serializers.ChoiceField(
+        choices=['intelligence', 'slr'],
+        required=False,
+        default='intelligence',
+        help_text="Type of run: 'intelligence' for standard briefing, 'slr' for Systematic Literature Review"
     )
 
     def validate_start_date(self, value):

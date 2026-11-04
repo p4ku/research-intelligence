@@ -41,6 +41,10 @@ export function WorkspaceClient({ cohortId, paper, cohort }: WorkspaceClientProp
 
   const [activeEvidence, setActiveEvidence] = useState<ActiveEvidence | null>(initialEvidence)
 
+  useEffect(() => {
+    setActiveEvidence(initialEvidence)
+  }, [paper.paper_id])
+
   // Prefetch adjacent paper routes to ensure zero-latency transitions
   useEffect(() => {
     if (paper.next_paper_id) {
@@ -110,6 +114,7 @@ export function WorkspaceClient({ cohortId, paper, cohort }: WorkspaceClientProp
         {/* Left Pane: PDF / Document Viewer (7 cols = ~58%) */}
         <div className="h-full overflow-hidden border-r border-zinc-200 lg:col-span-7 dark:border-zinc-800">
           <PdfViewerPane
+            key={paper.paper_id}
             paper={paper}
             activeEvidence={activeEvidence}
             onSelectEvidence={setActiveEvidence}
@@ -120,6 +125,7 @@ export function WorkspaceClient({ cohortId, paper, cohort }: WorkspaceClientProp
         {/* Right Pane: AI Screening Audit & Actions (5 cols = ~42%) */}
         <div className="h-full overflow-hidden lg:col-span-5">
           <AuditDecisionPane
+            key={paper.paper_id}
             cohortId={cohortId}
             paper={paper}
             onSubmitted={handleSubmitted}

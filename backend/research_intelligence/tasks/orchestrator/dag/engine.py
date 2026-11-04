@@ -441,17 +441,31 @@ class WorkflowDAG:
                 return res
 
             for node in ready_nodes:
-                # Create ComponentRun and dispatch
+                # Reuse an existing pending ComponentRun (e.g. from zombie_watchdog auto_retry) or create a new one
                 input_params = node.get_input_params(pipeline_run, workspace, cfg, limit=limit)
                 comp_name = node.component_name
 
-                comp_run = ComponentRun.objects.create(
+                pending_comp_run = ComponentRun.objects.filter(
                     pipeline_run=pipeline_run,
                     step_type=node.step_type,
                     component_name=comp_name,
-                    status='running',
-                    input_params=input_params
-                )
+                    status='pending',
+                ).order_by('started_at').first()
+
+                if pending_comp_run:
+                    pending_comp_run.status = 'running'
+                    pending_comp_run.started_at = timezone.now()
+                    pending_comp_run.input_params = input_params
+                    pending_comp_run.save(update_fields=['status', 'started_at', 'input_params'])
+                    comp_run = pending_comp_run
+                else:
+                    comp_run = ComponentRun.objects.create(
+                        pipeline_run=pipeline_run,
+                        step_type=node.step_type,
+                        component_name=comp_name,
+                        status='running',
+                        input_params=input_params
+                    )
 
                 pipeline_run.current_stage = node.name
                 p_hist = list(pipeline_run.step_history or [])

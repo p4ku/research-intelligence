@@ -867,14 +867,14 @@ class Scraper(models.Model):
                 ws_obj = qs.filter(workspace_id=workspace_id, is_active=True).first() or qs.filter(workspace_id=workspace_id).first()
                 if ws_obj and ws_obj.api_key and ws_obj.api_key.strip():
                     return ws_obj.api_key.strip()
+            else:
+                active_obj = qs.filter(is_active=True).first()
+                if active_obj and active_obj.api_key and active_obj.api_key.strip():
+                    return active_obj.api_key.strip()
 
-            active_obj = qs.filter(is_active=True).first()
-            if active_obj and active_obj.api_key and active_obj.api_key.strip():
-                return active_obj.api_key.strip()
-
-            any_obj = qs.first()
-            if any_obj and any_obj.api_key and any_obj.api_key.strip():
-                return any_obj.api_key.strip()
+                any_obj = qs.first()
+                if any_obj and any_obj.api_key and any_obj.api_key.strip():
+                    return any_obj.api_key.strip()
         except Exception:
             pass
 

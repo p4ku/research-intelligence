@@ -76,6 +76,8 @@ class LoginView(APIView):
                     return Response({"error": "Invalid API key."}, status=status.HTTP_401_UNAUTHORIZED)
 
             user = api_key_obj.user
+            if not user.is_active:
+                return Response({"error": "User account is disabled."}, status=status.HTTP_401_UNAUTHORIZED)
             api_key_obj.update_last_used()
 
             refresh = RefreshToken.for_user(user)
@@ -273,6 +275,16 @@ class LogoutView(APIView):
         try:
             refresh_token = serializer.validated_data["refresh"]
             token = RefreshToken(refresh_token)
+            token_user_id = token.get("user_id")
+            if (
+                token_user_id is not None
+                and str(token_user_id) != str(request.user.id)
+                and not getattr(request.user, "is_superuser", False)
+            ):
+                return Response(
+                    {"error": "Cannot revoke a refresh token belonging to another user."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
             token.blacklist()
             return Response({"message": "Logged out successfully."}, status=status.HTTP_200_OK)
         except Exception as e:

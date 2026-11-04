@@ -211,4 +211,48 @@ describe('AuditDecisionPane Component Rendering', () => {
     expect(html).toContain('Override')
     expect(html).toContain('Navigate')
   })
+
+  test('normalizes backend modified and rejected extraction statuses to modify and reject actions', () => {
+    const paperWithModifiedAndRejected: AuditPaperDetail = {
+      ...unreviewedPaper,
+      extractions: [
+        {
+          extraction_id: 'a0a80123-0000-4000-8000-000000000001',
+          category: 'epidemiology',
+          parameter_name: 'Incubation Period',
+          extracted_value: '5.2 days',
+          uncertainty: null,
+          method: null,
+          text_evidence: 'Mean incubation was 5.2 days',
+          page_number: 2,
+          status: 'modified',
+        },
+        {
+          extraction_id: 'a0a80123-0000-4000-8000-000000000002',
+          category: 'epidemiology',
+          parameter_name: 'Serial Interval',
+          extracted_value: '4.1 days',
+          uncertainty: null,
+          method: null,
+          text_evidence: null,
+          page_number: null,
+          status: 'rejected',
+        },
+      ],
+    }
+
+    const html = renderToStaticMarkup(
+      <AuditDecisionPane
+        cohortId="c0a80123-0000-4000-8000-000000000001"
+        paper={paperWithModifiedAndRejected}
+        onSubmitted={() => {}}
+        isExtractionStage={true}
+      />,
+    )
+
+    // Since status 'modified' maps to action 'modify', the Corrected Parameter Value input is rendered
+    expect(html).toContain('Corrected Parameter Value')
+    // Since not all extractions are 'verify', the button shows "Verify All (2)"
+    expect(html).toContain('Verify All (2)')
+  })
 })

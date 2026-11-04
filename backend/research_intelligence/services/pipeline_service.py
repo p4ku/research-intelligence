@@ -190,7 +190,7 @@ def delete_pipeline_run(user, pipeline_run_id: Union[str, uuid.UUID]) -> Tuple[b
     run_storage_dir = f"workspaces/{ws_id_str}/runs/{str(pipeline_run.id)}"
     files_purged = recursive_delete_run_storage(run_storage_dir)
 
-    for paper in papers_qs.iterator():
+    for paper in orphan_papers:
         for path in (paper.original_pdf_path, paper.converted_md_path):
             if path and path.startswith(run_storage_dir):
                 try:

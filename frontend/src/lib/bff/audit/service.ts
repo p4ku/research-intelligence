@@ -20,6 +20,7 @@ import {
   type AuditQueueItem,
   type AuditReviewResult,
   type SubmitAuditDecision,
+  type SubmitExtractionAuditDecision,
 } from './schema'
 
 export const audit = {
@@ -77,16 +78,66 @@ export const audit = {
   },
 
   /**
+   * Submits an auditor verification/modification/rejection for a single parameter extraction.
+   */
+  async submitExtractionReview(
+    cohortId: string,
+    extractionId: string,
+    input: SubmitExtractionAuditDecision,
+  ): Promise<{
+    status: string
+    review_id: string
+    action: string
+    is_cohort_complete: boolean
+    next_unreviewed_paper_id?: string | null
+    pipeline_resumed?: boolean
+  }> {
+    const cid = assertUuid(cohortId, 'cohort_id')
+    const eid = assertUuid(extractionId, 'extraction_id')
+    if (sourceOf('audit') === 'stub') {
+      return {
+        status: 'saved',
+        review_id: eid,
+        action: input.action,
+        is_cohort_complete: false,
+        next_unreviewed_paper_id: null,
+        pipeline_resumed: false,
+      }
+    }
+    const resSchema = z.object({
+      status: z.string(),
+      review_id: z.uuid(),
+      action: z.string(),
+      is_cohort_complete: z.boolean(),
+      next_unreviewed_paper_id: z.uuid().nullable().optional(),
+      pipeline_resumed: z.boolean().optional(),
+    })
+    return django(`/api/slr/cohorts/${cid}/extractions/${eid}/audit/`, resSchema, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+  },
+
+  /**
    * Resumes a paused SLR pipeline run.
    */
   async resumeRun(runId: string): Promise<{ status: string; pipeline_run_id: string }> {
     const rid = assertUuid(runId, 'run_id')
-    const schema = z.object({ status: z.string(), pipeline_run_id: z.uuid() })
+    const schema = z.object({
+      status: z.string().optional(),
+      resumed: z.boolean().optional(),
+      pipeline_run_id: z.uuid(),
+    })
     if (sourceOf('audit') === 'stub') {
       return { status: 'resumed', pipeline_run_id: rid }
     }
-    return django(`/api/slr/runs/${rid}/resume/`, schema, {
+    const res = await django(`/api/slr/runs/${rid}/resume/`, schema, {
       method: 'POST',
     })
+    return {
+      status: res.status || (res.resumed ? 'resumed' : 'unknown'),
+      pipeline_run_id: res.pipeline_run_id,
+    }
   },
 }

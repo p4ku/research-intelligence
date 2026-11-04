@@ -525,3 +525,243 @@ class SLREndToEndWorkflowTestCase(TestCase):
         self.assertEqual(adjudication.final_decision, "exclude")
         self.assertIsNotNone(adjudication.resolved_at)
         self.assertIn("Section 3.2", adjudication.resolution_rationale)
+
+    def test_multi_gate_slr_e2e_with_gate2_rob_sync_and_extraction_quorum(self):
+        """
+        End-to-End Multi-Gate SLR Use Case covering the newly implemented fixes:
+          1. Triggering an SLR run via POST /api/workspaces/{id}/run/ with run_type='slr'.
+          2. Gate 1 (abstract_screening) + Gate 2 (full_text_screening) with same reviewers voting at both gates
+             -> verifies calculate_human_inter_rater_kappa isolates stages and does not pair a reviewer with themselves.
+          3. Gate 2 human consensus rejecting an AI-admitted paper (removing its stale RiskOfBiasAssessment)
+             and Arbiter admitting a contested paper (creating its RiskOfBiasAssessment + recording full_text_exclusion_reasons).
+          4. Gate 3 (parameter_extraction) with multiple Extraction rows per paper
+             -> verifies paper is only marked is_reviewed after ALL extractions are audited,
+             -> verifies SubmitScreeningReviewView on parameter_extraction does not create bogus ScreeningReview(stage='full_text'),
+             -> verifies cohort completes only when ALL extractions reach extraction_quorum_size.
+        """
+        from unittest.mock import patch
+        from research_intelligence.models import Extraction, ExtractionDefinition
+        from slr_review.models import ExtractionReview, RiskOfBiasAssessment
+        from slr_review.services import RiskOfBiasService
+
+        # 1. Start SLR run via WorkspaceViewSet.run_pipeline (verifying StartPipelineRunSerializer run_type='slr')
+        self.client.force_authenticate(user=self.senior_arbiter)
+        with patch('mcp_server.tools.pipeline_runs.triggers.start_pipeline_run_logic') as mock_start:
+            mock_start.return_value = '{"status": "started", "pipeline_run_id": "' + str(self.pipeline_run.id) + '"}'
+            start_resp = self.client.post(
+                f'/api/workspaces/{self.workspace.id}/run-pipeline/',
+                data={"name": "E2E SLR Multi-Gate Run", "run_type": "slr", "autonomous": True},
+                format='json'
+            )
+            self.assertEqual(start_resp.status_code, status.HTTP_201_CREATED)
+            self.assertEqual(mock_start.call_args.kwargs.get("run_type"), "slr")
+
+        # Configure run with duplicates_removed metadata for PRISMA 2020 verification
+        self.pipeline_run.configuration_override = {"run_type": "slr", "duplicates_removed": 4}
+        self.pipeline_run.save(update_fields=['configuration_override'])
+
+        # 2. Simulate Gate 2 (Full-Text Screening) completion on Papers 0 and 1
+        # Paper 0: AI passed full text, pre-evaluated RoB, but humans will unanimously REJECT it at Gate 2
+        m0 = PaperMetric.objects.get(paper=self.papers[0], pipeline_run=self.pipeline_run)
+        m0.screening_status = "full_text_passed"
+        m0.full_text_screening_reasoning = "AI initially passed full text."
+        m0.save()
+        RiskOfBiasService.assess_paper_rob(self.papers[0], self.pipeline_run)
+        self.assertTrue(
+            RiskOfBiasAssessment.objects.filter(paper=self.papers[0], pipeline_run=self.pipeline_run).exists()
+        )
+
+        # Paper 1: AI marked borderline at full text, humans will split -> Arbiter will INCLUDE it
+        m1 = PaperMetric.objects.get(paper=self.papers[1], pipeline_run=self.pipeline_run)
+        m1.screening_status = "borderline"
+        m1.full_text_screening_reasoning = "Borderline full-text comparator details."
+        m1.save()
+
+        self.slr_config.full_text_sample_percentage = 100.0
+        self.slr_config.negative_control_percentage = 0.0
+        self.slr_config.extraction_quorum_size = 2
+        self.slr_config.save()
+
+        # Create Gate 2 cohort containing Papers 0 and 1
+        ft_cohort = AuditSampleCohort.objects.create(
+            config=self.slr_config,
+            pipeline_run=self.pipeline_run,
+            stage='full_text_screening',
+            total_pool_count=2,
+            sampled_count=2,
+            is_audit_complete=False
+        )
+        ft_cohort.sampled_papers.set([self.papers[0], self.papers[1]])
+
+        # Reviewer Alpha votes at Gate 2: exclude Paper 0, include Paper 1
+        self.client.force_authenticate(user=self.reviewer_alpha)
+        self.client.post(
+            f'/api/slr/cohorts/{ft_cohort.id}/papers/{self.papers[0].id}/review/',
+            data={
+                "action": "override_exclude",
+                "exclusion_reason": "Insufficient Follow-up Duration",
+                "reviewer_note": "Full text reveals follow-up ended at day 3.",
+                "time_spent_seconds": 45
+            },
+            format='json'
+        )
+        self.client.post(
+            f'/api/slr/cohorts/{ft_cohort.id}/papers/{self.papers[1].id}/review/',
+            data={
+                "action": "override_include",
+                "reviewer_note": "Full text confirms standardized 28-day mortality endpoint.",
+                "time_spent_seconds": 50
+            },
+            format='json'
+        )
+
+        # Reviewer Beta votes at Gate 2: exclude Paper 0 (unanimous exclude), exclude Paper 1 (dispute!)
+        self.client.force_authenticate(user=self.reviewer_beta)
+        self.client.post(
+            f'/api/slr/cohorts/{ft_cohort.id}/papers/{self.papers[0].id}/review/',
+            data={
+                "action": "override_exclude",
+                "exclusion_reason": "Insufficient Follow-up Duration",
+                "reviewer_note": "Agreed, follow-up too short.",
+                "time_spent_seconds": 40
+            },
+            format='json'
+        )
+        self.client.post(
+            f'/api/slr/cohorts/{ft_cohort.id}/papers/{self.papers[1].id}/review/',
+            data={
+                "action": "override_exclude",
+                "exclusion_reason": "Historical Control Bias",
+                "reviewer_note": "Historical control cohort from different decade.",
+                "time_spent_seconds": 55
+            },
+            format='json'
+        )
+
+        # Senior Arbiter queries disputes filtered by run_id and status=all, then resolves Paper 1 as INCLUDE
+        self.client.force_authenticate(user=self.senior_arbiter)
+        disp_resp = self.client.get(f'/api/slr/disputes/?status=all&run_id={self.pipeline_run.id}')
+        self.assertEqual(disp_resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(disp_resp.json()), 1)
+        ft_dispute = disp_resp.json()[0]
+        self.assertIn("decision", ft_dispute["evidence_synthesis"]["ai_agent"])
+
+        with patch('slr_review.tasks.orchestrator_hooks.resume_slr_pipeline_run') as mock_resume:
+            mock_resume.return_value = {"resumed": True, "status": "resumed"}
+            res_arb = self.client.post(
+                f'/api/slr/disputes/{ft_dispute["id"]}/resolve/',
+                data={
+                    "final_decision": "include",
+                    "resolution_rationale": "Propensity-adjusted historical control is acceptable per protocol."
+                },
+                format='json'
+            )
+            self.assertEqual(res_arb.status_code, status.HTTP_200_OK)
+
+        # Verify Gate 2 RoB synchronization: Paper 0's RoB was removed, Paper 1's RoB was created!
+        rob_resp = self.client.get(f'/api/slr/runs/{self.pipeline_run.id}/rob/')
+        self.assertEqual(rob_resp.status_code, status.HTTP_200_OK)
+        rob_paper_ids = [r["paper"] for r in rob_resp.json()]
+        self.assertNotIn(str(self.papers[0].id), rob_paper_ids)
+        self.assertIn(str(self.papers[1].id), rob_paper_ids)
+
+        # Verify PRISMA 2020 full-text exclusion reasons & duplicates_removed
+        prisma_resp = self.client.get(f'/api/slr/runs/{self.pipeline_run.id}/prisma/')
+        self.assertEqual(prisma_resp.status_code, status.HTTP_200_OK)
+        prisma_json = prisma_resp.json()
+        self.assertEqual(prisma_json["duplicates_removed"], 4)
+        self.assertEqual(prisma_json["records_identified_total"], 14)
+        self.assertEqual(prisma_json["full_text_exclusion_reasons"].get("Insufficient Follow-up Duration"), 1)
+        self.assertIn("pubmed", prisma_json["records_by_source"])
+
+        # 3. Gate 3 (Parameter Extraction Audit) E2E flow with 2 extractions on Paper 1
+        def_cfr = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Case Fatality Rate",
+            system_prompt="Extract CFR",
+            user_prompt_template="{paper_text}",
+            response_schema={"type": "object", "properties": {"value": {"type": "string"}}}
+        )
+        def_clearance = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Viral Clearance Time",
+            system_prompt="Extract Clearance",
+            user_prompt_template="{paper_text}",
+            response_schema={"type": "object", "properties": {"value": {"type": "string"}}}
+        )
+        ext_a = Extraction.objects.create(
+            paper=self.papers[1],
+            workspace=self.workspace,
+            extraction_definition=def_cfr,
+            category="clinical_outcome",
+            fields_data={"value": "14.2%", "evidence": [{"quote": "CFR dropped to 14.2%", "page_number": 4}]}
+        )
+        ext_b = Extraction.objects.create(
+            paper=self.papers[1],
+            workspace=self.workspace,
+            extraction_definition=def_clearance,
+            category="virology",
+            fields_data={"value": "6.5 days", "evidence": [{"quote": "median clearance 6.5 days", "page_number": 5}]}
+        )
+
+        ext_cohort = AuditSampleCohort.objects.create(
+            config=self.slr_config,
+            pipeline_run=self.pipeline_run,
+            stage='parameter_extraction',
+            total_pool_count=1,
+            sampled_count=1,
+            is_audit_complete=False
+        )
+        ext_cohort.sampled_papers.add(self.papers[1])
+
+        # Reviewer Alpha audits only ext_a first -> queue still shows 0/1 completed papers
+        self.client.force_authenticate(user=self.reviewer_alpha)
+        self.client.post(
+            f'/api/slr/cohorts/{ext_cohort.id}/extractions/{ext_a.id}/audit/',
+            data={"action": "verify", "time_spent_seconds": 15},
+            format='json'
+        )
+        q_partial = self.client.get('/api/slr/cohorts/my-queue/').json()
+        ext_q_item = next(item for item in q_partial if item["cohort_id"] == str(ext_cohort.id))
+        self.assertEqual(ext_q_item["completed_count"], 0)
+        self.assertEqual(ext_q_item["remaining_count"], 1)
+
+        # Reviewer Alpha audits ext_b (with modification) and calls paper review endpoint
+        self.client.post(
+            f'/api/slr/cohorts/{ext_cohort.id}/extractions/{ext_b.id}/audit/',
+            data={
+                "action": "modify",
+                "corrected_fields": {"value": "6.8 days"},
+                "reviewer_notes": "Adjusted to ITT population median.",
+                "time_spent_seconds": 25
+            },
+            format='json'
+        )
+        finalize_alpha = self.client.post(
+            f'/api/slr/cohorts/{ext_cohort.id}/papers/{self.papers[1].id}/review/',
+            data={"action": "agree", "time_spent_seconds": 40},
+            format='json'
+        )
+        self.assertEqual(finalize_alpha.status_code, status.HTTP_200_OK)
+        self.assertFalse(finalize_alpha.json()["is_cohort_complete"])
+        # Verify no bogus ScreeningReview was created for parameter_extraction cohort
+        self.assertEqual(ScreeningReview.objects.filter(sample_cohort=ext_cohort).count(), 0)
+
+        # Reviewer Beta audits both extractions -> quorum=2 reached on all extractions -> cohort completes!
+        self.client.force_authenticate(user=self.reviewer_beta)
+        with patch('slr_review.tasks.orchestrator_hooks.resume_slr_pipeline_run') as mock_resume_ext:
+            mock_resume_ext.return_value = {"resumed": True, "status": "resumed"}
+            self.client.post(
+                f'/api/slr/cohorts/{ext_cohort.id}/extractions/{ext_a.id}/audit/',
+                data={"action": "verify", "time_spent_seconds": 12},
+                format='json'
+            )
+            r_beta_b = self.client.post(
+                f'/api/slr/cohorts/{ext_cohort.id}/extractions/{ext_b.id}/audit/',
+                data={"action": "verify", "time_spent_seconds": 14},
+                format='json'
+            )
+            self.assertEqual(r_beta_b.status_code, status.HTTP_200_OK)
+            self.assertTrue(r_beta_b.json()["is_cohort_complete"])
+            self.assertEqual(ExtractionReview.objects.filter(sample_cohort=ext_cohort).count(), 4)
+

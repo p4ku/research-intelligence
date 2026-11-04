@@ -80,6 +80,13 @@ class HITLViewSet(viewsets.ModelViewSet):
         ).exists()
         if not has_access:
             raise PermissionDenied("You do not have access to this workspace.")
+        target_extraction = serializer.validated_data.get('extraction')
+        if target_extraction and target_extraction.workspace_id != hitl.extraction.workspace_id:
+            has_target_access = WorkspaceMember.objects.filter(
+                workspace=target_extraction.workspace, user=user
+            ).exists()
+            if not has_target_access:
+                raise PermissionDenied("You do not have access to the target extraction's workspace.")
         operator = serializer.validated_data.get('human_operator')
         if not operator:
             operator = getattr(self.request.user, 'email', '') or getattr(self.request.user, 'username', '') or 'system'

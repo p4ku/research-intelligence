@@ -9,12 +9,52 @@ interface RobTrafficLightMatrixProps {
 }
 
 const DOMAINS = [
-  { key: 'D1_randomization', label: 'D1: Randomization', short: 'D1' },
-  { key: 'D2_deviations', label: 'D2: Deviations', short: 'D2' },
-  { key: 'D3_missing_data', label: 'D3: Missing Data', short: 'D3' },
-  { key: 'D4_measurement', label: 'D4: Measurement', short: 'D4' },
-  { key: 'D5_selection', label: 'D5: Selection', short: 'D5' },
+  {
+    key: 'D1_randomization',
+    robinsKey: 'D1_confounding',
+    label: 'D1: Randomization',
+    robinsLabel: 'D1: Confounding',
+    short: 'D1',
+  },
+  {
+    key: 'D2_deviations',
+    robinsKey: 'D2_selection',
+    label: 'D2: Deviations',
+    robinsLabel: 'D2: Participant Selection',
+    short: 'D2',
+  },
+  {
+    key: 'D3_missing_data',
+    robinsKey: 'D5_missing_data',
+    label: 'D3: Missing Data',
+    robinsLabel: 'D3: Missing Data',
+    short: 'D3',
+  },
+  {
+    key: 'D4_measurement',
+    robinsKey: 'D6_measurement',
+    label: 'D4: Measurement',
+    robinsLabel: 'D4: Outcome Measurement',
+    short: 'D4',
+  },
+  {
+    key: 'D5_selection',
+    robinsKey: 'D7_reporting',
+    label: 'D5: Selection',
+    robinsLabel: 'D5: Reported Result',
+    short: 'D5',
+  },
 ]
+
+function resolveMatrixDomainEntry(
+  scores: Record<string, unknown>,
+  dom: (typeof DOMAINS)[number],
+): { rating?: string; quote?: string | null; page?: number | null } | string | undefined {
+  return (scores[dom.key] ?? scores[dom.robinsKey] ?? scores[dom.short]) as
+    | { rating?: string; quote?: string | null; page?: number | null }
+    | string
+    | undefined
+}
 
 function TrafficDot({ rating }: { rating?: string }) {
   const normalized = (rating || '').toLowerCase()
@@ -190,7 +230,7 @@ export function RobTrafficLightMatrix({ assessments }: RobTrafficLightMatrixProp
                     </td>
 
                     {DOMAINS.map((dom) => {
-                      const item = scores[dom.key]
+                      const item = resolveMatrixDomainEntry(scores, dom)
                       const rating = typeof item === 'object' ? item?.rating : item
                       return (
                         <td key={dom.key} className="px-2 py-3 text-center">
@@ -277,10 +317,12 @@ export function RobTrafficLightMatrix({ assessments }: RobTrafficLightMatrixProp
                 </span>
 
                 {DOMAINS.map((dom) => {
-                  const entry = selectedAssessment.domain_scores[dom.key]
+                  const entry = resolveMatrixDomainEntry(selectedAssessment.domain_scores, dom)
                   const rating = typeof entry === 'object' ? entry?.rating : entry
                   const quote = typeof entry === 'object' ? entry?.quote : null
                   const page = typeof entry === 'object' ? entry?.page : null
+                  const domLabel =
+                    selectedAssessment.framework === 'robins_i' ? dom.robinsLabel : dom.label
 
                   return (
                     <div
@@ -289,7 +331,7 @@ export function RobTrafficLightMatrix({ assessments }: RobTrafficLightMatrixProp
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-zinc-900 dark:text-white">
-                          {dom.label}
+                          {domLabel}
                         </span>
                         <TrafficDot rating={rating} />
                       </div>

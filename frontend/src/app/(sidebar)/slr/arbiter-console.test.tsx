@@ -43,4 +43,38 @@ describe('ArbiterConsole Component Rendering', () => {
     const html = renderToStaticMarkup(<ArbiterConsole disputes={[]} />)
     expect(html).toContain('No reviewer disputes found')
   })
+
+  test('renders structured quote objects without crashing and derives AI decision from status', () => {
+    const backendDispute = [
+      {
+        ...mockDisputes[0],
+        evidence_synthesis: {
+          reviewer_1: {
+            reviewer_name: 'Reviewer One',
+            decision: 'exclude',
+            exclusion_reason: 'Wrong Pathogen / Topic',
+            notes: 'Wrong virus.',
+            quotes: [{ quote: 'Structured quote object from PDF highlight', page_number: 2 }],
+          },
+          reviewer_2: {
+            reviewer_name: 'Reviewer Two',
+            decision: 'include',
+            notes: 'Relevant model.',
+            quotes: [{ quote: 'Second structured quote object', page_number: 5 }],
+          },
+          ai_agent: {
+            status: 'abstract_passed',
+            confidence: 0.91,
+            reasoning: 'Passed abstract screening.',
+          },
+        },
+      },
+    ]
+
+    const html = renderToStaticMarkup(<ArbiterConsole disputes={backendDispute} />)
+    expect(html).toContain('Structured quote object from PDF highlight')
+    expect(html).toContain('Second structured quote object')
+    expect(html).toContain('Reason: Wrong Pathogen / Topic')
+    expect(html).toContain('>include<')
+  })
 })

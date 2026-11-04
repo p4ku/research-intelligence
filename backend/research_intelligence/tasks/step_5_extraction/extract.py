@@ -649,10 +649,23 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
         from decimal import Decimal
         from ...llm_providers.pricing import calculate_llm_cost
 
-        cost = calculate_llm_cost(workspace.screening_llm_model, total_prompt_tokens, total_candidates_tokens)
+        if tokens_by_model:
+            cost = sum(
+                (calculate_llm_cost(m_name, m_usage["tokens_in"], m_usage["tokens_out"]) for m_name, m_usage in tokens_by_model.items()),
+                Decimal('0.0000')
+            )
+            primary_model_used = next(iter(tokens_by_model.keys())) if len(tokens_by_model) == 1 else ", ".join(tokens_by_model.keys())
+        else:
+            fallback_model = (
+                active_definitions[0].llm_model
+                if active_definitions and getattr(active_definitions[0], 'llm_model', None)
+                else workspace.screening_llm_model
+            )
+            cost = calculate_llm_cost(fallback_model, total_prompt_tokens, total_candidates_tokens)
+            primary_model_used = fallback_model
 
         component_run.metrics = {
-            "model_used": workspace.screening_llm_model,
+            "model_used": primary_model_used,
             "parallel_workers": worker_concurrency,
             "total_papers": len(papers),
             "total_definitions": len(active_definitions),

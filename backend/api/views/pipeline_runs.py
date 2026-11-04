@@ -418,6 +418,7 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
                 start_date=serializer.validated_data.get('start_date'),
                 end_date=serializer.validated_data.get('end_date'),
                 n_last_days=n_last_days,
+                pipeline_run_id=pr_id,
             )
         elif step_type == 'download':
             res_json = trigger_pdf_download_job_logic(

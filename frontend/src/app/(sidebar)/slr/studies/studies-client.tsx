@@ -19,12 +19,49 @@ interface SLRStudiesClientProps {
   initialRunId: string | null
 }
 
-const DOMAIN_LABELS: Record<string, string> = {
-  D1: 'Randomization process',
-  D2: 'Deviations from intended interventions',
-  D3: 'Missing outcome data',
-  D4: 'Measurement of the outcome',
-  D5: 'Selection of the reported result',
+const ROB_DOMAINS = [
+  {
+    key: 'D1_randomization',
+    robinsKey: 'D1_confounding',
+    short: 'D1',
+    label: 'Randomization process',
+    robinsLabel: 'Bias due to confounding',
+  },
+  {
+    key: 'D2_deviations',
+    robinsKey: 'D2_selection',
+    short: 'D2',
+    label: 'Deviations from intended interventions',
+    robinsLabel: 'Bias in selection of participants',
+  },
+  {
+    key: 'D3_missing_data',
+    robinsKey: 'D5_missing_data',
+    short: 'D3',
+    label: 'Missing outcome data',
+    robinsLabel: 'Bias due to missing data',
+  },
+  {
+    key: 'D4_measurement',
+    robinsKey: 'D6_measurement',
+    short: 'D4',
+    label: 'Measurement of the outcome',
+    robinsLabel: 'Bias in measurement of outcomes',
+  },
+  {
+    key: 'D5_selection',
+    robinsKey: 'D7_reporting',
+    short: 'D5',
+    label: 'Selection of the reported result',
+    robinsLabel: 'Bias in selection of the reported result',
+  },
+]
+
+function resolveDomainEntry(
+  scores: Record<string, unknown>,
+  dom: (typeof ROB_DOMAINS)[number],
+): unknown {
+  return scores[dom.key] ?? scores[dom.short] ?? scores[dom.robinsKey]
 }
 
 function BiasBadge({ rating }: { rating: string }) {
@@ -101,7 +138,10 @@ export function SLRStudiesClient({
         (study.paper_authors && study.paper_authors.toLowerCase().includes(q)) ||
         (study.paper_doi && study.paper_doi.toLowerCase().includes(q))
 
-      const matchesBias = biasFilter === 'all' || study.overall_bias === biasFilter
+      const matchesBias =
+        biasFilter === 'all' ||
+        study.overall_bias === biasFilter ||
+        (biasFilter === 'high_risk' && study.overall_bias === 'critical_risk')
       return matchesSearch && matchesBias
     })
   }, [robAssessments, searchQuery, biasFilter])
@@ -389,21 +429,27 @@ export function SLRStudiesClient({
 
                     <TableCell>
                       <div className="flex items-center gap-1.5">
-                        {['D1', 'D2', 'D3', 'D4', 'D5'].map((d) => {
-                          const dScore = scores[d]
-                          const rating = typeof dScore === 'object' && dScore !== null ? dScore.rating : dScore
+                        {ROB_DOMAINS.map((dom) => {
+                          const dScore = resolveDomainEntry(scores, dom) as
+                            | { rating?: string }
+                            | string
+                            | undefined
+                          const rating =
+                            typeof dScore === 'object' && dScore !== null ? dScore.rating : dScore
                           const color =
                             rating === 'low_risk'
                               ? 'bg-emerald-500'
                               : rating === 'some_concerns'
                                 ? 'bg-amber-400'
-                                : rating === 'high_risk'
+                                : rating === 'high_risk' || rating === 'critical_risk'
                                   ? 'bg-rose-500'
                                   : 'bg-zinc-300 dark:bg-zinc-600'
+                          const label =
+                            study.framework === 'robins_i' ? dom.robinsLabel : dom.label
                           return (
                             <span
-                              key={d}
-                              title={`${d}: ${DOMAIN_LABELS[d] || d} (${rating || 'unclear'})`}
+                              key={dom.short}
+                              title={`${dom.short}: ${label} (${rating || 'unclear'})`}
                               className={clsx('size-2 rounded-full cursor-help', color)}
                             />
                           )
@@ -477,20 +523,25 @@ export function SLRStudiesClient({
                 Grounding Evidence &amp; Domain Rationale
               </h4>
 
-              {['D1', 'D2', 'D3', 'D4', 'D5'].map((d) => {
-                const dData = selectedStudy.domain_scores[d]
+              {ROB_DOMAINS.map((dom) => {
+                const dData = resolveDomainEntry(selectedStudy.domain_scores, dom) as
+                  | { rating?: string; quote?: string | null; page?: number | null }
+                  | string
+                  | undefined
                 const rating = typeof dData === 'object' && dData !== null ? dData.rating : dData
                 const quote = typeof dData === 'object' && dData !== null ? dData.quote : null
                 const pageNum = typeof dData === 'object' && dData !== null ? dData.page : null
+                const label =
+                  selectedStudy.framework === 'robins_i' ? dom.robinsLabel : dom.label
 
                 return (
                   <div
-                    key={d}
+                    key={dom.short}
                     className="rounded-xl border border-zinc-200 bg-white p-3.5 shadow-2xs dark:border-zinc-800 dark:bg-zinc-900"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-zinc-900 dark:text-white">
-                        {d}: {DOMAIN_LABELS[d] || d}
+                        {dom.short}: {label}
                       </span>
                       <BiasBadge rating={rating || 'unclear'} />
                     </div>

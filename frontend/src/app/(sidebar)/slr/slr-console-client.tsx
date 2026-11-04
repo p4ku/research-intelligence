@@ -52,12 +52,18 @@ export function SlrConsoleClient({
     setIsLoading(true)
 
     try {
-      const [mRes, robRes] = await Promise.all([
+      const [mRes, robRes, dispRes] = await Promise.all([
         fetch(`/bff/slr/runs/${newRunId}/metrics`).then((r) => (r.ok ? r.json() : null)),
         fetch(`/bff/slr/runs/${newRunId}/rob`).then((r) => (r.ok ? r.json() : [])),
+        fetch(`/bff/slr/disputes?status=all&run_id=${encodeURIComponent(newRunId)}`).then((r) =>
+          r.ok ? r.json() : null,
+        ),
       ])
       setMetrics(mRes)
       setRobAssessments(robRes)
+      if (Array.isArray(dispRes)) {
+        setDisputes(dispRes)
+      }
     } catch {
       // Keep existing data on fetch failure
     } finally {
@@ -78,6 +84,17 @@ export function SlrConsoleClient({
           : d,
       ),
     )
+    if (selectedRunId) {
+      Promise.all([
+        fetch(`/bff/slr/runs/${selectedRunId}/metrics`).then((r) => (r.ok ? r.json() : null)),
+        fetch(`/bff/slr/runs/${selectedRunId}/rob`).then((r) => (r.ok ? r.json() : null)),
+      ])
+        .then(([mRes, robRes]) => {
+          if (mRes) setMetrics(mRes)
+          if (Array.isArray(robRes)) setRobAssessments(robRes)
+        })
+        .catch(() => {})
+    }
   }
 
   return (

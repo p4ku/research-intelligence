@@ -59,6 +59,7 @@ export const startRunRequestDTO = z.object({
   start_date: z.string().nullable(),
   end_date: z.string().nullable(),
   n_last_days: z.number().nullable(),
+  run_type: z.enum(['intelligence', 'slr']).optional(),
   autonomous: z.literal(true),
 })
 

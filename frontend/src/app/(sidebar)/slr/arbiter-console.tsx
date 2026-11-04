@@ -41,7 +41,29 @@ export function ArbiterConsole({ disputes, onDisputeResolved }: ArbiterConsolePr
   })
 
   const activeDispute =
-    disputes.find((d) => d.id === selectedDisputeId) || filteredDisputes[0] || null
+    filteredDisputes.find((d) => d.id === selectedDisputeId) ||
+    filteredDisputes[0] ||
+    disputes.find((d) => d.id === selectedDisputeId) ||
+    null
+
+  function extractQuoteText(q: unknown): string {
+    if (typeof q === 'string') return q
+    if (q && typeof q === 'object' && 'quote' in q) {
+      return String((q as { quote: unknown }).quote ?? '')
+    }
+    return String(q ?? '')
+  }
+
+  function resolveAiDecision(aiAgent: Record<string, unknown>): string {
+    if (typeof aiAgent.decision === 'string' && aiAgent.decision.trim()) {
+      return aiAgent.decision
+    }
+    const status = String(aiAgent.status ?? '').toLowerCase()
+    if (['abstract_passed', 'full_text_passed', 'accepted', 'include'].includes(status)) {
+      return 'include'
+    }
+    return 'exclude'
+  }
 
   async function handleResolve() {
     if (!activeDispute) return
@@ -181,6 +203,7 @@ export function ArbiterConsole({ disputes, onDisputeResolved }: ArbiterConsolePr
                       setErrorMessage(null)
                       setSuccessMessage(null)
                       setRationale(d.resolution_rationale || '')
+                      setExclusionReason(d.final_exclusion_reason || EXCLUSION_REASONS[0])
                       if (d.final_decision) setDecision(d.final_decision)
                     }}
                     className={clsx(
@@ -270,12 +293,17 @@ export function ArbiterConsole({ disputes, onDisputeResolved }: ArbiterConsolePr
                   <div className="mt-1.5 text-xs font-semibold text-zinc-900 dark:text-white">
                     {rev1.reviewer_name || 'Auditor 1'}
                   </div>
+                  {rev1.exclusion_reason && (
+                    <div className="mt-1 text-[11px] font-medium text-rose-600 dark:text-rose-400">
+                      Reason: {rev1.exclusion_reason}
+                    </div>
+                  )}
                   <p className="mt-2 text-[11px] leading-relaxed text-zinc-600 italic dark:text-zinc-300">
                     &ldquo;{rev1.notes || 'No specific reviewer notes entered.'}&rdquo;
                   </p>
                   {rev1.quotes && rev1.quotes.length > 0 && (
                     <div className="mt-2 rounded bg-zinc-50 p-2 text-[10px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                      <strong>Cited Quote:</strong> &ldquo;{rev1.quotes[0]}&rdquo;
+                      <strong>Cited Quote:</strong> &ldquo;{extractQuoteText(rev1.quotes[0])}&rdquo;
                     </div>
                   )}
                 </div>
@@ -310,7 +338,7 @@ export function ArbiterConsole({ disputes, onDisputeResolved }: ArbiterConsolePr
                   </p>
                   {rev2.quotes && rev2.quotes.length > 0 && (
                     <div className="mt-2 rounded bg-zinc-50 p-2 text-[10px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                      <strong>Cited Quote:</strong> &ldquo;{rev2.quotes[0]}&rdquo;
+                      <strong>Cited Quote:</strong> &ldquo;{extractQuoteText(rev2.quotes[0])}&rdquo;
                     </div>
                   )}
                 </div>
@@ -322,7 +350,7 @@ export function ArbiterConsole({ disputes, onDisputeResolved }: ArbiterConsolePr
                       AI Agent Baseline
                     </span>
                     <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800 uppercase dark:bg-blue-900 dark:text-blue-200">
-                      {ai.decision || 'Exclude'}
+                      {resolveAiDecision(ai)}
                     </span>
                   </div>
                   <div className="mt-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300">

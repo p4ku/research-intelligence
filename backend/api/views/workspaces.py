@@ -169,7 +169,8 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             autonomous=valid_data.get('autonomous', True),
             start_date=valid_data.get('start_date'),
             end_date=valid_data.get('end_date'),
-            n_last_days=n_last_days
+            n_last_days=n_last_days,
+            run_type=valid_data.get('run_type', 'intelligence'),
         )
         try:
             res_data = json.loads(res_json)
@@ -1166,6 +1167,13 @@ class ExtractionDefinitionViewSet(viewsets.ModelViewSet):
         ).exists()
         if not has_access:
             raise PermissionDenied("You do not have permission to manage extraction definitions in this workspace.")
+        target_workspace = serializer.validated_data.get('workspace')
+        if target_workspace and target_workspace != obj.workspace:
+            has_target_access = WorkspaceMember.objects.filter(
+                workspace=target_workspace, user=user, role__in=['admin', 'manager']
+            ).exists()
+            if not has_target_access:
+                raise PermissionDenied("You do not have permission to move extraction definitions to the target workspace.")
         serializer.save()
 
     def perform_destroy(self, instance):

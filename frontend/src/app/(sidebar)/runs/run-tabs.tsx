@@ -38,7 +38,7 @@ export function matches(run: PipelineRun, tab: Tab): boolean {
     case 'failed':
       return run.status === 'failed' || run.status === 'aborted'
     case 'running':
-      return run.status === 'running' || run.status === 'pending'
+      return run.status === 'running' || run.status === 'pending' || run.status === 'paused'
   }
 }
 

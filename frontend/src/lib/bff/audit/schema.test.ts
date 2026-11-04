@@ -3,7 +3,13 @@ import { describe, expect, mock, test } from 'bun:test'
 mock.module('server-only', () => ({}))
 
 import { mockCohortDetail1, mockPaperDetail1, mockQueueItems } from './fixtures'
-import { auditCohortDetail, auditPaperDetail, auditQueueItem, submitAuditDecision } from './schema'
+import {
+  auditCohortDetail,
+  auditPaperDetail,
+  auditQueueItem,
+  submitAuditDecision,
+  submitExtractionAuditDecision,
+} from './schema'
 
 describe('SLR Audit BFF Schemas', () => {
   test('auditQueueItem parses mock queue items cleanly', () => {
@@ -81,5 +87,40 @@ describe('SLR Audit BFF Service (Stub mode)', () => {
     })
     expect(res.status).toBe('reviewed')
     expect(res.decision).toBe('include')
+  })
+
+  test('submitExtractionReview validates and returns saved confirmation in stub mode', async () => {
+    process.env.BFF_SOURCE_AUDIT = 'stub'
+    const { audit } = await import('./service')
+    const extId = 'a0a80123-0000-4000-8000-000000000001'
+    const payload = submitExtractionAuditDecision.parse({
+      action: 'modify',
+      corrected_fields: { value: '2.15' },
+      verified_evidence_quotes: [{ quote: 'Adjusted R0 estimate of 2.15' }],
+      reviewer_notes: 'Updated to adjusted model value',
+      time_spent_seconds: 18,
+    })
+    const res = await audit.submitExtractionReview(mockCohortDetail1.cohort_id, extId, payload)
+    expect(res.status).toBe('saved')
+    expect(res.review_id).toBe(extId)
+    expect(res.action).toBe('modify')
+  })
+
+  test('POST /bff/slr/disputes/[disputeId]/resolve returns 400 validation Problem JSON on invalid rationale', async () => {
+    process.env.BFF_SOURCE_AUDIT = 'stub'
+    const { POST } = await import('@/app/bff/slr/disputes/[disputeId]/resolve/route')
+    const { NextRequest } = await import('next/server')
+    const req = new NextRequest('http://localhost/bff/slr/disputes/c0a80123-0000-4000-8000-000000000001/resolve', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        final_decision: 'exclude',
+        resolution_rationale: '', // Too short (min 3 chars)
+      }),
+    })
+    const res = await POST(req, {
+      params: Promise.resolve({ disputeId: 'c0a80123-0000-4000-8000-000000000001' }),
+    })
+    expect(res.status).toBe(400)
   })
 })

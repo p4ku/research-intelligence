@@ -60,7 +60,8 @@ def run_ocr_conversion(paper_id, output_format="markdown", paper_obj=None):
             paper.save(update_fields=['converted_md_path'])
             return {"success": True, "already_exists": True, "storage_path": target_path}
 
-        ocr_provider_name = paper.workspace.ocr_provider or "pypdf"
+        run_cfg = (paper.pipeline_run.configuration_override or {}) if paper.pipeline_run else {}
+        ocr_provider_name = run_cfg.get("ocr_provider") or paper.workspace.ocr_provider or "pypdf"
 
         # Check DocumentRegistry OCR Cache (Zero-Compute Fastpath)
         doc_reg = paper.document_registry
@@ -185,8 +186,10 @@ def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers:
 
     pipeline_run = component_run.pipeline_run
     workspace = pipeline_run.workspace
+    run_cfg = pipeline_run.configuration_override or {}
+    effective_ocr_provider = run_cfg.get("ocr_provider") if "ocr_provider" in run_cfg else workspace.ocr_provider
 
-    if not workspace.ocr_provider or str(workspace.ocr_provider).strip().lower() in ("none", ""):
+    if not effective_ocr_provider or str(effective_ocr_provider).strip().lower() in ("none", ""):
         logger.info(f"⏩ [OCR SKIPPED] Workspace '{workspace.name}' has no OCR provider configured. Skipping OCR (Direct Multimodal PDF mode).")
         component_run.status = 'skipped'
         component_run.completed_at = timezone.now()
@@ -296,7 +299,7 @@ def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers:
         job_duration_sec = round(time.time() - job_t0, 3)
 
         component_run.metrics = {
-            "ocr_provider": workspace.ocr_provider,
+            "ocr_provider": effective_ocr_provider,
             "parallel_workers": worker_concurrency,
             "total_processed": len(papers),
             "total_converted": converted_count,
@@ -305,7 +308,7 @@ def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers:
             "duration_seconds": job_duration_sec
         }
         component_run.output_data = {
-            "summary": f"Converted {converted_count} PDFs to Markdown using {workspace.ocr_provider}, skipped {skipped_count} existing, {failed_count} failed in {job_duration_sec}s.",
+            "summary": f"Converted {converted_count} PDFs to Markdown using {effective_ocr_provider}, skipped {skipped_count} existing, {failed_count} failed in {job_duration_sec}s.",
             "converted_papers": ocr_summary
         }
         component_run.raw_storage_path = f"workspaces/{workspace.id}/runs/{pipeline_run.id}/documents/"

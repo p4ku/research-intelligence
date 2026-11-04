@@ -121,7 +121,7 @@ export function AgreementKpiBanner({ metrics }: AgreementKpiBannerProps) {
           <span className="text-2xl font-bold tracking-tight text-zinc-950 dark:text-white">
             {sensitivity !== null && sensitivity !== undefined
               ? `${(sensitivity * 100).toFixed(1)}%`
-              : '100.0%'}
+              : 'N/A'}
           </span>
           <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
             Target &gt; 95%
@@ -146,7 +146,7 @@ export function AgreementKpiBanner({ metrics }: AgreementKpiBannerProps) {
           <span className="text-2xl font-bold tracking-tight text-zinc-950 dark:text-white">
             {specificity !== null && specificity !== undefined
               ? `${(specificity * 100).toFixed(1)}%`
-              : '92.0%'}
+              : 'N/A'}
           </span>
           <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
             High Rejection Rate

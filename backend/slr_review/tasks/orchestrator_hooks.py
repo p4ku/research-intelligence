@@ -174,9 +174,21 @@ def resume_slr_pipeline_run(pipeline_run_id_or_obj) -> Dict[str, Any]:
     try:
         from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
         from research_intelligence.tasks.orchestrator.agent_engine import run_pipeline_tick
-        safe_dispatch_on_commit(run_pipeline_tick, str(pipeline_run.id))
+        pr_id_str = str(pipeline_run.id)
+
+        def _dispatch_resume_tick():
+            try:
+                run_pipeline_tick.delay(pr_id_str)
+            except Exception:
+                PipelineRunner.tick(pipeline_run)
+
+        safe_dispatch_on_commit(_dispatch_resume_tick)
     except Exception:
         # Fallback to direct synchronous tick in testing environments
         PipelineRunner.tick(pipeline_run)
 
-    return {"resumed": True, "pipeline_run_id": str(pipeline_run.id)}
+    return {
+        "resumed": True,
+        "status": "resumed",
+        "pipeline_run_id": str(pipeline_run.id),
+    }
