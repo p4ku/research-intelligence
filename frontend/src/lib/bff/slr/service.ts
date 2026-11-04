@@ -42,9 +42,7 @@ export const slr = {
             ? (r.workspace as Record<string, unknown>)
             : undefined
         const wsId =
-          typeof r.workspace === 'string'
-            ? r.workspace
-            : String(ws?.id || r.workspace_id || '')
+          typeof r.workspace === 'string' ? r.workspace : String(ws?.id || r.workspace_id || '')
         const wsName =
           (typeof r.workspace_name === 'string' && r.workspace_name) ||
           (ws?.name as string) ||
@@ -56,7 +54,11 @@ export const slr = {
           new Date().toISOString()
         return {
           id: String(r.id),
-          name: (r.name as string) || (ws?.name as string) || (r.workspace_name as string) || `Run ${String(r.id).slice(0, 8)}`,
+          name:
+            (r.name as string) ||
+            (ws?.name as string) ||
+            (r.workspace_name as string) ||
+            `Run ${String(r.id).slice(0, 8)}`,
           workspace_id: wsId,
           workspace_name: wsName,
           status: String(r.status || 'unknown'),

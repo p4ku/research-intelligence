@@ -31,4 +31,3 @@ describe('RunTabs matches()', () => {
     expect(matches({ ...baseRun, status: 'failed' }, 'running')).toBe(false)
   })
 })
-

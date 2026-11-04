@@ -11,11 +11,7 @@ interface PrismaFlowDiagramProps {
   onSelectTab?: (tab: 'prisma' | 'arbiter' | 'rob') => void
 }
 
-export function PrismaFlowDiagram({
-  metrics,
-  runId,
-  onSelectTab,
-}: PrismaFlowDiagramProps) {
+export function PrismaFlowDiagram({ metrics, runId, onSelectTab }: PrismaFlowDiagramProps) {
   const [showAbstractReasons, setShowAbstractReasons] = useState(true)
   const [showFullTextReasons, setShowFullTextReasons] = useState(true)
 
@@ -415,7 +411,8 @@ export function PrismaFlowDiagram({
 
           <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 border-t border-emerald-200/60 pt-3 text-xs dark:border-emerald-900/40">
             <span className="text-emerald-950/80 dark:text-emerald-200/80">
-              Detailed catalogue with Risk of Bias appraisals, study authors, DOIs &amp; evidence grounding.
+              Detailed catalogue with Risk of Bias appraisals, study authors, DOIs &amp; evidence
+              grounding.
             </span>
             <div className="flex items-center gap-3">
               {onSelectTab && (

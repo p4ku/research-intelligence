@@ -11,4 +11,3 @@ export const POST = bff('audit', async (request, ctx) => {
   const result = await audit.submitExtractionReview(cohortId, extractionId, input)
   return Response.json(result, { status: 200 })
 })
-

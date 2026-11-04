@@ -153,7 +153,7 @@ export function AuditTable({ items }: { items: AuditQueueItem[] }) {
                 <TableHeader>Progress</TableHeader>
                 <TableHeader className="text-right">Remaining</TableHeader>
                 <TableHeader>Status</TableHeader>
-                <TableHeader className="text-right !pr-6 sm:!pr-6">Action</TableHeader>
+                <TableHeader className="!pr-6 text-right sm:!pr-6">Action</TableHeader>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -164,7 +164,9 @@ export function AuditTable({ items }: { items: AuditQueueItem[] }) {
                   <TableRow
                     key={item.cohort_id}
                     href={actionHref}
-                    title={isComplete ? `View ${item.briefing_name}` : `Review ${item.briefing_name}`}
+                    title={
+                      isComplete ? `View ${item.briefing_name}` : `Review ${item.briefing_name}`
+                    }
                     className="cursor-pointer transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                   >
                     <TableCell>
@@ -190,7 +192,7 @@ export function AuditTable({ items }: { items: AuditQueueItem[] }) {
                     <TableCell>
                       <StatusPill status={item.status} />
                     </TableCell>
-                    <TableCell className="text-right !pr-6 sm:!pr-6">
+                    <TableCell className="!pr-6 text-right sm:!pr-6">
                       <div className="flex justify-end pr-2">
                         <Button
                           href={actionHref}

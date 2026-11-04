@@ -6,7 +6,8 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Included Studies · PRISMA 2020 SLR',
-  description: 'Catalogue of empirical studies admitted to qualitative synthesis and meta-analysis.',
+  description:
+    'Catalogue of empirical studies admitted to qualitative synthesis and meta-analysis.',
 }
 
 interface SLRStudiesPageProps {

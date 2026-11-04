@@ -3,11 +3,7 @@
 import { Button } from '@/components/button'
 import { Select } from '@/components/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import type {
-  SLRPipelineRunItem,
-  SLRPRISMAMetrics,
-  SLRROBAssessment,
-} from '@/lib/bff/slr/schema'
+import type { SLRPipelineRunItem, SLRPRISMAMetrics, SLRROBAssessment } from '@/lib/bff/slr/schema'
 import clsx from 'clsx'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
@@ -106,7 +102,9 @@ export function SLRStudiesClient({
   const [metrics, setMetrics] = useState<SLRPRISMAMetrics | null>(initialMetrics)
   const [robAssessments, setRobAssessments] = useState<SLRROBAssessment[]>(initialRob)
   const [searchQuery, setSearchQuery] = useState('')
-  const [biasFilter, setBiasFilter] = useState<'all' | 'low_risk' | 'some_concerns' | 'high_risk'>('all')
+  const [biasFilter, setBiasFilter] = useState<'all' | 'low_risk' | 'some_concerns' | 'high_risk'>(
+    'all',
+  )
   const [selectedStudy, setSelectedStudy] = useState<SLRROBAssessment | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -202,8 +200,8 @@ export function SLRStudiesClient({
             </span>
           </div>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            Catalogue of empirical research meeting all dual-stage screening criteria and synthesized for{' '}
-            <strong>{selectedRun?.workspace_name || 'this workspace'}</strong>.
+            Catalogue of empirical research meeting all dual-stage screening criteria and
+            synthesized for <strong>{selectedRun?.workspace_name || 'this workspace'}</strong>.
           </p>
         </div>
 
@@ -233,11 +231,7 @@ export function SLRStudiesClient({
             Risk of Bias Matrix →
           </Button>
 
-          <Button
-            onClick={exportCsv}
-            color="dark/zinc"
-            className="text-xs font-semibold"
-          >
+          <Button onClick={exportCsv} color="dark/zinc" className="text-xs font-semibold">
             Export Studies (CSV)
           </Button>
         </div>
@@ -340,7 +334,7 @@ export function SLRStudiesClient({
             className={clsx(
               'rounded-md px-2.5 py-1 font-semibold transition-colors',
               biasFilter === 'some_concerns'
-                ? 'bg-amber-500 text-zinc-950 font-bold'
+                ? 'bg-amber-500 font-bold text-zinc-950'
                 : 'bg-amber-50 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300',
             )}
           >
@@ -390,23 +384,30 @@ export function SLRStudiesClient({
                 <TableHeader>PRISMA Stage</TableHeader>
                 <TableHeader>Overall Bias</TableHeader>
                 <TableHeader>Domain Quality</TableHeader>
-                <TableHeader className="text-right !pr-6 sm:!pr-6">Action</TableHeader>
+                <TableHeader className="!pr-6 text-right sm:!pr-6">Action</TableHeader>
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredStudies.map((study) => {
                 const scores = study.domain_scores || {}
                 return (
-                  <TableRow key={study.id} className="transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                  <TableRow
+                    key={study.id}
+                    className="transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                  >
                     <TableCell className="max-w-md">
-                      <div className="font-semibold text-zinc-900 dark:text-white line-clamp-2">
+                      <div className="line-clamp-2 font-semibold text-zinc-900 dark:text-white">
                         {study.paper_title}
                       </div>
                       <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
                         {study.paper_authors && <span>{study.paper_authors}</span>}
                         {study.paper_doi && (
                           <a
-                            href={study.paper_doi.startsWith('http') ? study.paper_doi : `https://doi.org/${study.paper_doi}`}
+                            href={
+                              study.paper_doi.startsWith('http')
+                                ? study.paper_doi
+                                : `https://doi.org/${study.paper_doi}`
+                            }
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:underline dark:text-blue-400"
@@ -444,20 +445,19 @@ export function SLRStudiesClient({
                                 : rating === 'high_risk' || rating === 'critical_risk'
                                   ? 'bg-rose-500'
                                   : 'bg-zinc-300 dark:bg-zinc-600'
-                          const label =
-                            study.framework === 'robins_i' ? dom.robinsLabel : dom.label
+                          const label = study.framework === 'robins_i' ? dom.robinsLabel : dom.label
                           return (
                             <span
                               key={dom.short}
                               title={`${dom.short}: ${label} (${rating || 'unclear'})`}
-                              className={clsx('size-2 rounded-full cursor-help', color)}
+                              className={clsx('size-2 cursor-help rounded-full', color)}
                             />
                           )
                         })}
                       </div>
                     </TableCell>
 
-                    <TableCell className="text-right !pr-6 sm:!pr-6">
+                    <TableCell className="!pr-6 text-right sm:!pr-6">
                       <div className="flex items-center justify-end gap-2 pr-2">
                         <Button
                           onClick={() => setSelectedStudy(study)}
@@ -486,7 +486,7 @@ export function SLRStudiesClient({
                 <span className="text-xs font-bold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
                   Methodological Quality Appraisal
                 </span>
-                <h3 className="mt-1 text-base font-bold text-zinc-950 dark:text-white line-clamp-2">
+                <h3 className="mt-1 line-clamp-2 text-base font-bold text-zinc-950 dark:text-white">
                   {selectedStudy.paper_title}
                 </h3>
               </div>
@@ -504,7 +504,9 @@ export function SLRStudiesClient({
             {/* Overall Verdict Banner */}
             <div className="mt-4 flex items-center justify-between rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/50">
               <div>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">Overall Synthesis Bias:</span>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Overall Synthesis Bias:
+                </span>
                 <div className="mt-1">
                   <BiasBadge rating={selectedStudy.overall_bias} />
                 </div>
@@ -531,8 +533,7 @@ export function SLRStudiesClient({
                 const rating = typeof dData === 'object' && dData !== null ? dData.rating : dData
                 const quote = typeof dData === 'object' && dData !== null ? dData.quote : null
                 const pageNum = typeof dData === 'object' && dData !== null ? dData.page : null
-                const label =
-                  selectedStudy.framework === 'robins_i' ? dom.robinsLabel : dom.label
+                const label = selectedStudy.framework === 'robins_i' ? dom.robinsLabel : dom.label
 
                 return (
                   <div
@@ -547,10 +548,10 @@ export function SLRStudiesClient({
                     </div>
 
                     {quote ? (
-                      <div className="mt-2 rounded-md bg-zinc-50 p-2.5 text-xs text-zinc-700 italic border-l-2 border-zinc-300 dark:bg-zinc-800/60 dark:text-zinc-300 dark:border-zinc-600">
+                      <div className="mt-2 rounded-md border-l-2 border-zinc-300 bg-zinc-50 p-2.5 text-xs text-zinc-700 italic dark:border-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-300">
                         &ldquo;{quote}&rdquo;
                         {pageNum && (
-                          <span className="ml-1 not-italic font-semibold text-zinc-500">
+                          <span className="ml-1 font-semibold text-zinc-500 not-italic">
                             (p. {pageNum})
                           </span>
                         )}

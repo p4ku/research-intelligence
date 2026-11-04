@@ -110,14 +110,17 @@ describe('SLR Audit BFF Service (Stub mode)', () => {
     process.env.BFF_SOURCE_AUDIT = 'stub'
     const { POST } = await import('@/app/bff/slr/disputes/[disputeId]/resolve/route')
     const { NextRequest } = await import('next/server')
-    const req = new NextRequest('http://localhost/bff/slr/disputes/c0a80123-0000-4000-8000-000000000001/resolve', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        final_decision: 'exclude',
-        resolution_rationale: '', // Too short (min 3 chars)
-      }),
-    })
+    const req = new NextRequest(
+      'http://localhost/bff/slr/disputes/c0a80123-0000-4000-8000-000000000001/resolve',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          final_decision: 'exclude',
+          resolution_rationale: '', // Too short (min 3 chars)
+        }),
+      },
+    )
     const res = await POST(req, {
       params: Promise.resolve({ disputeId: 'c0a80123-0000-4000-8000-000000000001' }),
     })

@@ -39,11 +39,13 @@ export function WorkspaceClient({ cohortId, paper, cohort }: WorkspaceClientProp
           }
         : null
 
+  const [prevPaperId, setPrevPaperId] = useState(paper.paper_id)
   const [activeEvidence, setActiveEvidence] = useState<ActiveEvidence | null>(initialEvidence)
 
-  useEffect(() => {
+  if (paper.paper_id !== prevPaperId) {
+    setPrevPaperId(paper.paper_id)
     setActiveEvidence(initialEvidence)
-  }, [paper.paper_id])
+  }
 
   // Prefetch adjacent paper routes to ensure zero-latency transitions
   useEffect(() => {
